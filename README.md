@@ -22,3 +22,15 @@ python3 -m http.server 8080 --directory source/build/web
 Open `http://localhost:8080`. Do not open `index.html` as a local file.
 
 The launch screen shows download progress, reports startup failures and waits for the main menu before showing the game. Empty map lists and small browser windows are handled without invalid pagination. The upstream repository does not bundle playable maps or implement multiplayer.
+
+## Browser data and map import
+
+Play at https://evaxle.github.io/Web-Rhythia/ using a desktop browser with WebGL 2 enabled. Launch the game, then drop an SSPM file onto the game or use **Import .sspm**. Imports support SSPM v1 and v2 with embedded audio, reject malformed files, detect duplicates, and update the library immediately. The per-file limit is 128 MiB. Return to the menu before importing. Gameplay starts paused; click Resume to grant mouse capture when needed.
+
+The browser port stores settings, maps, map cache, playlists, and replays under `user://WebRhythia`. Godot maps its `/userfs` filesystem to IndexedDB, with file changes synchronized to browser storage. Data belongs to this browser profile and site; clearing site data deletes it. Storage availability and save failures are shown in the page. Desktop paths remain supported for native builds.
+
+## Verification
+
+The build script and Pages workflow generate original SSPM v1/v2 fixtures, run the actual drop/import handler, validate notes and decoded audio duration, check duplicate and truncated-file handling, load gameplay, test pause/resume, save settings and a replay, and restore the map library. A separate Godot process verifies saved maps, settings, and replay restoration. Test fixtures are excluded from the published game.
+
+These headless tests exercise game code and filesystem persistence. They do not prove browser IndexedDB persistence, mouse capture, audio playback, or rendering. The available cloud browser reports WebGL 2 unavailable, so only the published launch screen and its unsupported-browser error have been verified there. Full interactive browser verification remains outstanding. Native test shutdown currently reports upstream resource cleanup warnings. Upstream multiplayer remains unfinished.

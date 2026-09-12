@@ -37,6 +37,14 @@ jobs:
       - name: Import and export
         run: |
           godot --headless --editor --path source --import
+          python3 source/tests/make_fixtures.py
+          test_data=$(mktemp -d)
+          timeout 30s env XDG_DATA_HOME="$test_data" godot --headless --path source tests/Integration.tscn 2>&1 | tee /tmp/integration.log
+          grep -q 'INTEGRATION_FAILURES=0' /tmp/integration.log
+          if grep -Eq 'SCRIPT ERROR|FAIL:' /tmp/integration.log; then exit 1; fi
+          timeout 30s env XDG_DATA_HOME="$test_data" godot --headless --path source tests/Restore.tscn 2>&1 | tee /tmp/restore.log
+          grep -q 'FRESH_PROCESS_RESTORE=true' /tmp/restore.log
+          if grep -Eq 'SCRIPT ERROR' /tmp/restore.log; then exit 1; fi
           mkdir -p source/build/web
           godot --headless --path source --export-release Web build/web/index.html 2>&1 | tee /tmp/export.log
           if grep -Eq "SCRIPT ERROR|Failed to load script|Parse Error" /tmp/export.log; then exit 1; fi

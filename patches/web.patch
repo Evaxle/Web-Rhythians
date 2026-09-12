@@ -1,6 +1,39 @@
+--- a/export_presets.cfg
++++ b/export_presets.cfg
+@@ -316,7 +316,7 @@
+ custom_features=""
+ export_filter="all_resources"
+ include_filter=""
+-exclude_filter=""
++exclude_filter="tests/*"
+ export_path="build/web/index.html"
+ encryption_include_filters=""
+ encryption_exclude_filters=""
+@@ -328,10 +328,11 @@
+ custom_template/debug=""
+ custom_template/release=""
+ variant/extensions_support=false
++variant/thread_support=false
+ vram_texture_compression/for_desktop=true
+-vram_texture_compression/for_mobile=false
++vram_texture_compression/for_mobile=true
+ html/export_icon=true
+-html/custom_html_shell=""
++html/custom_html_shell="res://web/shell.html"
+ html/head_include=""
+ html/canvas_resize_policy=2
+ html/focus_canvas_on_start=true
 --- a/project.godot
 +++ b/project.godot
-@@ -71,6 +71,7 @@
+@@ -46,6 +46,7 @@
+ Rhythia="*res://scripts/Rhythia.gd"
+ Multiplayer="*res://scripts/Multiplayer.gd"
+ XRViewport="*res://scripts/xr/XRViewport.gd"
++WebStorage="*res://scripts/web/WebStorage.gd"
+ 
+ [debug]
+ 
+@@ -71,6 +72,7 @@
  
  [editor]
  
@@ -8,7 +41,7 @@
  script/templates_search_path="res://scripts/templates"
  scene_naming=1
  script_templates_search_path="res://templates"
-@@ -132,11 +133,15 @@
+@@ -132,11 +134,15 @@
  [physics]
  
  2d/run_on_separate_thread=true
@@ -24,25 +57,50 @@
  occlusion_culling/bvh_build_quality=1
  textures/vram_compression/import_etc2_astc=true
  environment/defaults/default_clear_color=Color(0.0705882, 0.0705882, 0.0705882, 1)
---- a/export_presets.cfg
-+++ b/export_presets.cfg
-@@ -328,10 +328,11 @@
- custom_template/debug=""
- custom_template/release=""
- variant/extensions_support=false
-+variant/thread_support=false
- vram_texture_compression/for_desktop=true
--vram_texture_compression/for_mobile=false
-+vram_texture_compression/for_mobile=true
- html/export_icon=true
--html/custom_html_shell=""
-+html/custom_html_shell="res://web/shell.html"
- html/head_include=""
- html/canvas_resize_policy=2
- html/focus_canvas_on_start=true
+--- a/scripts/Globals.gd
++++ b/scripts/Globals.gd
+@@ -40,6 +40,9 @@
+ }
+ 
+ func update_paths():
++	if OS.has_feature("web"):
++		Paths.user = "user://WebRhythia"
++		DirAccess.make_dir_recursive_absolute(Paths.user)
+ 	Paths.executable = OS.get_executable_path()
+ 	if FileAccess.file_exists(Paths.executable.path_join(".sc")):
+ 		Paths.user = Paths.executable.path_join("data")
+@@ -52,6 +55,8 @@
+ 			RootPath.RES: Paths[key] = Paths.res.path_join(value[1])
+ 			RootPath.EXECUTABLE: Paths[key] = Paths.executable.path_join(value[1])
+ 			RootPath.SKIN: Paths[key] = Paths.skin.path_join(value[1])
++	for key in ["maps", "playlists", "replays"]:
++		DirAccess.make_dir_recursive_absolute(Paths[key])
+ 
+ enum AudioFormat {
+ 	UNKNOWN,
 --- a/scripts/Rhythia.gd
 +++ b/scripts/Rhythia.gd
-@@ -62,6 +62,10 @@
+@@ -27,6 +27,7 @@
+ 		var platform_default = "res://assets/settings/%s.json" % Globals.platform
+ 		if FileAccess.file_exists(platform_default):
+ 			settings = GameSettings.load_from_file(platform_default)
++	if OS.has_feature("web"): settings.fullscreen = false
+ 	first_time = settings.first_time
+ 
+ 	var callbacks = GameSettings.Callbacks.new()
+@@ -36,9 +37,10 @@
+ 	callbacks.reference()
+ func save_settings():
+ 	var exec_settings = OS.get_executable_path().get_base_dir().path_join("preferences.json")
+-	if FileAccess.file_exists(exec_settings): Globals.Paths.settings = exec_settings
++	if not OS.has_feature("web") and FileAccess.file_exists(exec_settings): Globals.Paths.settings = exec_settings
+ 
+ 	settings.save_to_file(Globals.Paths.settings)
++	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
+ 
+ # Init
+ var _initialised:bool = false
+@@ -62,6 +64,10 @@
  		return
  	_thread = _exec_initialiser("_reload")
  func _exec_initialiser(initialiser:String):
@@ -53,16 +111,300 @@
  	var thread = Thread.new()
  	var err = thread.start(Callable(self,initialiser),Thread.PRIORITY_HIGH)
  	assert(err == OK) #,"Thread failed")
---- a/scripts/menu/loading/Init.gd
-+++ b/scripts/menu/loading/Init.gd
-@@ -5,6 +5,7 @@
- @onready var tween:Tween = self.create_tween()
+--- a/scripts/content/Registry.gd
++++ b/scripts/content/Registry.gd
+@@ -20,7 +20,7 @@
+ 
+ func add_item(item:ResourcePlus):
+ 	assert(item.id)
+-	if items.has(item): return false
++	if items.has(item) or get_by_id(item.id) != null: return false
+ 	items.append(item)
+ 	on_item_added.emit(item)
+ 	return true
+@@ -28,7 +28,6 @@
+ func remove_item(item:ResourcePlus):
+ 	on_item_removed.emit(item)
+ 	items.remove_at(items.find(item))
+-	item.free()
+ func remove_by_id(id:String):
+ 	var ids = get_ids()
+ 	if !ids.has(id): return
+@@ -37,6 +36,4 @@
+ 	remove_item(item)
+ 
+ func clear():
+-	for item in items:
+-		item.free()
+ 	items.clear()
+--- a/scripts/content/maps/Mapset.gd
++++ b/scripts/content/maps/Mapset.gd
+@@ -19,7 +19,8 @@
+ 		var file = FileAccess.open(path, FileAccess.READ)
+ 		var image = _cover_from_file(file)
+ 		file.close()
+-		cover = ImageTexture.create_from_image(image)
++		if image != null and not image.is_empty():
++			cover = ImageTexture.create_from_image(image)
+ 		return cover
+ var audio:AudioStream:
+ 	get:
+@@ -27,7 +28,6 @@
+ 		var file = FileAccess.open(path, FileAccess.READ)
+ 		audio = _audio_from_file(file)
+ 		file.close()
+-		audio.call_deferred("unreference")
+ 		return audio
+ var length:float:
+ 	get:
+@@ -112,7 +112,7 @@
+ # Reading files
+ static func read_from_file(path:String,full:bool=false,index:int=0) -> Mapset: # Generate Mapset from file at path
+ 	var file = FileAccess.open(path,FileAccess.READ)
+-	assert(file != null)
++	if file == null: return null
+ 	var set = Mapset.new()
+ 	set.path = path
+ 	if file.get_buffer(4) == OLD_SIGNATURE:
+@@ -125,15 +125,14 @@
+ 		file.close()
+ 		return set
+ 	file.seek(0)
+-	assert(file.get_buffer(8) == SIGNATURE)
++	if file.get_buffer(8) != SIGNATURE: return null
+ 	set.format = 3
+ 	set._rhyt(file,full,index)
+ 	file.close()
+ 	return set
+ func _rhyt(file:FileAccess,full:bool,index:int=-1): # Load a v3 map
+ 	# Metadata
+-	var id = FileAccess.get_md5(file.get_path())
+-	id = id
++	id = FileAccess.get_md5(file.get_path())
+ 	var online_id_length = file.get_8() # Online ID
+ 	if online_id_length > 0: online_id = file.get_buffer(online_id_length).get_string_from_ascii()
+ 	var name_length = file.get_16() # Map name
+@@ -165,6 +164,7 @@
+ 		var data = file.get_buffer(data_length).get_string_from_utf8()
+ 		var hash_ctx = HashingContext.new()
+ 		hash_ctx.start(HashingContext.HASH_MD5)
++		hash_ctx.update(data.to_utf8_buffer())
+ 		map.id = hash_ctx.finish().hex_encode()
+ 		if full and (!indexed or index == i):
+ 			_deserialise_data(data,map)
+@@ -182,7 +182,7 @@
+ 	file.seek(file.get_position()+4) # skip last_ms
+ 	var note_count = file.get_32()
+ 	var difficulty = file.get_8()
+-	map.name = Map.DifficultyNames[difficulty]
++	map.name = Map.DifficultyNames.get(difficulty, "N/A")
+ 	# Cover
+ 	var cover_type = file.get_8()
+ 	match cover_type:
+@@ -193,12 +193,12 @@
+ 			var format = file.get_8()
+ 			var length = file.get_64()
+ 			var image = Image.create_from_data(width,height,mipmaps,format,file.get_buffer(length))
+-			cover = ImageTexture.create_from_image(image)
++			if image != null and not image.is_empty(): cover = ImageTexture.create_from_image(image)
+ 		2:
+ 			var image = Image.new()
+ 			var length = file.get_64()
+-			image.load_png_from_buffer(file.get_buffer(length))
+-			cover = ImageTexture.create_from_image(image)
++			if image.load_png_from_buffer(file.get_buffer(length)) == OK:
++				cover = ImageTexture.create_from_image(image)
+ 		_:
+ 			cover = Map.LegacyCovers.get(difficulty)
+ 	if file.get_8() != 1: # No music
+@@ -230,10 +230,10 @@
+ 	file.seek(0x26)
+ 	var marker_count = file.get_32()
+ 	var difficulty = file.get_8()
+-	map.name = Map.DifficultyNames[difficulty]
++	map.name = Map.DifficultyNames.get(difficulty, "N/A")
+ 	file.get_16()
+ 	if !bool(file.get_8()): # Does the map have music?
+-		map.broken = true
++		broken = true
+ 		return
+ 	var cover_exists = bool(file.get_8())
+ 	file.seek(0x40)
+@@ -267,8 +267,8 @@
+ 	if cover_exists:
+ 		file.seek(cover_offset)
+ 		var image = Image.new()
+-		image.load_png_from_buffer(file.get_buffer(cover_length))
+-		cover = ImageTexture.create_from_image(image)
++		if image.load_png_from_buffer(file.get_buffer(cover_length)) == OK:
++			cover = ImageTexture.create_from_image(image)
+ 	else:
+ 		cover = Map.LegacyCovers.get(difficulty)
+ 	# Audio
+@@ -301,7 +301,7 @@
+ 			marker.append_array([data_type,v])
+ 		markers[type[0]].append(marker)
+ 	if !markers.has("ssp_note"):
+-		map.broken = true
++		broken = true
+ 		return
+ 	for note_data in markers.get("ssp_note"):
+ 		if note_data[1] != 7: continue
+@@ -322,7 +322,7 @@
+ 		3: return file.get_32()
+ 		4: return file.get_64()
+ 		5: return file.get_float()
+-		6: return file.get_real()
++		6: return file.get_double()
+ 		7:
+ 			var value:Vector2
+ 			var t = file.get_8()
+@@ -361,11 +361,9 @@
+ 	var stream:AudioStream
+ 	match format:
+ 		Globals.AudioFormat.WAV:
+-			stream = AudioStreamWAV.new()
+-			stream.data = audio_buffer
++			stream = AudioStreamWAV.load_from_buffer(audio_buffer)
+ 		Globals.AudioFormat.OGG:
+-			stream = AudioStreamOggVorbis.new()
+-			stream.packet_sequence = Globals.get_ogg_packet_sequence(audio_buffer)
++			stream = AudioStreamOggVorbis.load_from_buffer(audio_buffer)
+ 		Globals.AudioFormat.MP3:
+ 			stream = AudioStreamMP3.new()
+ 			stream.data = audio_buffer
+@@ -388,11 +386,9 @@
+ 	var stream:AudioStream
+ 	match format:
+ 		Globals.AudioFormat.WAV:
+-			stream = AudioStreamWAV.new()
+-			stream.data = buffer
++			stream = AudioStreamWAV.load_from_buffer(buffer)
+ 		Globals.AudioFormat.OGG:
+-			stream = AudioStreamOggVorbis.new()
+-			stream.packet_sequence = Globals.get_ogg_packet_sequence(buffer)
++			stream = AudioStreamOggVorbis.load_from_buffer(buffer)
+ 		Globals.AudioFormat.MP3:
+ 			stream = AudioStreamMP3.new()
+ 			stream.data = buffer
+--- a/scripts/content/maps/MapsetLoader.gd
++++ b/scripts/content/maps/MapsetLoader.gd
+@@ -22,7 +22,8 @@
+ 	if cache_exists:
+ 		if Globals.debug: print("Found existing cache")
+ 		var cache_file = FileAccess.open(folder.path_join(".cache"),FileAccess.READ)
+-		cache = JSON.parse_string(cache_file.get_as_text())
++		var parsed_cache = JSON.parse_string(cache_file.get_as_text())
++		cache = parsed_cache if parsed_cache is Dictionary else {}
+ 		cache_file.close()
+ 		if cache.get("v",0) != CACHE_VERSION:
+ 			if Globals.debug: print("Cache is outdated")
+@@ -60,6 +61,7 @@
+ 			mapset = Mapset.read_from_file(full_path)
+ 			var _end = Time.get_ticks_usec()
+ 			if Globals.debug: print("Loaded v%s map from file in %sms" % [mapset.format,(_end-_start)/1000.0])
++		if mapset == null or mapset.broken: continue
+ 		mapset.path = full_path
+ 		maps.append(mapset)
+ 
+--- a/scripts/content/replays/Replay.gd
++++ b/scripts/content/replays/Replay.gd
+@@ -68,7 +68,7 @@
+ 
+ static func get_opcode_for(frame:Frame):
+ 	for opcode in Opcodes:
+-		var type = Opcodes[opcode]
++		var type = Opcodes.get(opcode)
+ 		if is_instance_of(frame, type): return opcode
+ 	return 0x00
+ 
+@@ -99,11 +99,12 @@
+ 		var data = frame._encode()
+ 		file.store_8(data.size())
+ 		if data.size() > 0: file.store_buffer(data)
++	file.close()
++	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
+ # Reading files
+ static func read_from_file(path:String) -> Replay: # Generate Replay from file at path
+ 	var file = FileAccess.open(path,FileAccess.READ)
+-	assert(file != null)
+-	assert(file.get_buffer(8) == SIGNATURE)
++	if file == null or file.get_buffer(8) != SIGNATURE: return null
+ #	file.get_line()
+ 	var replay = Replay.new()
+ 	# Map info
+@@ -120,7 +121,7 @@
+ 	for i in frame_count:
+ 		var opcode = file.get_8()
+ 		var frame:Frame
+-		var type = Opcodes[opcode]
++		var type = Opcodes.get(opcode)
+ 		if type != null:
+ 			frame = type.new()
+ 		else:
+--- a/scripts/game/GameScene.gd
++++ b/scripts/game/GameScene.gd
+@@ -24,6 +24,8 @@
+ @onready var local_player:bool = player.local_player
  
  func _ready():
-+	tween.stop()
- 	Rhythia.warning_seen = ProjectSettings.get_setting_with_override("application/startup/disable_health_warning")
- 	$Pre.modulate.a = 0
- 	$Post.modulate.a = 0
++	if OS.has_feature("web"):
++		call_deferred("_web_begin")
+ 	if replay != null:
+ 		mods = replay.mods
+ 		replay.read_settings(settings)
+@@ -116,3 +118,12 @@
+ 		sync_manager.seek(skip_time)
+ 		return
+ 	finish()
++
++func _web_begin():
++	JavaScriptBridge.eval("window.dispatchEvent(new Event('rhythia-game'))")
++	$PauseHandler.attempt_pause()
++	$PauseHandler.mouse_mode = Input.MOUSE_MODE_HIDDEN if settings.controls.absolute else Input.MOUSE_MODE_CAPTURED
++
++func _notification(what):
++	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and OS.has_feature("web") and is_node_ready() and not ended:
++		$PauseHandler.attempt_pause()
+--- a/scripts/game/managers/PauseHandler.gd
++++ b/scripts/game/managers/PauseHandler.gd
+@@ -37,7 +37,7 @@
+ 	mouse_position = $Control.get_global_mouse_position()
+ 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+ 	$Control.mouse_filter = Control.MOUSE_FILTER_STOP
+-	Input.warp_mouse($Control.get_viewport_rect().size*0.5)
++	if not OS.has_feature("web"): Input.warp_mouse($Control.get_viewport_rect().size*0.5)
+ 	if tween != null: tween.kill()
+ 	tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+ 	tween.tween_property($Control,"modulate:a",1,0.15)
+@@ -48,13 +48,12 @@
+ 	var now = Time.get_ticks_msec()
+ 	cooldown = now
+ 	Input.mouse_mode = mouse_mode
+-	Input.warp_mouse(mouse_position)
++	if not OS.has_feature("web"): Input.warp_mouse(mouse_position)
+ 	$Control.mouse_filter = Control.MOUSE_FILTER_PASS
+ 	if tween != null: tween.kill()
+ 	tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+ 	tween.tween_property($Control,"modulate:a",0,0.15)
+ 	tween.play()
+-	await get_tree().create_timer(0.15).timeout
+ 	await tween.finished
+ 	get_tree().paused = false
+ func attempt_restart():
+--- a/scripts/game/map/objects/PlayerObject.gd
++++ b/scripts/game/map/objects/PlayerObject.gd
+@@ -50,7 +50,9 @@
+ 	absolute_camera.fov = game.settings.controls.fov
+ 	if local_player: # and !get_tree().vr_enabled:
+ 		camera.make_current()
+-		if game.settings.controls.absolute:
++		if OS.has_feature("web"):
++			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
++		elif game.settings.controls.absolute:
+ 			Input.warp_mouse(get_viewport().size*0.5)
+ 			Input.mouse_mode = Input.MOUSE_MODE_CONFINED_HIDDEN
+ 		else:
 --- a/scripts/menu/Sidebar.gd
 +++ b/scripts/menu/Sidebar.gd
 @@ -8,6 +8,9 @@
@@ -88,9 +430,36 @@
  func _move_highlight(button):
  	var dest_y = button.global_position.y
  	highlight_tween.kill()
+--- a/scripts/menu/loading/Init.gd
++++ b/scripts/menu/loading/Init.gd
+@@ -5,6 +5,7 @@
+ @onready var tween:Tween = self.create_tween()
+ 
+ func _ready():
++	tween.stop()
+ 	Rhythia.warning_seen = ProjectSettings.get_setting_with_override("application/startup/disable_health_warning")
+ 	$Pre.modulate.a = 0
+ 	$Post.modulate.a = 0
+--- a/scripts/menu/maplist/MapDetails.gd
++++ b/scripts/menu/maplist/MapDetails.gd
+@@ -99,3 +99,6 @@
+ func _play_pressed():
+ 	var scene = Rhythia.load_game_scene(Rhythia.GameType.SOLO, selected_mapset, selected_map_index)
+ 	get_tree().change_scene_to_node(scene)
++
++func _exit_tree():
++	if is_instance_valid(origin_difficulty): origin_difficulty.free()
 --- a/scripts/menu/maplist/MapList.gd
 +++ b/scripts/menu/maplist/MapList.gd
-@@ -79,15 +79,13 @@
+@@ -15,6 +15,7 @@
+ var buttons = []
+ 
+ func _ready():
++	WebStorage.maps_changed.connect(_maps_changed)
+ 	button_container.remove_child(origin_button)
+ 	button_container.resized.connect(_on_container_resized)
+ 	_on_container_resized(button_container.size)
+@@ -79,15 +80,13 @@
  	_update_paginator()
  
  func _calculate_buttons_per_page(size):
@@ -110,7 +479,7 @@
  
  func _create_buttons():
  	if buttons.size() == buttons_per_page: return
-@@ -125,7 +123,14 @@
+@@ -125,7 +124,14 @@
  	mapset_selected.emit(button.get_meta("mapset"))
  
  func _update_paginator():
@@ -126,9 +495,516 @@
  func _first_paginator():
  	page = 0
  	_update_buttons()
+@@ -142,3 +148,10 @@
+ 	page = mini(max_page, page + 1)
+ 	_update_buttons()
+ 	_update_paginator()
++
++func _maps_changed():
++	mapsets = Rhythia.mapsets.items
++	_filter_updated("")
++
++func _exit_tree():
++	if is_instance_valid(origin_button): origin_button.free()
+--- a/scripts/menu/replays/LastReplayButton.gd
++++ b/scripts/menu/replays/LastReplayButton.gd
+@@ -4,10 +4,11 @@
+ var replay:Replay
+ 
+ func _ready():
+-	replay_exists = FileAccess.file_exists("user://recent.rhyr")
++	replay_exists = FileAccess.file_exists(Globals.Paths.user.path_join("recent.rhyr"))
+ 	disabled = !replay_exists
+ 	if replay_exists:
+-		replay = Replay.read_from_file("user://recent.rhyr")
++		replay = Replay.read_from_file(Globals.Paths.user.path_join("recent.rhyr"))
++		disabled = replay == null or replay.mapset == null
+ 
+ func _pressed():
+ 	var mapset:Mapset = replay.mapset
+--- a/scripts/menu/replays/ReplayList.gd
++++ b/scripts/menu/replays/ReplayList.gd
+@@ -20,8 +20,10 @@
+ 		DirAccess.make_dir_recursive_absolute(Globals.Paths.replays)
+ 	var dir = DirAccess.open(Globals.Paths.replays)
+ 	for file in dir.get_files():
++		if file.get_extension() != "rhyr": continue
+ 		var full_path = Globals.Paths.replays.path_join(file)
+ 		var replay = Replay.read_from_file(full_path)
++		if replay == null or replay.mapset == null: continue
+ 		replays.append(replay)
+ 		paths[replay] = full_path
+ 		dates[replay] = FileAccess.get_modified_time(full_path)
+@@ -71,4 +73,9 @@
+ 	var replay = button.get_meta("replay")
+ 	replays.erase(replay)
+ 	DirAccess.remove_absolute(paths[replay])
++	buttons.erase(button)
+ 	button.queue_free()
++	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
++
++func _exit_tree():
++	if is_instance_valid(origin_button): origin_button.free()
+--- a/scripts/menu/settings/SettingControl.gd
++++ b/scripts/menu/settings/SettingControl.gd
+@@ -66,6 +66,8 @@
+ func reset(value=get_setting()):
+ 	signal_emitter.set(property_name,value)
+ func signal_received(value):
++	if OS.has_feature("web") and target == ["fullscreen"]:
++		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if value else DisplayServer.WINDOW_MODE_WINDOWED)
+ 	set_setting(value)
+ 	$Container/Revert.visible = target_setting.value != target_setting.default
+ 
+--- a/scripts/settings/Setting.gd
++++ b/scripts/settings/Setting.gd
+@@ -43,6 +43,7 @@
+ 	set(_value):
+ 		if !validate_type(_value,type): _value = convert_type(_value,type)
+ 		if type == Type.CATEGORY: return false
++		if typeof(value) == typeof(_value) and value == _value: return false
+ 		value = _value
+ 		call_deferred("emit_signal","changed",value)
+ 		return true
+--- a/scripts/settings/Settings.gd
++++ b/scripts/settings/Settings.gd
+@@ -162,7 +162,10 @@
+ 	var data = {}
+ 	if FileAccess.file_exists(path):
+ 		var file = FileAccess.open(path, FileAccess.READ)
+-		data = JSON.parse_string(file.get_as_text())
++		if file != null:
++			var parsed = JSON.parse_string(file.get_as_text())
++			if parsed is Dictionary: data = parsed
++			file.close()
+ 	new_settings.load_from_data(data)
+ 	return new_settings
+ func save_to_file(path:String):
+--- a/scripts/settings/SettingsCallbacks.gd
++++ b/scripts/settings/SettingsCallbacks.gd
+@@ -48,6 +48,7 @@
+ var pre_fullscreen_size:Vector2
+ var pre_fullscreen_mode:int
+ func fullscreen(value:bool):
++	if OS.has_feature("web"): return
+ 	if value and window.mode != Window.MODE_EXCLUSIVE_FULLSCREEN:
+ 		pre_fullscreen_size = window.size
+ 		pre_fullscreen_mode = window.mode
+--- /dev/null
++++ b/scripts/web/SspmCheck.gd
+@@ -0,0 +1,181 @@
++extends RefCounted
++
++var bytes:PackedByteArray
++var pos:int = 0
++var error:String = ""
++
++func take(size:int) -> PackedByteArray:
++	if size < 0 or size > bytes.size() - pos:
++		error = "The map file is truncated or contains invalid offsets."
++		return PackedByteArray()
++	var result = bytes.slice(pos, pos + size)
++	pos += size
++	return result
++
++func number(size:int) -> int:
++	var value = take(size)
++	if value.size() != size: return 0
++	match size:
++		1: return value[0]
++		2: return value.decode_u16(0)
++		4: return value.decode_u32(0)
++		8: return value.decode_u64(0)
++	return 0
++
++func jump(offset:int):
++	if offset < 0 or offset > bytes.size():
++		error = "The map contains an invalid section offset."
++		return
++	pos = offset
++
++func text16() -> String:
++	return take(number(2)).get_string_from_utf8()
++
++func line() -> String:
++	var start = pos
++	while pos < bytes.size() and bytes[pos] != 10 and pos - start < 65536:
++		pos += 1
++	if pos == bytes.size() or pos - start >= 65536:
++		error = "The map has invalid metadata."
++		return ""
++	var value = bytes.slice(start, pos).get_string_from_utf8().strip_edges()
++	pos += 1
++	return value
++
++func position():
++	var mode = number(1)
++	if mode == 0:
++		take(2)
++	elif mode == 1:
++		var point = take(8)
++		if point.size() == 8 and (not is_finite(point.decode_float(0)) or not is_finite(point.decode_float(4))):
++			error = "The map contains invalid note positions."
++	else:
++		error = "The map contains an invalid position type."
++
++func field(type:int, depth:int = 0):
++	if not error.is_empty(): return
++	if depth > 8:
++		error = "The map metadata is nested too deeply."
++		return
++	match type:
++		1: take(1)
++		2: take(2)
++		3, 5: take(4)
++		4, 6: take(8)
++		7: position()
++		8, 9: take(number(2))
++		10, 11: take(number(4))
++		12:
++			var element_type = number(1)
++			var count = number(2)
++			for i in count:
++				field(element_type, depth + 1)
++				if not error.is_empty(): return
++		_: error = "The map uses an unsupported metadata type."
++
++func validate(data:PackedByteArray) -> String:
++	bytes = data
++	pos = 0
++	error = ""
++	if bytes.size() < 16 or take(4) != PackedByteArray([83, 83, 43, 109]):
++		return "This is not a valid SSPM file."
++	var version = number(2)
++	if version == 1: v1()
++	elif version == 2: v2()
++	else: return "Only SSPM versions 1 and 2 are supported."
++	return error
++
++func v1():
++	take(2)
++	if line().is_empty(): error = "The map has no ID."
++	line()
++	line()
++	take(4)
++	var count = number(4)
++	if count < 1 or count > 1000000:
++		error = "The map must contain between 1 and 1,000,000 notes."
++		return
++	number(1)
++	var cover = number(1)
++	if cover == 1:
++		var height = number(2)
++		var width = number(2)
++		take(2)
++		var size = number(8)
++		if width > 4096 or height > 4096 or size > 67108864:
++			error = "The map cover is too large."
++			return
++		take(size)
++	elif cover == 2: take(number(8))
++	elif cover != 0: error = "The map has an invalid cover type."
++	if number(1) != 1:
++		error = "The map needs embedded audio to play in the browser."
++		return
++	var audio_size = number(8)
++	if audio_size < 12: error = "The map audio is missing."
++	take(audio_size)
++	for i in count:
++		if not error.is_empty(): return
++		take(4)
++		position()
++
++func v2():
++	jump(0x26)
++	var count = number(4)
++	if count < 1 or count > 1000000:
++		error = "The map must contain between 1 and 1,000,000 markers."
++		return
++	take(3)
++	if number(1) != 1:
++		error = "The map needs embedded audio to play in the browser."
++		return
++	var has_cover = number(1)
++	jump(0x40)
++	var audio_offset = number(8)
++	var audio_size = number(8)
++	var cover_offset = number(8)
++	var cover_size = number(8)
++	var definition_offset = number(8)
++	jump(0x70)
++	var marker_offset = number(8)
++	jump(0x80)
++	if text16().is_empty(): error = "The map has no ID."
++	text16()
++	text16()
++	for i in number(2): text16()
++	for i in number(2):
++		text16()
++		field(number(1))
++		if not error.is_empty(): return
++	jump(audio_offset)
++	if audio_size < 12: error = "The map audio is missing."
++	take(audio_size)
++	if has_cover:
++		jump(cover_offset)
++		take(cover_size)
++	jump(definition_offset)
++	var types:Array = []
++	var note_type:int = -1
++	for i in number(1):
++		var label = text16()
++		var values:Array = []
++		for j in number(1): values.append(number(1))
++		if number(1) != 0: error = "The map has invalid marker definitions."
++		if label == "ssp_note" and not values.is_empty() and values[0] == 7: note_type = i
++		types.append(values)
++	if note_type < 0:
++		error = "The map contains no supported notes."
++		return
++	jump(marker_offset)
++	var notes = 0
++	for i in count:
++		if not error.is_empty(): return
++		take(4)
++		var type = number(1)
++		if type >= types.size():
++			error = "The map contains an invalid marker type."
++			return
++		if type == note_type: notes += 1
++		for value in types[type]: field(value)
++	if notes == 0: error = "The map contains no notes."
+--- /dev/null
++++ b/scripts/web/WebStorage.gd
+@@ -0,0 +1,71 @@
++extends Node
++
++const SspmCheck = preload("res://scripts/web/SspmCheck.gd")
++const MAX_MAP_BYTES = 134217728
++signal maps_changed
++var import_callback:JavaScriptObject
++var browser_window:JavaScriptObject
++
++func _ready():
++	if not OS.has_feature("web"): return
++	get_window().files_dropped.connect(_files_dropped)
++	browser_window = JavaScriptBridge.get_interface("window")
++	import_callback = JavaScriptBridge.create_callback(_browser_import)
++	browser_window.rhythiaImport = import_callback
++	browser_window.rhythiaStoragePersistent = OS.is_userfs_persistent()
++
++func _browser_import(args:Array):
++	if args.size() != 2 or not JavaScriptBridge.is_js_buffer(args[1]): return
++	var result = import_map(str(args[0]), JavaScriptBridge.js_buffer_to_packed_byte_array(args[1]))
++	browser_window.rhythiaImportResult(JSON.stringify(result))
++
++func _files_dropped(files:PackedStringArray):
++	for path in files:
++		var file = FileAccess.open(path, FileAccess.READ)
++		var result:Dictionary
++		if file == null:
++			result = {"ok": false, "message": "Could not open the dropped file."}
++		elif file.get_length() > MAX_MAP_BYTES:
++			result = {"ok": false, "message": "Maps must be smaller than 128 MiB."}
++		else:
++			result = import_map(path.get_file(), file.get_buffer(file.get_length()))
++		if file: file.close()
++		if browser_window: browser_window.rhythiaImportResult(JSON.stringify(result))
++
++func import_map(filename:String, data:PackedByteArray) -> Dictionary:
++	if Rhythia.loading or Rhythia.is_init:
++		return {"ok": false, "message": "Wait for the map menu before importing."}
++	if get_tree().current_scene and get_tree().current_scene.get_meta("is_game", false):
++		return {"ok": false, "message": "Return to the menu before importing maps."}
++	if filename.get_extension().to_lower() != "sspm":
++		return {"ok": false, "message": "Choose an .sspm map file."}
++	if data.size() > MAX_MAP_BYTES:
++		return {"ok": false, "message": "Maps must be smaller than 128 MiB."}
++	var validation = SspmCheck.new().validate(data)
++	if not validation.is_empty(): return {"ok": false, "message": validation}
++	var hash = HashingContext.new()
++	hash.start(HashingContext.HASH_SHA256)
++	hash.update(data)
++	var target = Globals.Paths.maps.path_join(hash.finish().hex_encode() + ".sspm")
++	if FileAccess.file_exists(target):
++		return {"ok": true, "message": "This map is already imported."}
++	var staged = Globals.Paths.user.path_join("import.tmp")
++	var file = FileAccess.open(staged, FileAccess.WRITE)
++	if file == null: return {"ok": false, "message": "Browser storage could not save this map."}
++	file.store_buffer(data)
++	file.close()
++	var mapset = Mapset.read_from_file(staged, true)
++	if mapset == null or mapset.broken or mapset.maps.is_empty() or mapset.maps[0].notes.is_empty() or mapset.audio == null or mapset.audio.get_length() <= 0:
++		DirAccess.remove_absolute(staged)
++		return {"ok": false, "message": "The map has no playable notes or its audio cannot be decoded."}
++	if Rhythia.mapsets.get_by_id(mapset.id) != null:
++		DirAccess.remove_absolute(staged)
++		return {"ok": true, "message": "A map with this ID is already imported."}
++	if DirAccess.rename_absolute(staged, target) != OK:
++		DirAccess.remove_absolute(staged)
++		return {"ok": false, "message": "Browser storage could not finish saving this map."}
++	mapset.path = target
++	Rhythia.mapsets.add_item(mapset)
++	maps_changed.emit()
++	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
++	return {"ok": true, "message": "Imported " + mapset.name + "."}
+--- /dev/null
++++ b/tests/Integration.gd
+@@ -0,0 +1,71 @@
++extends Node
++
++var failures:int = 0
++
++func _ready():
++	call_deferred("run")
++
++func check(value:bool, label:String):
++	if value: print("PASS: " + label)
++	else:
++		failures += 1
++		push_error("FAIL: " + label)
++
++func run():
++	await get_tree().process_frame
++	Globals.Paths.user = "user://test-web"
++	Globals.update_paths()
++	Rhythia.init()
++	await Rhythia.on_init_complete
++	var menu = load("res://scenes/Menu.tscn").instantiate()
++	get_tree().root.add_child(menu)
++	get_tree().current_scene = menu
++	await get_tree().process_frame
++	var validator = load("res://scripts/web/SspmCheck.gd").new()
++	for version in [1, 2]:
++		var path = "res://tests/fixtures/browser-test-v%s.sspm" % version
++		var bytes = FileAccess.get_file_as_bytes(path)
++		check(validator.validate(bytes).is_empty(), "validate SSPM v%s" % version)
++		var before = Rhythia.mapsets.items.size()
++		WebStorage._files_dropped(PackedStringArray([path]))
++		check(Rhythia.mapsets.items.size() == before + 1, "dropped map v%s registered" % version)
++		var mapset = Rhythia.mapsets.get_by_id("web-test-v%s" % version)
++		check(mapset != null and FileAccess.file_exists(mapset.path), "map saved to user data")
++		check(mapset.maps[0].notes.size() == 5, "notes decoded")
++		check(absf(mapset.audio.get_length() - 6.0) < 0.01, "audio decoded at correct duration")
++		var again = WebStorage.import_map(path, bytes)
++		check(again.ok and Rhythia.mapsets.items.size() == before + 1, "duplicate import is idempotent")
++		check(not validator.validate(bytes.slice(0, bytes.size() - 2)).is_empty(), "truncated notes rejected")
++	var result = WebStorage.import_map("broken.sspm", FileAccess.get_file_as_bytes("res://tests/fixtures/broken.sspm"))
++	check(not result.ok, "invalid map rejected")
++	Rhythia.settings.volume.master = 0.37
++	Rhythia.save_settings()
++	var saved = GameSettings.load_from_file(Globals.Paths.settings)
++	check(absf(saved.volume.master - 0.37) < 0.001, "settings round trip")
++	var fresh = Registry.new()
++	var loader = MapsetLoader.new(fresh)
++	loader.load_from_folder(Globals.Paths.maps)
++	check(fresh.items.size() == 2, "map library restored from user data")
++	loader.free()
++	var set = Rhythia.mapsets.get_by_id("web-test-v1")
++	Rhythia.selected_mods.no_fail = true
++	var game = Rhythia.load_game_scene(Rhythia.GameType.SOLO, set)
++	get_tree().root.add_child(game)
++	get_tree().current_scene = game
++	await get_tree().process_frame
++	await get_tree().process_frame
++	check(game.map.notes.size() == 5, "game scene loads imported notes")
++	game.replay_manager.stop()
++	var replay_path = Globals.Paths.user.path_join("recent.rhyr")
++	check(FileAccess.file_exists(replay_path), "replay written to user data")
++	var replay = Replay.read_from_file(replay_path)
++	check(replay != null and replay.mapset_id == set.id, "replay round trip")
++	game.get_node("PauseHandler").attempt_pause()
++	check(get_tree().paused, "pause works")
++	game.get_node("PauseHandler").attempt_resume()
++	await get_tree().create_timer(0.4).timeout
++	check(not get_tree().paused, "resume completes without hanging")
++	game.queue_free()
++	await get_tree().process_frame
++	print("INTEGRATION_FAILURES=" + str(failures))
++	get_tree().quit(1 if failures else 0)
+--- /dev/null
++++ b/tests/Integration.tscn
+@@ -0,0 +1,6 @@
++[gd_scene load_steps=2 format=3]
++
++[ext_resource type="Script" path="res://tests/Integration.gd" id="1"]
++
++[node name="Integration" type="Node"]
++script = ExtResource("1")
+--- /dev/null
++++ b/tests/Restore.gd
+@@ -0,0 +1,16 @@
++extends Node
++
++func _ready():
++	call_deferred("run")
++
++func run():
++	await get_tree().process_frame
++	Globals.Paths.user = "user://test-web"
++	Globals.update_paths()
++	Rhythia.init()
++	await Rhythia.on_init_complete
++	var settings = GameSettings.load_from_file(Globals.Paths.settings)
++	var replay = Replay.read_from_file(Globals.Paths.user.path_join("recent.rhyr"))
++	var success = Rhythia.mapsets.items.size() == 2 and absf(settings.volume.master - 0.37) < 0.001 and replay != null and replay.mapset != null
++	print("FRESH_PROCESS_RESTORE=" + str(success))
++	get_tree().quit(0 if success else 1)
+--- /dev/null
++++ b/tests/Restore.tscn
+@@ -0,0 +1,6 @@
++[gd_scene load_steps=2 format=3]
++
++[ext_resource type="Script" path="res://tests/Restore.gd" id="1"]
++
++[node name="Restore" type="Node"]
++script = ExtResource("1")
+--- /dev/null
++++ b/tests/make_fixtures.py
+@@ -0,0 +1,40 @@
++from pathlib import Path
++import io
++import math
++import struct
++import wave
++
++root = Path(__file__).parent / 'fixtures'
++root.mkdir(exist_ok=True)
++stream = io.BytesIO()
++with wave.open(stream, 'wb') as audio:
++    audio.setparams((1, 2, 22050, 0, 'NONE', 'not compressed'))
++    audio.writeframes(b''.join(struct.pack('<h', int(1200 * math.sin(2 * math.pi * 440 * i / 22050))) for i in range(6 * 22050)))
++track = stream.getvalue()
++notes = [(1000 * i, 1, 1) for i in range(1, 6)]
++pack = struct.pack
++v1 = b'SS+m' + pack('<HH', 1, 0) + b'web-test-v1\nBrowser Test V1\nWeb Rhythia Tests\n'
++v1 += pack('<IIBBBQ', 5000, len(notes), 1, 0, 1, len(track)) + track
++v1 += b''.join(pack('<IBBB', t, 0, x, y) for t, x, y in notes)
++(root / 'browser-test-v1.sspm').write_bytes(v1)
++def text(value):
++    value = value.encode()
++    return pack('<H', len(value)) + value
++v2 = bytearray(128)
++v2[:6] = b'SS+m' + pack('<H', 2)
++struct.pack_into('<III', v2, 0x1e, 5000, len(notes), len(notes))
++v2[0x2a] = 1
++v2[0x2d] = 1
++v2 += text('web-test-v2') + text('Browser Test V2') + text('Test Tone') + pack('<H', 1) + text('Web Rhythia Tests') + pack('<H', 0)
++definition_offset = len(v2)
++v2 += bytes([1]) + text('ssp_note') + bytes([1, 7, 0])
++audio_offset = len(v2)
++v2 += track
++marker_offset = len(v2)
++v2 += b''.join(pack('<IBBBB', t, 0, 0, x, y) for t, x, y in notes)
++struct.pack_into('<QQ', v2, 0x40, audio_offset, len(track))
++struct.pack_into('<Q', v2, 0x60, definition_offset)
++struct.pack_into('<Q', v2, 0x70, marker_offset)
++(root / 'browser-test-v2.sspm').write_bytes(v2)
++(root / 'broken.sspm').write_bytes(b'SS+m\x02\x00' + bytes(16))
++print(root)
 --- /dev/null
 +++ b/web/shell.html
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,173 @@
 +<!doctype html>
 +<html lang="en">
 +<head>
@@ -151,6 +1027,10 @@
 +#detail { font-size: 13px; min-height: 42px; overflow-wrap: anywhere; }
 +a { color: #b6ddff; }
 +footer { margin-top: 30px; font-size: 12px; color: #8595a6; }
++#tools { position: fixed; right: 12px; top: 12px; z-index: 5; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 90px); }
++#tools button { padding: 9px 14px; font-size: 13px; }
++#storage { font-size: 12px; color: #d7eaff; background: #17222fe8; padding: 8px; border-radius: 6px; }
++#message { position: fixed; bottom: 34px; right: 16px; max-width: min(480px, 90vw); background: #203344; padding: 14px; border-radius: 8px; z-index: 5; font-size: 14px; }
 +[hidden] { display: none !important; }
 +</style>
 +$GODOT_HEAD_INCLUDE
@@ -169,10 +1049,13 @@
 +<footer>Based on <a href="https://github.com/kermeow/RhythiaRewrite">RhythiaRewrite</a> · <a href="https://github.com/Evaxle/Web-Rhythia">Source &amp; licence</a></footer>
 +</main>
 +</div>
++<div id="tools" hidden><span id="storage"></span><button id="import" type="button">Import .sspm</button><input id="files" type="file" accept=".sspm" multiple hidden></div>
++<p id="message" role="status" aria-live="polite" hidden></p>
 +<noscript>Enable JavaScript to play Rhythia.</noscript>
 +<script src="$GODOT_URL"></script>
 +<script>
 +const config = $GODOT_CONFIG;
++config.persistentPaths = ['/userfs'];
 +const engine = new Engine(config);
 +const loading = document.getElementById('loading');
 +const start = document.getElementById('start');
@@ -181,6 +1064,56 @@
 +const retry = document.getElementById('retry');
 +let ready = false;
 +let failed = false;
++let importBusy = false;
++let importResolve;
++let messageTimer;
++const importButton = document.getElementById('import');
++const fileInput = document.getElementById('files');
++function notify(message) {
++  const box = document.getElementById('message');
++  box.textContent = message;
++  box.hidden = false;
++  clearTimeout(messageTimer);
++  messageTimer = setTimeout(() => { box.hidden = true; }, 10000);
++}
++window.rhythiaImportResult = text => {
++  const result = JSON.parse(text);
++  notify(result.message);
++  if (importResolve) {
++    importResolve(result);
++    importResolve = undefined;
++  }
++};
++importButton.addEventListener('click', () => fileInput.click());
++async function importFiles(files) {
++  if (importBusy || !ready) return;
++  importBusy = true;
++  importButton.disabled = true;
++  try {
++    for (const file of files) {
++      if (file.size > 128 * 1024 * 1024) { notify('Maps must be smaller than 128 MiB.'); continue; }
++      const data = await file.arrayBuffer();
++      await new Promise(resolve => {
++        importResolve = resolve;
++        window.rhythiaImport(file.name, data);
++      });
++    }
++  } catch (error) {
++    notify('Import failed: ' + error.message);
++  } finally {
++    importResolve = undefined;
++    importBusy = false;
++    importButton.disabled = false;
++    fileInput.value = '';
++  }
++}
++fileInput.addEventListener('change', () => importFiles(Array.from(fileInput.files)));
++window.addEventListener('dragover', event => event.preventDefault());
++window.addEventListener('drop', event => {
++  event.preventDefault();
++  if (!ready) notify('Launch the game before dropping a map.');
++  else if (event.target !== document.getElementById('canvas')) importFiles(Array.from(event.dataTransfer.files));
++});
 +
 +function fail(error) {
 +  if (ready || failed) return;
@@ -193,8 +1126,12 @@
 +}
 +
 +retry.addEventListener('click', () => location.reload());
++window.addEventListener('rhythia-game', () => { document.getElementById('tools').hidden = true; });
 +window.addEventListener('rhythia-ready', () => {
++  if (failed) return;
 +  ready = true;
++  document.getElementById('tools').hidden = false;
++  document.getElementById('storage').textContent = window.rhythiaStoragePersistent ? 'Maps and settings saved in this browser' : 'Storage unavailable — data will be lost on reload';
 +  document.body.dataset.gameState = 'ready';
 +  loading.hidden = true;
 +  document.getElementById('canvas').focus();
@@ -220,6 +1157,10 @@
 +      onPrintError(...args) {
 +        const message = args.join(' ');
 +        console.error(message);
++        if (/Failed to save IDB|IndexedDB not available/i.test(message)) {
++          document.getElementById('storage').textContent = 'Storage failed — changes may be lost on reload';
++          notify('Browser storage could not save your data. Check available space and site storage permissions.');
++        }
 +        if (/SCRIPT ERROR|Parse Error|Failed to instantiate|Failed to load script/.test(message)) fail(message);
 +      },
 +      onExit(code) {
