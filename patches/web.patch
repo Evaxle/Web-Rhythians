@@ -1,0 +1,44 @@
+--- a/project.godot
++++ b/project.godot
+@@ -132,11 +132,15 @@
+ [physics]
+ 
+ 2d/run_on_separate_thread=true
++2d/run_on_separate_thread.web=false
+ 3d/run_on_separate_thread=true
++3d/run_on_separate_thread.web=false
+ common/physics_ticks_per_second=128
+ 
+ [rendering]
+ 
++renderer/rendering_method="gl_compatibility"
++renderer/rendering_method.mobile="gl_compatibility"
+ occlusion_culling/bvh_build_quality=1
+ textures/vram_compression/import_etc2_astc=true
+ environment/defaults/default_clear_color=Color(0.0705882, 0.0705882, 0.0705882, 1)
+--- a/export_presets.cfg
++++ b/export_presets.cfg
+@@ -328,8 +328,9 @@
+ custom_template/debug=""
+ custom_template/release=""
+ variant/extensions_support=false
++variant/thread_support=false
+ vram_texture_compression/for_desktop=true
+-vram_texture_compression/for_mobile=false
++vram_texture_compression/for_mobile=true
+ html/export_icon=true
+ html/custom_html_shell=""
+ html/head_include=""
+--- a/scripts/Rhythia.gd
++++ b/scripts/Rhythia.gd
+@@ -62,6 +62,10 @@
+ 		return
+ 	_thread = _exec_initialiser("_reload")
+ func _exec_initialiser(initialiser:String):
++	if OS.has_feature("web"):
++		call_deferred("emit_signal", "on_init_start", initialiser)
++		call_deferred(initialiser)
++		return null
+ 	var thread = Thread.new()
+ 	var err = thread.start(Callable(self,initialiser),Thread.PRIORITY_HIGH)
+ 	assert(err == OK) #,"Thread failed")
