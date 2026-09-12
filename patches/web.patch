@@ -1,1268 +1,1147 @@
---- a/export_presets.cfg
+--- /dev/null
 +++ b/export_presets.cfg
-@@ -315,8 +315,8 @@
- dedicated_server=false
- custom_features=""
- export_filter="all_resources"
--include_filter=""
--exclude_filter=""
-+include_filter="bundled_maps/*"
-+exclude_filter="tests/*"
- export_path="build/web/index.html"
- encryption_include_filters=""
- encryption_exclude_filters=""
-@@ -328,10 +328,11 @@
- custom_template/debug=""
- custom_template/release=""
- variant/extensions_support=false
-+variant/thread_support=false
- vram_texture_compression/for_desktop=true
--vram_texture_compression/for_mobile=false
+@@ -0,0 +1,22 @@
++[preset.0]
++name="Web"
++platform="HTML5"
++runnable=true
++custom_features=""
++export_filter="all_resources"
++include_filter="bundled_maps/*.sspm"
++exclude_filter="web/*.js,web/*.css,web/*.html,web/*.b64,web/*.ico,web/tests/*,build/*,.git/*,addons/discord_game_sdk/*"
++export_path="build/web/game.html"
++script_export_mode=1
++
++[preset.0.options]
++custom_template/debug=""
++custom_template/release=""
++variant/export_type=0
++vram_texture_compression/for_desktop=true
 +vram_texture_compression/for_mobile=true
- html/export_icon=true
--html/custom_html_shell=""
 +html/custom_html_shell="res://web/shell.html"
- html/head_include=""
- html/canvas_resize_policy=2
- html/focus_canvas_on_start=true
++html/head_include=""
++html/canvas_resize_policy=2
++html/focus_canvas_on_start=true
++progressive_web_app/enabled=false
+--- a/prefabs/menu/filesel.tscn
++++ b/prefabs/menu/filesel.tscn
+@@ -4,10 +4,10 @@
+ [ext_resource path="res://assets/font/Noto_Sans_JP/NotoSansJP-Medium.otf" type="DynamicFontData" id=2]
+ [ext_resource path="res://assets/font/Lato/Lato-Regular.ttf" type="DynamicFontData" id=3]
+ [ext_resource path="res://scripts/ui/FileSelector.gd" type="Script" id=4]
+-[ext_resource path="res://addons/native_dialogs/bin/native_dialog_select_folder.gdns" type="Script" id=5]
++[ext_resource path="res://web/NativeDialogDisabled.gd" type="Script" id=5]
+ [ext_resource path="res://assets/font/NotoColorEmoji.ttf" type="DynamicFontData" id=6]
+-[ext_resource path="res://addons/native_dialogs/bin/native_dialog_open_file.gdns" type="Script" id=7]
+-[ext_resource path="res://addons/native_dialogs/bin/native_dialog_save_file.gdns" type="Script" id=8]
++[ext_resource path="res://web/NativeDialogDisabled.gd" type="Script" id=7]
++[ext_resource path="res://web/NativeDialogDisabled.gd" type="Script" id=8]
+ 
+ 
+ [sub_resource type="GDScript" id=1]
+--- a/prefabs/menu/settings_page.tscn
++++ b/prefabs/menu/settings_page.tscn
+@@ -6,7 +6,7 @@
+ [ext_resource path="res://assets/images/ui/reset_to_default.png" type="Texture" id=4]
+ [ext_resource path="res://scripts/ui/settings/UserDir.gd" type="Script" id=5]
+ [ext_resource path="res://scripts/ui/settings/NoteHitboxSize.gd" type="Script" id=6]
+-[ext_resource path="res://addons/native_dialogs/bin/native_dialog_save_file.gdns" type="Script" id=7]
++[ext_resource path="res://web/NativeDialogDisabled.gd" type="Script" id=7]
+ [ext_resource path="res://scripts/ui/settings/VolumeSetting.gd" type="Script" id=8]
+ [ext_resource path="res://scripts/ui/settings/HitEffect.gd" type="Script" id=9]
+ [ext_resource path="res://scripts/ui/settings/CursorSpin.gd" type="Script" id=10]
+@@ -45,7 +45,7 @@
+ [ext_resource path="res://assets/images/branding/sspicon.png" type="Texture" id=43]
+ [ext_resource path="res://scripts/ui/settings/NoteScale.gd" type="Script" id=44]
+ [ext_resource path="res://scripts/ui/settings/ReplaceCustomFile.gd" type="Script" id=45]
+-[ext_resource path="res://addons/native_dialogs/bin/native_dialog_open_file.gdns" type="Script" id=46]
++[ext_resource path="res://web/NativeDialogDisabled.gd" type="Script" id=46]
+ [ext_resource path="res://scripts/ui/settings/HitFOVAmplifier.gd" type="Script" id=47]
+ [ext_resource path="res://assets/images/error.jpg" type="Texture" id=48]
+ [ext_resource path="res://scripts/ui/settings/HitFOVDecay.gd" type="Script" id=49]
 --- a/project.godot
 +++ b/project.godot
-@@ -46,6 +46,7 @@
- Rhythia="*res://scripts/Rhythia.gd"
- Multiplayer="*res://scripts/Multiplayer.gd"
- XRViewport="*res://scripts/xr/XRViewport.gd"
-+WebStorage="*res://scripts/web/WebStorage.gd"
+@@ -260,7 +260,7 @@
+ 
+ [application]
+ 
+-config/name="Rhythia"
++config/name="Rhythians"
+ run/main_scene="res://scenes/init.tscn"
+ config/use_custom_user_dir=true
+ config/custom_user_dir_name="SoundSpacePlus"
+@@ -272,7 +272,7 @@
+ config/windows_native_icon="res://icon.ico"
+ config/quit_on_go_back=false
+ config/version="jun15-2026rc"
+-config/autoload_map_registries="test maps|res://test_assets/test_maps.sspmr;built in|res://content/songs/built_in_maps.sspmr"
++config/autoload_map_registries="built in|res://content/songs/built_in_maps.sspmr"
+ config/enable_new_content_mgr=true
+ config/default_menu_target="res://scenes/menu/menu2.tscn"
+ config/default_menu_target.mobile="res://scenes/menu/menu2.tscn"
+@@ -280,7 +280,7 @@
+ config/7zip_binary_path=""
+ config/7zip_binary_path.Windows="install_dir/util/7z.exe"
+ config/7zip_binary_path.X11="install_dir/util/7zz"
+-config/auto_maximize=true
++config/auto_maximize=false
+ config/auto_maximize.editor=false
+ config/use_custom_user_dir.Android=false
+ config/discord_rpc.OSX=false
+@@ -293,18 +293,18 @@
+ config/replays.editor=true
+ config/show_trail_debug=false
+ config/project_settings_override.standalone="user://override.cfg"
+-networking/enabled=true
++networking/enabled=false
+ networking/mapdb_api="https://cdn.rhythia.net/index.json"
+-networking/rhythians_url=""
++networking/rhythians_url="https://rhythians.vercel.app"
+ networking/test_url="https://google.com"
+ config/discord_rpc.HTML5=false
+ config/enable_new_content_mgr.HTML5=false
+-config/disable_native_file_dialogs=false
++config/disable_native_file_dialogs=true
+ config/disable_native_file_dialogs.Android=true
+ config/disable_native_file_dialogs.web=true
+ config/disable_native_file_dialogs.OSX=true
+ config/is_using_controller=true
+-config/discord_rpc=true
++config/discord_rpc=false
+ config/discord_rpc.editor=false
+ networking/github_repo="Rhythia/sound-space-plus"
+ 
+@@ -322,7 +322,8 @@
+ RQueue="*res://scripts/content/resources/ResourceQueue.gd"
+ Dance="*res://scripts/cursordance/Dance.gd"
+ SFXManager="*res://scripts/game/SFXManager.gd"
+-Discord="*res://addons/discord_game_sdk/discord.gd"
++Discord="*res://web/DiscordDisabled.gd"
++WebPortal="*res://web/Bridge.gd"
  
  [debug]
  
-@@ -71,6 +72,7 @@
+@@ -339,14 +340,13 @@
  
- [editor]
+ window/size/width=1280
+ window/size/height=720
+-window/vsync/use_vsync=false
+ window/handheld/orientation="sensor_landscape"
+ window/stretch/mode.mobile="2d"
+ window/stretch/aspect.mobile="keep_height"
  
-+import/use_multiple_threads=false
- script/templates_search_path="res://scripts/templates"
- scene_naming=1
- script_templates_search_path="res://templates"
-@@ -132,11 +134,15 @@
- [physics]
+ [editor_plugins]
  
- 2d/run_on_separate_thread=true
-+2d/run_on_separate_thread.web=false
- 3d/run_on_separate_thread=true
-+3d/run_on_separate_thread.web=false
- common/physics_ticks_per_second=128
+-enabled=PoolStringArray( "res://addons/discord_game_sdk/plugin.cfg", "res://addons/godot-openvr/plugin.cfg" )
++enabled=PoolStringArray(  )
+ 
+ [gdnative]
+ 
+@@ -535,7 +535,7 @@
+ 
+ [locale]
+ 
+-translations=PoolStringArray( "res://localization/localization.csv", "res://localization/localization.en.translation", "res://localization/localization.fr.translation", "res://localization/localization.ja.translation", "res://localization/localization.pl.translation", "res://localization/localization.es.translation", "res://localization/localization.it.translation" )
++translations=PoolStringArray( "res://localization/localization.en.translation", "res://localization/localization.fr.translation", "res://localization/localization.ja.translation", "res://localization/localization.pl.translation", "res://localization/localization.es.translation", "res://localization/localization.it.translation" )
+ locale_filter=[ 0, [ "en", "ja" ] ]
+ 
+ [logging]
+@@ -553,6 +553,7 @@
  
  [rendering]
  
-+renderer/rendering_method="gl_compatibility"
-+renderer/rendering_method.mobile="gl_compatibility"
- occlusion_culling/bvh_build_quality=1
- textures/vram_compression/import_etc2_astc=true
- environment/defaults/default_clear_color=Color(0.0705882, 0.0705882, 0.0705882, 1)
++quality/driver/driver_name="GLES2"
+ quality/driver/fallback_to_gles2=true
+ threads/thread_model=2
+ vram_compression/import_etc=true
+@@ -564,7 +565,7 @@
+ quality/reflections/texture_array_reflections=false
+ quality/filters/anisotropic_filter_level=2
+ 2d/options/use_software_skinning=false
+-quality/lightmapping/use_bicubic_sampling=false
+ environment/default_clear_color=Color( 0, 0, 0, 1 )
+ quality/filters/msaa=1
+ environment/default_environment="res://default_env.tres"
++quality/lightmapping/use_bicubic_sampling=false
 --- a/scripts/Globals.gd
 +++ b/scripts/Globals.gd
-@@ -39,7 +39,14 @@
- 	settings = [RootPath.USER, "preferences.json"]
- }
+@@ -654,9 +654,8 @@
  
-+var web_root:String = "user://WebRhythia"
-+var web_profiles_enabled:bool = OS.has_feature("web")
-+var active_profile:String = "default"
-+
- func update_paths():
-+	if web_profiles_enabled:
-+		Paths.user = web_root if active_profile == "default" else web_root.path_join("profiles").path_join(active_profile)
-+		DirAccess.make_dir_recursive_absolute(Paths.user)
- 	Paths.executable = OS.get_executable_path()
- 	if FileAccess.file_exists(Paths.executable.path_join(".sc")):
- 		Paths.user = Paths.executable.path_join("data")
-@@ -52,6 +59,9 @@
- 			RootPath.RES: Paths[key] = Paths.res.path_join(value[1])
- 			RootPath.EXECUTABLE: Paths[key] = Paths.executable.path_join(value[1])
- 			RootPath.SKIN: Paths[key] = Paths.skin.path_join(value[1])
-+	if web_profiles_enabled: Paths.maps = web_root.path_join("maps")
-+	for key in ["maps", "playlists", "replays"]:
-+		DirAccess.make_dir_recursive_absolute(Paths[key])
+ var cmdline:Dictionary = {}
+ func _ready():
+-	var thread = Thread.new()
+ 	Rhythia.is_init = true
+-	thread.start(Rhythia,"do_init")
++	Rhythia.call_deferred("do_init")
  
- enum AudioFormat {
- 	UNKNOWN,
+ 	var disable_intro = false
+ 	var file:File = File.new()
+@@ -668,7 +667,7 @@
+ 		file.close()
+ 		if !decode.error:
+ 			disable_intro = decode.result.has("disable_intro") and decode.result.disable_intro
+-	if !disable_intro: get_tree().call_deferred("change_scene","res://scenes/Intro.tscn")
++	if false: get_tree().call_deferred("change_scene","res://scenes/Intro.tscn")
+ 
+ 	url_regex.compile(
+ 		"((https?)://)[\\w\\-.]{2,256}(:\\d{1,5})?(/[\\w@:%._\\-+~&=]+)+/?"
+@@ -703,4 +702,4 @@
+ 		rootg.call_deferred("add_child",fps_disp)
+ 		fps_visible = true
+ 	#wait for thread
+-	thread.wait_to_finish()
++	pass
+--- a/scripts/Online.gd
++++ b/scripts/Online.gd
+@@ -354,12 +354,12 @@
+ 
+ func _ready():
+ 	add_child(netmaps_hr)
+-	netmaps_hr.use_threads = true
++	netmaps_hr.use_threads = false
+ 	netmaps_hr.timeout = 80
+ 	netmaps_hr.connect("request_completed",self,"_on_netmaps_request_completed")
+ 	
+ 	add_child(ctest_hr)
+-	ctest_hr.use_threads = true
++	ctest_hr.use_threads = false
+ 	ctest_hr.timeout = 5
+ 	ctest_hr.connect("request_completed",self,"_on_ctest_request_completed")
+ 	
+@@ -369,12 +369,12 @@
+ 	mapdl_hr.connect("request_completed",self,"_on_mapdl_request_completed")
+ 	
+ 	add_child(version_hr)
+-	version_hr.use_threads = true
++	version_hr.use_threads = false
+ 	version_hr.timeout = 5
+ 	version_hr.connect("request_completed",self,"_on_version_request_completed")
+ 	
+ 	add_child(update_hr)
+-	update_hr.use_threads = true
++	update_hr.use_threads = false
+ 	update_hr.timeout = 0
+ 	update_hr.connect("request_completed",self,"_on_update_request_completed")
+ 	
 --- a/scripts/Rhythia.gd
 +++ b/scripts/Rhythia.gd
-@@ -6,6 +6,7 @@
- @onready var worlds:Registry = preload("res://assets/content/Worlds.tres")
+@@ -132,7 +132,7 @@
+ var rainbow_t:float = 0 # Keep rainbow effects in perfect sync
+ var note_spin_t:float = 0 # Keep note spin settings in perfect sync
+ var alert:String = "" # Used for startup
+-var should_ask_about_replays:bool = true # Replay setting was not found, ask
++var should_ask_about_replays:bool = false # Replay setting was not found, ask
+ var do_archive_convert:bool = false # Has "Convert SS Archive" been pressed?
+ var conmgr_transit = null # Content manager transit data, can vary widely
+ var errornum:int = 0 # Used by settings file errors
+@@ -2255,6 +2255,7 @@
+ 		var li = 0
  
- var settings:GameSettings
-+var settings_callbacks:RefCounted
- var first_time:bool = false
+ 		var map_search_folders = [user_map_dir]
++		if dir.dir_exists("res://bundled_maps"): map_search_folders.append("res://bundled_maps")
+ 		err = file.open(Globals.p("user://map_folders.txt"),File.READ)
+ 		if err == OK:
+ 			var txt = file.get_as_text()
+@@ -2503,7 +2504,7 @@
+ 		emit_signal("init_stage_reached","Check VR status")
+ 		yield(get_tree(),"idle_frame")
  
- func _ready():
-@@ -27,18 +28,40 @@
- 		var platform_default = "res://assets/settings/%s.json" % Globals.platform
- 		if FileAccess.file_exists(platform_default):
- 			settings = GameSettings.load_from_file(platform_default)
-+	if OS.has_feature("web"): settings.fullscreen = false
- 	first_time = settings.first_time
+-		var interface = ARVRServer.find_interface("OpenVR")
++		var interface = null
+ 		if interface:
+ 			vr_interface = interface
+ 			vr_available = true
+--- a/scripts/Rhythian.gd
++++ b/scripts/Rhythian.gd
+@@ -79,7 +79,7 @@
+ 	_ensure_dirs()
+ 	_load_auth()
+ 	_load_registry()
+-	if logged_in:
++	if logged_in and not OS.has_feature("HTML5"):
+ 		refresh_status()
+ 		_flush_score_queue()
  
- 	var callbacks = GameSettings.Callbacks.new()
- 	callbacks.tree = get_tree()
- 	callbacks.window = get_window()
- 	callbacks.bind_to(settings)
--	callbacks.reference()
-+	settings_callbacks = callbacks
-+	callbacks.volume(settings.volume.master, "Master")
-+	callbacks.volume(settings.volume.music, "Music")
-+	callbacks.volume(settings.volume.sfx, "SFX")
-+	callbacks.set_fps(settings.fps_limit)
-+	callbacks.gui_scale(settings.gui_scale)
-+	_watch_settings(settings.settings)
-+
-+func _watch_settings(items:Dictionary):
-+	for setting in items.values():
-+		if setting.type == GameSettings.Setting.Type.CATEGORY: _watch_settings(setting.value)
-+		else: setting.changed.connect(func(_value): schedule_save())
-+var save_pending:bool = false
-+
-+func schedule_save():
-+	if save_pending: return
-+	save_pending = true
-+	await get_tree().create_timer(0.25, true).timeout
-+	if save_pending: save_settings()
-+
- func save_settings():
-+	save_pending = false
- 	var exec_settings = OS.get_executable_path().get_base_dir().path_join("preferences.json")
--	if FileAccess.file_exists(exec_settings): Globals.Paths.settings = exec_settings
-+	if not OS.has_feature("web") and FileAccess.file_exists(exec_settings): Globals.Paths.settings = exec_settings
+@@ -138,7 +138,7 @@
+ func _api_request(method:int, path:String, body=null, use_auth:bool=true, timeout:float=25.0) -> Dictionary:
+ 	var hr = HTTPRequest.new()
+ 	add_child(hr)
+-	hr.use_threads = true
++	hr.use_threads = false
+ 	hr.timeout = timeout
+ 	var headers = PoolStringArray([
+ 		"Content-Type: application/json",
+@@ -739,7 +739,7 @@
+ 		idx += 1
+ 		dl_req = HTTPRequest.new()
+ 		add_child(dl_req)
+-		dl_req.use_threads = true
++		dl_req.use_threads = false
+ 		dl_req.timeout = 120.0
+ 		var err = dl_req.request(dl_url, headers, true, HTTPClient.METHOD_GET)
+ 		if err != OK:
+@@ -868,32 +868,9 @@
+ 	return ""
  
- 	settings.save_to_file(Globals.Paths.settings)
-+	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
+ func on_song_ended(end_type:int):
+-	if end_type != Globals.END_PASS: return
+-	if not logged_in: return
+-	if Rhythia.replaying: return
++	if end_type != Globals.END_PASS or Rhythia.replaying or Rhythia.mod_nofail: return
+ 	if Rhythia.replay != null and Rhythia.replay.autoplayer: return
+-	var song = Rhythia.selected_song
+-	if song == null: return
+-	if not is_rhythian_map_path(str(song.filePath)): return
+-	var entry = registry.get(str(song.filePath).get_file(), null)
+-	if entry == null: return
+-	if entry.has("isRanked") or entry.has("isLegacy"):
+-		if not (bool(entry.get("isRanked", false)) or bool(entry.get("isLegacy", false))):
+-			return
+-	var total = max(Rhythia.song_end_total_notes, 1)
+-	var accuracy = (float(Rhythia.song_end_hits) / float(total)) * 100.0
+-	var payload = {
+-		"challengeMapId": str(entry.get("id","")),
+-		"accuracy": accuracy,
+-		"misses": int(Rhythia.song_end_misses),
+-		"speed": float(Globals.speed_multi[Rhythia.mod_speed_level]),
+-		"clientScoreId": _uuid(),
+-		"resultQualified": true,
+-		"completedAt": _iso_now(),
+-		"gameVersion": str(ProjectSettings.get_setting("application/config/version")),
+-		"integrationVersion": INTEGRATION_VERSION
+-	}
+-	_submit_score(payload)
++	WebPortal.finished()
  
- # Init
- var _initialised:bool = false
-@@ -62,6 +85,10 @@
- 		return
- 	_thread = _exec_initialiser("_reload")
- func _exec_initialiser(initialiser:String):
-+	if OS.has_feature("web"):
-+		call_deferred("emit_signal", "on_init_start", initialiser)
-+		call_deferred(initialiser)
-+		return null
- 	var thread = Thread.new()
- 	var err = thread.start(Callable(self,initialiser),Thread.PRIORITY_HIGH)
- 	assert(err == OK) #,"Thread failed")
-@@ -74,8 +101,11 @@
- 		DirAccess.make_dir_recursive_absolute(Globals.Paths.get("maps"))
- 	var loader = MapsetLoader.new(mapsets)
- 	loader.load_from_folder(Globals.Paths.get("maps"))
-+	if DirAccess.dir_exists_absolute("res://bundled_maps"):
-+		loader.load_from_folder("res://bundled_maps")
- 	for folder in settings.paths.maps:
- 		if DirAccess.dir_exists_absolute(folder): loader.load_from_folder(ProjectSettings.globalize_path(folder))
-+	loader.call_deferred("free")
- func _load_playlists(reset:bool=false):
- 	if reset: playlists.clear()
- 	var list_reader = PlaylistReader.new()
+ func _submit_score(payload:Dictionary):
+ 	var res = yield(_api_request(HTTPClient.METHOD_POST, "/api/rhythkit/scores", payload, true, 45.0), "completed")
 --- a/scripts/content/Registry.gd
 +++ b/scripts/content/Registry.gd
-@@ -20,7 +20,7 @@
+@@ -152,7 +152,9 @@
+ 	if regDisplayName == "": regDisplayName = path.get_base_dir().get_file()
+ 	print(path)
+ 	var file:File = File.new()
+-	file.open(path,File.READ)
++	if file.open(path,File.READ) != OK:
++		call_deferred("emit_signal", "done_loading_reg")
++		return
+ 	if regtype == Globals.REGISTRY_MAP:
+ 		var home_path:String = path.get_base_dir() + "/"
+ #		var home_path:String = "res://test_assets/"
+--- a/scripts/content/resources/AudioLoader.gd
++++ b/scripts/content/resources/AudioLoader.gd
+@@ -49,7 +49,7 @@
+ 		print("Unknown error with file ", filepath, " error code: ", err)
  
- func add_item(item:ResourcePlus):
- 	assert(item.id)
--	if items.has(item): return false
-+	if items.has(item) or get_by_id(item.id) != null: return false
- 	items.append(item)
- 	on_item_added.emit(item)
- 	return true
-@@ -28,7 +28,6 @@
- func remove_item(item:ResourcePlus):
- 	on_item_removed.emit(item)
- 	items.remove_at(items.find(item))
--	item.free()
- func remove_by_id(id:String):
- 	var ids = get_ids()
- 	if !ids.has(id): return
-@@ -37,6 +36,4 @@
- 	remove_item(item)
- 
- func clear():
--	for item in items:
--		item.free()
- 	items.clear()
---- a/scripts/content/maps/Mapset.gd
-+++ b/scripts/content/maps/Mapset.gd
-@@ -19,7 +19,8 @@
- 		var file = FileAccess.open(path, FileAccess.READ)
- 		var image = _cover_from_file(file)
- 		file.close()
--		cover = ImageTexture.create_from_image(image)
-+		if image != null and not image.is_empty():
-+			cover = ImageTexture.create_from_image(image)
- 		return cover
- var audio:AudioStream:
- 	get:
-@@ -27,7 +28,6 @@
- 		var file = FileAccess.open(path, FileAccess.READ)
- 		audio = _audio_from_file(file)
- 		file.close()
--		audio.call_deferred("unreference")
- 		return audio
- var length:float:
- 	get:
-@@ -112,7 +112,7 @@
- # Reading files
- static func read_from_file(path:String,full:bool=false,index:int=0) -> Mapset: # Generate Mapset from file at path
- 	var file = FileAccess.open(path,FileAccess.READ)
--	assert(file != null)
-+	if file == null: return null
- 	var set = Mapset.new()
- 	set.path = path
- 	if file.get_buffer(4) == OLD_SIGNATURE:
-@@ -125,15 +125,14 @@
- 		file.close()
- 		return set
- 	file.seek(0)
--	assert(file.get_buffer(8) == SIGNATURE)
-+	if file.get_buffer(8) != SIGNATURE: return null
- 	set.format = 3
- 	set._rhyt(file,full,index)
- 	file.close()
- 	return set
- func _rhyt(file:FileAccess,full:bool,index:int=-1): # Load a v3 map
- 	# Metadata
--	var id = FileAccess.get_md5(file.get_path())
--	id = id
-+	id = FileAccess.get_md5(file.get_path())
- 	var online_id_length = file.get_8() # Online ID
- 	if online_id_length > 0: online_id = file.get_buffer(online_id_length).get_string_from_ascii()
- 	var name_length = file.get_16() # Map name
-@@ -165,6 +164,7 @@
- 		var data = file.get_buffer(data_length).get_string_from_utf8()
- 		var hash_ctx = HashingContext.new()
- 		hash_ctx.start(HashingContext.HASH_MD5)
-+		hash_ctx.update(data.to_utf8_buffer())
- 		map.id = hash_ctx.finish().hex_encode()
- 		if full and (!indexed or index == i):
- 			_deserialise_data(data,map)
-@@ -179,10 +179,10 @@
- 	song = name
- 	creator = file.get_line()
- 	map.creator = creator
--	file.seek(file.get_position()+4) # skip last_ms
-+	length = file.get_32() / 1000.0
- 	var note_count = file.get_32()
- 	var difficulty = file.get_8()
--	map.name = Map.DifficultyNames[difficulty]
-+	map.name = Map.DifficultyNames.get(difficulty, "N/A")
- 	# Cover
- 	var cover_type = file.get_8()
- 	match cover_type:
-@@ -193,17 +193,18 @@
- 			var format = file.get_8()
- 			var length = file.get_64()
- 			var image = Image.create_from_data(width,height,mipmaps,format,file.get_buffer(length))
--			cover = ImageTexture.create_from_image(image)
-+			if image != null and not image.is_empty(): cover = ImageTexture.create_from_image(image)
- 		2:
- 			var image = Image.new()
- 			var length = file.get_64()
--			image.load_png_from_buffer(file.get_buffer(length))
--			cover = ImageTexture.create_from_image(image)
-+			if image.load_png_from_buffer(file.get_buffer(length)) == OK:
-+				cover = ImageTexture.create_from_image(image)
- 		_:
- 			cover = Map.LegacyCovers.get(difficulty)
- 	if file.get_8() != 1: # No music
- 		broken = true
- 		return
-+	if not full: return
- 	var music_length = file.get_64()
- 	var music_buffer = file.get_buffer(music_length)
- 	var music_format = _get_audio_format(music_buffer)
-@@ -227,13 +228,15 @@
- func _sspmv2(file:FileAccess,full:bool): # Load a v2 map
- 	var map = Map.new()
- 	maps = [map]
-+	file.seek(0x1e)
-+	length = file.get_32() / 1000.0
- 	file.seek(0x26)
- 	var marker_count = file.get_32()
- 	var difficulty = file.get_8()
--	map.name = Map.DifficultyNames[difficulty]
-+	map.name = Map.DifficultyNames.get(difficulty, "N/A")
- 	file.get_16()
- 	if !bool(file.get_8()): # Does the map have music?
--		map.broken = true
-+		broken = true
- 		return
- 	var cover_exists = bool(file.get_8())
- 	file.seek(0x40)
-@@ -267,10 +270,11 @@
- 	if cover_exists:
- 		file.seek(cover_offset)
- 		var image = Image.new()
--		image.load_png_from_buffer(file.get_buffer(cover_length))
--		cover = ImageTexture.create_from_image(image)
-+		if image.load_png_from_buffer(file.get_buffer(cover_length)) == OK:
-+			cover = ImageTexture.create_from_image(image)
- 	else:
- 		cover = Map.LegacyCovers.get(difficulty)
-+	if not full: return
- 	# Audio
- 	file.seek(audio_offset)
- 	_audio(file.get_buffer(audio_length))
-@@ -301,7 +305,7 @@
- 			marker.append_array([data_type,v])
- 		markers[type[0]].append(marker)
- 	if !markers.has("ssp_note"):
--		map.broken = true
-+		broken = true
- 		return
- 	for note_data in markers.get("ssp_note"):
- 		if note_data[1] != 7: continue
-@@ -322,7 +326,7 @@
- 		3: return file.get_32()
- 		4: return file.get_64()
- 		5: return file.get_float()
--		6: return file.get_real()
-+		6: return file.get_double()
- 		7:
- 			var value:Vector2
- 			var t = file.get_8()
-@@ -361,11 +365,9 @@
- 	var stream:AudioStream
- 	match format:
- 		Globals.AudioFormat.WAV:
--			stream = AudioStreamWAV.new()
--			stream.data = audio_buffer
-+			stream = AudioStreamWAV.load_from_buffer(audio_buffer)
- 		Globals.AudioFormat.OGG:
--			stream = AudioStreamOggVorbis.new()
--			stream.packet_sequence = Globals.get_ogg_packet_sequence(audio_buffer)
-+			stream = AudioStreamOggVorbis.load_from_buffer(audio_buffer)
- 		Globals.AudioFormat.MP3:
- 			stream = AudioStreamMP3.new()
- 			stream.data = audio_buffer
-@@ -388,11 +390,9 @@
- 	var stream:AudioStream
- 	match format:
- 		Globals.AudioFormat.WAV:
--			stream = AudioStreamWAV.new()
--			stream.data = buffer
-+			stream = AudioStreamWAV.load_from_buffer(buffer)
- 		Globals.AudioFormat.OGG:
--			stream = AudioStreamOggVorbis.new()
--			stream.packet_sequence = Globals.get_ogg_packet_sequence(buffer)
-+			stream = AudioStreamOggVorbis.load_from_buffer(buffer)
- 		Globals.AudioFormat.MP3:
- 			stream = AudioStreamMP3.new()
- 			stream.data = buffer
---- a/scripts/content/maps/MapsetLoader.gd
-+++ b/scripts/content/maps/MapsetLoader.gd
-@@ -22,7 +22,8 @@
- 	if cache_exists:
- 		if Globals.debug: print("Found existing cache")
- 		var cache_file = FileAccess.open(folder.path_join(".cache"),FileAccess.READ)
--		cache = JSON.parse_string(cache_file.get_as_text())
-+		var parsed_cache = JSON.parse_string(cache_file.get_as_text())
-+		cache = parsed_cache if parsed_cache is Dictionary else {}
- 		cache_file.close()
- 		if cache.get("v",0) != CACHE_VERSION:
- 			if Globals.debug: print("Cache is outdated")
-@@ -31,7 +32,7 @@
- 	# Load maps
- 	var maps = []
- 	for file in dir.get_files():
--		var extension = file.get_extension()
-+		var extension = file.get_extension().to_lower()
- 		if extension != "sspm" and extension != "rhym": continue
- 		var _start = Time.get_ticks_usec()
- 		var full_path = folder.path_join(file)
-@@ -59,7 +60,8 @@
- 			if Globals.debug: print(file)
- 			mapset = Mapset.read_from_file(full_path)
- 			var _end = Time.get_ticks_usec()
--			if Globals.debug: print("Loaded v%s map from file in %sms" % [mapset.format,(_end-_start)/1000.0])
-+			if Globals.debug and mapset != null: print("Loaded v%s map from file in %sms" % [mapset.format,(_end-_start)/1000.0])
-+		if mapset == null or mapset.broken: continue
- 		mapset.path = full_path
- 		maps.append(mapset)
- 
-@@ -81,10 +83,11 @@
- 			file_offsets = mapset.file_offsets,
- 			length = mapset.length
- 		}
--	if cache_exists: DirAccess.remove_absolute(folder.path_join(".cache"))
--	var cache_file = FileAccess.open(folder.path_join(".cache"),FileAccess.WRITE)
--	cache_file.store_string(JSON.stringify(new_cache,"",false))
--	cache_file.close()
-+	if not folder.begins_with("res://"):
-+		if cache_exists: DirAccess.remove_absolute(folder.path_join(".cache"))
-+		var cache_file = FileAccess.open(folder.path_join(".cache"),FileAccess.WRITE)
-+		cache_file.store_string(JSON.stringify(new_cache,"",false))
-+		cache_file.close()
- 	var _cache_end = Time.get_ticks_usec()
- 	if Globals.debug: print("Took %sms to save new cache" % [(_cache_end-_cache_start)/1000.0])
- 
---- a/scripts/content/replays/Replay.gd
-+++ b/scripts/content/replays/Replay.gd
-@@ -68,7 +68,7 @@
- 
- static func get_opcode_for(frame:Frame):
- 	for opcode in Opcodes:
--		var type = Opcodes[opcode]
-+		var type = Opcodes.get(opcode)
- 		if is_instance_of(frame, type): return opcode
- 	return 0x00
- 
-@@ -99,11 +99,12 @@
- 		var data = frame._encode()
- 		file.store_8(data.size())
- 		if data.size() > 0: file.store_buffer(data)
-+	file.close()
-+	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
- # Reading files
- static func read_from_file(path:String) -> Replay: # Generate Replay from file at path
- 	var file = FileAccess.open(path,FileAccess.READ)
--	assert(file != null)
--	assert(file.get_buffer(8) == SIGNATURE)
-+	if file == null or file.get_buffer(8) != SIGNATURE: return null
- #	file.get_line()
- 	var replay = Replay.new()
- 	# Map info
-@@ -120,7 +121,7 @@
- 	for i in frame_count:
- 		var opcode = file.get_8()
- 		var frame:Frame
--		var type = Opcodes[opcode]
-+		var type = Opcodes.get(opcode)
- 		if type != null:
- 			frame = type.new()
- 		else:
---- a/scripts/game/GameScene.gd
-+++ b/scripts/game/GameScene.gd
-@@ -24,6 +24,8 @@
- @onready var local_player:bool = player.local_player
- 
- func _ready():
-+	if OS.has_feature("web"):
-+		call_deferred("_web_begin")
- 	if replay != null:
- 		mods = replay.mods
- 		replay.read_settings(settings)
-@@ -116,3 +118,12 @@
- 		sync_manager.seek(skip_time)
- 		return
- 	finish()
-+
-+func _web_begin():
-+	JavaScriptBridge.eval("window.dispatchEvent(new Event('rhythia-game'))")
-+	$PauseHandler.attempt_pause()
-+	$PauseHandler.mouse_mode = Input.MOUSE_MODE_HIDDEN if settings.controls.absolute else Input.MOUSE_MODE_CAPTURED
-+
-+func _notification(what):
-+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and OS.has_feature("web") and is_node_ready() and not ended:
-+		$PauseHandler.attempt_pause()
---- a/scripts/game/managers/PauseHandler.gd
-+++ b/scripts/game/managers/PauseHandler.gd
-@@ -37,7 +37,7 @@
- 	mouse_position = $Control.get_global_mouse_position()
- 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
- 	$Control.mouse_filter = Control.MOUSE_FILTER_STOP
--	Input.warp_mouse($Control.get_viewport_rect().size*0.5)
-+	if not OS.has_feature("web"): Input.warp_mouse($Control.get_viewport_rect().size*0.5)
- 	if tween != null: tween.kill()
- 	tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
- 	tween.tween_property($Control,"modulate:a",1,0.15)
-@@ -48,13 +48,12 @@
- 	var now = Time.get_ticks_msec()
- 	cooldown = now
- 	Input.mouse_mode = mouse_mode
--	Input.warp_mouse(mouse_position)
-+	if not OS.has_feature("web"): Input.warp_mouse(mouse_position)
- 	$Control.mouse_filter = Control.MOUSE_FILTER_PASS
- 	if tween != null: tween.kill()
- 	tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
- 	tween.tween_property($Control,"modulate:a",0,0.15)
- 	tween.play()
--	await get_tree().create_timer(0.15).timeout
- 	await tween.finished
- 	get_tree().paused = false
- func attempt_restart():
---- a/scripts/game/map/objects/PlayerObject.gd
-+++ b/scripts/game/map/objects/PlayerObject.gd
-@@ -50,7 +50,9 @@
- 	absolute_camera.fov = game.settings.controls.fov
- 	if local_player: # and !get_tree().vr_enabled:
- 		camera.make_current()
--		if game.settings.controls.absolute:
-+		if OS.has_feature("web"):
-+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-+		elif game.settings.controls.absolute:
- 			Input.warp_mouse(get_viewport().size*0.5)
- 			Input.mouse_mode = Input.MOUSE_MODE_CONFINED_HIDDEN
- 		else:
---- a/scripts/menu/Sidebar.gd
-+++ b/scripts/menu/Sidebar.gd
-@@ -8,6 +8,9 @@
- @onready var pages = [ $Buttons/Play, $Buttons/Multi, $Buttons/Content, $Buttons/Credits, $Buttons/Settings ]
- 
- func _ready():
-+	tween.stop()
-+	highlight_tween.stop()
-+	$Buttons/Quit.visible = not OS.has_feature("web")
- 	$Open.connect("mouse_entered", show_bar)
- 	$Open.connect("pressed", show_bar)
- 	$"../SidebarClose".connect("mouse_entered", hide_bar)
-@@ -21,6 +24,12 @@
- 	$Buttons/Quit.connect("pressed", Callable(get_tree(),"call_deferred").bind("quit_animated"))
- 
- 	call_deferred("_move_highlight", pages[tabs.current_tab])
-+	if OS.has_feature("web"):
-+		call_deferred("_web_ready")
-+
-+func _web_ready():
-+	JavaScriptBridge.eval("window.dispatchEvent(new Event('rhythia-ready'))")
-+
- func _move_highlight(button):
- 	var dest_y = button.global_position.y
- 	highlight_tween.kill()
---- a/scripts/menu/loading/Init.gd
-+++ b/scripts/menu/loading/Init.gd
-@@ -5,6 +5,7 @@
- @onready var tween:Tween = self.create_tween()
- 
- func _ready():
-+	tween.stop()
- 	Rhythia.warning_seen = ProjectSettings.get_setting_with_override("application/startup/disable_health_warning")
- 	$Pre.modulate.a = 0
- 	$Post.modulate.a = 0
---- a/scripts/menu/maplist/MapDetails.gd
-+++ b/scripts/menu/maplist/MapDetails.gd
-@@ -99,3 +99,6 @@
- func _play_pressed():
- 	var scene = Rhythia.load_game_scene(Rhythia.GameType.SOLO, selected_mapset, selected_map_index)
- 	get_tree().change_scene_to_node(scene)
-+
-+func _exit_tree():
-+	if is_instance_valid(origin_difficulty): origin_difficulty.free()
---- a/scripts/menu/maplist/MapList.gd
-+++ b/scripts/menu/maplist/MapList.gd
-@@ -15,6 +15,7 @@
- var buttons = []
- 
- func _ready():
-+	WebStorage.maps_changed.connect(_maps_changed)
- 	button_container.remove_child(origin_button)
- 	button_container.resized.connect(_on_container_resized)
- 	_on_container_resized(button_container.size)
-@@ -79,15 +80,13 @@
- 	_update_paginator()
- 
- func _calculate_buttons_per_page(size):
--	var columns = floor(size.x / 500)
--	var rows = floor(size.y / 104)
-+	var columns = maxi(1, floori(size.x / 500))
-+	var rows = maxi(1, floori(size.y / 104))
- 	button_container.columns = columns
- 	buttons_per_page = columns * rows
- func _calculate_pages():
--	max_page = ceil(listed_mapsets.size() / buttons_per_page) - 1
--	page = mini(page, max_page)
+ func get_format(bytes:PoolByteArray) -> String:
+-	if bytes.size() < 10: return "unknown"
++	if bytes.size() < 12: return "unknown"
+ 	# Figure out file format from signatures
+ 	# https://en.wikipedia.org/wiki/List_of_file_signatures
+ 	
+@@ -57,10 +57,7 @@
+ 	
+ 	# .ogg
+ 	if bytes.subarray(0,3) == PoolByteArray([0x4F,0x67,0x67,0x53]): return "ogg"
+-	# .wav
+-	# doesn't load correctly atm
+-#	if (bytes.subarray(0,3) == PoolByteArray([0x52,0x49,0x46,0x46])
+-#	and bytes.subarray(8,11) == PoolByteArray([0x57,0x41,0x56,0x45])): return "wav"
++	if bytes.subarray(0,3) == PoolByteArray([82,73,70,70]) and bytes.subarray(8,11) == PoolByteArray([87,65,86,69]): return "wav"
+ 	# .mp3
+ 	if (bytes.subarray(0,1) == PoolByteArray([0xFF,0xFB])
+ 	or bytes.subarray(0,1) == PoolByteArray([0xFF,0xF3])
+@@ -75,94 +72,37 @@
+ 	
+ 	# if File is wav
+ 	if format == "wav":
+-		var newstream = AudioStreamSample.new()
 -
--	if page == -1 and max_page != -1: page = 0
-+	max_page = maxi(0, ceili(float(listed_mapsets.size()) / buttons_per_page) - 1)
-+	page = clampi(page, 0, max_page)
+-		#---------------------------
+-		#parrrrseeeeee!!! :D
+-		
+-		var bits_per_sample = 0
+-		
+-		for i in range(0, 100):
+-			var those4bytes = str(char(bytes[i])+char(bytes[i+1])+char(bytes[i+2])+char(bytes[i+3]))
+-			
+-#			if those4bytes == "RIFF": 
+-#				print ("RIFF OK at bytes " + str(i) + "-" + str(i+3))
+-				#RIP bytes 4-7 integer for now
+-#			if those4bytes == "WAVE": 
+-#				print ("WAVE OK at bytes " + str(i) + "-" + str(i+3))
+-
+-			if those4bytes == "fmt ":
+-#				print ("fmt OK at bytes " + str(i) + "-" + str(i+3))
+-				
+-				#get format subchunk size, 4 bytes next to "fmt " are an int32
+-				var formatsubchunksize = bytes[i+4] + (bytes[i+5] << 8) + (bytes[i+6] << 16) + (bytes[i+7] << 24)
+-#				print ("Format subchunk size: " + str(formatsubchunksize))
+-				
+-				#using formatsubchunk index so it's easier to understand what's going on
+-				var fsc0 = i+8 #fsc0 is byte 8 after start of "fmt "
+-
+-				#get format code [Bytes 0-1]
+-				var format_code = bytes[fsc0] + (bytes[fsc0+1] << 8)
+-				var format_name
+-				if format_code == 0: format_name = "8_BITS"
+-				elif format_code == 1: format_name = "16_BITS"
+-				elif format_code == 2: format_name = "IMA_ADPCM"
+-				else: 
+-					format_name = "UNKNOWN (trying to interpret as 16_BITS)"
+-					format_code = 1
+-#				print ("Format: " + str(format_code) + " " + format_name)
+-				#assign format to our AudioStreamSample
+-				newstream.format = format_code
+-				
+-				#get channel num [Bytes 2-3]
+-				var channel_num = bytes[fsc0+2] + (bytes[fsc0+3] << 8)
+-#				print ("Number of channels: " + str(channel_num))
+-				#set our AudioStreamSample to stereo if needed
+-				if channel_num == 2: newstream.stereo = true
+-				
+-				#get sample rate [Bytes 4-7]
+-				var sample_rate = bytes[fsc0+4] + (bytes[fsc0+5] << 8) + (bytes[fsc0+6] << 16) + (bytes[fsc0+7] << 24)
+-#				print ("Sample rate: " + str(sample_rate))
+-				#set our AudioStreamSample mixrate
+-				newstream.mix_rate = sample_rate
+-				
+-				#get byte_rate [Bytes 8-11] because we can
+-				var byte_rate = bytes[fsc0+8] + (bytes[fsc0+9] << 8) + (bytes[fsc0+10] << 16) + (bytes[fsc0+11] << 24)
+-#				print ("Byte rate: " + str(byte_rate))
+-				
+-				#same with bits*sample*channel [Bytes 12-13]
+-				var bits_sample_channel = bytes[fsc0+12] + (bytes[fsc0+13] << 8)
+-#				print ("BitsPerSample * Channel / 8: " + str(bits_sample_channel))
+-				
+-				#aaaand bits per sample/bitrate [Bytes 14-15]
+-				bits_per_sample = bytes[fsc0+14] + (bytes[fsc0+15] << 8)
+-#				print ("Bits per sample: " + str(bits_per_sample))
+-				
+-			if those4bytes == "data":
+-				assert(bits_per_sample != 0)
+-				
+-				var audio_data_size = bytes[i+4] + (bytes[i+5] << 8) + (bytes[i+6] << 16) + (bytes[i+7] << 24)
+-#				print ("Audio data/stream size is " + str(audio_data_size) + " bytes")
+-
+-				var data_entry_point = (i+8)
+-#				print ("Audio data starts at byte " + str(data_entry_point))
+-				
+-				var data = bytes.subarray(data_entry_point, data_entry_point+audio_data_size-1)
+-				
+-				if bits_per_sample in [24, 32]:
+-					newstream.data = convert_to_16bit(data, bits_per_sample)
+-				else:
+-					newstream.data = data
+-			# end of parsing
+-			#---------------------------
+-
+-		#get samples and set loop end
+-		var samplenum = newstream.data.size() / 4
+-		newstream.loop_end = samplenum
+-		newstream.loop_mode = int(loop)
+-		return newstream  #:D
+-
+-	#if file is ogg
++		var reader = StreamPeerBuffer.new()
++		reader.data_array = bytes
++		reader.big_endian = false
++		reader.seek(12)
++		var channels = 0
++		var rate = 0
++		var bits = 0
++		var pcm = PoolByteArray()
++		while reader.get_position() + 8 <= bytes.size():
++			var tag = reader.get_data(4)[1].get_string_from_ascii()
++			var size = reader.get_u32()
++			var start = reader.get_position()
++			if size > bytes.size() - start: return null
++			if tag == "fmt ":
++				if size < 16 or reader.get_u16() != 1: return null
++				channels = reader.get_u16()
++				rate = reader.get_u32()
++				reader.get_u32()
++				reader.get_u16()
++				bits = reader.get_u16()
++			elif tag == "data": pcm = reader.get_data(size)[1]
++			reader.seek(min(bytes.size(), start + size + size % 2))
++		if not channels in [1, 2] or not bits in [8, 16] or rate <= 0 or pcm.empty(): return null
++		if bits == 8:
++			for i in pcm.size(): pcm[i] = (int(pcm[i]) + 128) % 256
++		var stream = AudioStreamSample.new()
++		stream.format = AudioStreamSample.FORMAT_16_BITS if bits == 16 else AudioStreamSample.FORMAT_8_BITS
++		stream.mix_rate = rate
++		stream.stereo = channels == 2
++		stream.data = pcm
++		return stream
+ 	elif format == "ogg":
+ 		var newstream = AudioStreamOGGVorbis.new()
+ 		newstream.loop = loop #set to false or delete this line if you don't want to loop
+--- a/scripts/content/resources/ResourceQueue.gd
++++ b/scripts/content/resources/ResourceQueue.gd
+@@ -1,174 +1,42 @@
+ extends Node
+-#class_name ResourceQueue
  
- func _create_buttons():
- 	if buttons.size() == buttons_per_page: return
-@@ -125,7 +124,14 @@
- 	mapset_selected.emit(button.get_meta("mapset"))
+-var thread
+-var mutex
+-var semaphore
+-var exit_thread = false
++var pending = {}
++var queue = []
  
- func _update_paginator():
--	$Paginator/Label.text = "Page %s of %s" % [page + 1, max_page + 1]
-+	if listed_mapsets.is_empty():
-+		$Paginator/Label.text = "No maps found"
-+	else:
-+		$Paginator/Label.text = "Page %s of %s" % [page + 1, max_page + 1]
-+	$Paginator/First.disabled = page == 0
-+	$Paginator/Previous.disabled = page == 0
-+	$Paginator/Next.disabled = page == max_page
-+	$Paginator/Last.disabled = page == max_page
- func _first_paginator():
- 	page = 0
- 	_update_buttons()
-@@ -142,3 +148,10 @@
- 	page = mini(max_page, page + 1)
- 	_update_buttons()
- 	_update_paginator()
-+
-+func _maps_changed():
-+	mapsets = Rhythia.mapsets.items
-+	_filter_updated("")
-+
-+func _exit_tree():
-+	if is_instance_valid(origin_button): origin_button.free()
---- a/scripts/menu/replays/LastReplayButton.gd
-+++ b/scripts/menu/replays/LastReplayButton.gd
-@@ -4,10 +4,11 @@
- var replay:Replay
+-var time_max = 100 # Milliseconds.
++func queue_resource(path, front=false):
++	if pending.has(path): return OK
++	var loader = ResourceLoader.load_interactive(path)
++	if loader == null: return FAILED
++	pending[path] = loader
++	if front: queue.push_front(path)
++	else: queue.append(path)
++	return OK
+ 
+-var queue = []
+-var pending = {}
++func is_ready(path):
++	return pending.has(path) and not pending[path] is ResourceInteractiveLoader
+ 
+-func _lock(_caller):
+-	mutex.lock()
++func get_progress(path):
++	if not pending.has(path): return -1
++	var value = pending[path]
++	return float(value.get_stage()) / max(1, value.get_stage_count()) if value is ResourceInteractiveLoader else 1.0
+ 
+-
+-func _unlock(_caller):
+-	mutex.unlock()
+-
+-
+-func _post(_caller):
+-	semaphore.post()
+-
+-
+-func _wait(_caller):
+-	semaphore.wait()
+-
+-
+-func queue_resource(path, p_in_front = false):
+-	if Input.is_key_pressed(KEY_CONTROL) and Input.is_key_pressed(KEY_P): return ERR_SKIP
+-	_lock("queue_resource")
+-	if path in pending:
+-		_unlock("queue_resource")
+-		return OK
+-	elif ResourceLoader.has_cached(path):
+-		var res = ResourceLoader.load(path)
+-		pending[path] = res
+-		_unlock("queue_resource")
+-		return OK
+-	else:
+-		var res = ResourceLoader.load_interactive(path)
+-		if !res: return FAILED
+-		res.set_meta("path", path)
+-		if p_in_front:
+-			queue.insert(0, res)
+-		else:
+-			queue.push_back(res)
+-		pending[path] = res
+-		_post("queue_resource")
+-		_unlock("queue_resource")
+-		return OK
+-
++func get_resource(path):
++	if not pending.has(path): return load(path)
++	var value = pending[path]
++	if value is ResourceInteractiveLoader: return load(path)
++	pending.erase(path)
++	return value
+ 
+ func cancel_resource(path):
+-	_lock("cancel_resource")
+-	if path in pending:
+-		if pending[path] is ResourceInteractiveLoader:
+-			queue.erase(pending[path])
+-		pending.erase(path)
+-	_unlock("cancel_resource")
++	queue.erase(path)
++	pending.erase(path)
+ 
+-
+-func get_progress(path):
+-	_lock("get_progress")
+-	var ret = -1
+-	if path in pending:
+-		if pending[path] is ResourceInteractiveLoader:
+-			ret = float(pending[path].get_stage()) / float(pending[path].get_stage_count())
+-		else:
+-			ret = 1.0
+-	_unlock("get_progress")
+-	return ret
+-
+-
+-func is_ready(path):
+-	var ret
+-	_lock("is_ready")
+-	if path in pending:
+-		ret = !(pending[path] is ResourceInteractiveLoader)
+-	else:
+-		ret = false
+-	_unlock("is_ready")
+-	return ret
+-
+-
+-func _wait_for_resource(res, path):
+-	_unlock("wait_for_resource")
+-	while true:
+-		VisualServer.sync()
+-		OS.delay_usec(16000) # Wait approximately 1 frame.
+-		_lock("wait_for_resource")
+-		if queue.size() == 0 || queue[0] != res:
+-			return pending[path]
+-		_unlock("wait_for_resource")
+-
+-
+-func get_resource(path):
+-	_lock("get_resource")
+-	if path in pending:
+-		if pending[path] is ResourceInteractiveLoader:
+-			var res = pending[path]
+-			if res != queue[0]:
+-				var pos = queue.find(res)
+-				queue.remove(pos)
+-				queue.insert(0, res)
+-
+-			res = _wait_for_resource(res, path)
+-			pending.erase(path)
+-			_unlock("return")
+-			return res
+-		else:
+-			var res = pending[path]
+-			pending.erase(path)
+-			_unlock("return")
+-			return res
+-	else:
+-		_unlock("return")
+-		return ResourceLoader.load(path)
+-
+-
+-func thread_process():
+-	_wait("thread_process")
+-	
+-	_lock("process")
+-	while queue.size() > 0:
+-		var res = queue[0]
+-		_unlock("process_poll")
+-		var ret = OK
+-		if !Input.is_key_pressed(KEY_P): ret = res.poll()
+-		_lock("process_check_queue")
+-
+-		if ret == ERR_FILE_EOF || ret != OK:
+-			var path = res.get_meta("path")
+-			if path in pending: # Else, it was already retrieved.
+-				if ret == ERR_FILE_EOF:
+-					pending[res.get_meta("path")] = res.get_resource()
+-				else: pending[res.get_meta("path")] = false
+-			# Something might have been put at the front of the queue while
+-			# we polled, so use erase instead of remove.
+-			queue.erase(res)
+-	_unlock("process")
+-
+-
+-func thread_func(_u):
+-	while true:
+-		mutex.lock()
+-		var should_exit = exit_thread # Protect with Mutex.
+-		mutex.unlock()
+-
+-		if should_exit:
+-			break
+-		thread_process()
+-
+-
+-func start():
+-	mutex = Mutex.new()
+-	semaphore = Semaphore.new()
+-	thread = Thread.new()
+-	thread.start(self, "thread_func", 0)
+-
+-# Triggered by calling "get_tree().quit()".
+-func _exit_tree():
+-	mutex.lock()
+-	exit_thread = true # Protect with Mutex.
+-	mutex.unlock()
+-
+-	# Unblock by posting.
+-	semaphore.post()
+-
+-	# Wait until it exits.
+-	thread.wait_to_finish()
+-
+-func _ready(): start()
++func _process(_delta):
++	var until = OS.get_ticks_usec() + 4000
++	while not queue.empty() and OS.get_ticks_usec() < until:
++		var path = queue[0]
++		var loader = pending[path]
++		var result = loader.poll()
++		if result != OK:
++			pending[path] = loader.get_resource() if result == ERR_FILE_EOF else null
++			queue.pop_front()
+--- a/scripts/game/Game.gd
++++ b/scripts/game/Game.gd
+@@ -276,6 +276,7 @@
+ 
  
  func _ready():
--	replay_exists = FileAccess.file_exists("user://recent.rhyr")
-+	replay_exists = FileAccess.file_exists(Globals.Paths.user.path_join("recent.rhyr"))
- 	disabled = !replay_exists
- 	if replay_exists:
--		replay = Replay.read_from_file("user://recent.rhyr")
-+		replay = Replay.read_from_file(Globals.Paths.user.path_join("recent.rhyr"))
-+		disabled = replay == null or replay.mapset == null
++	WebPortal.begin_run()
+ 	Rhythia.song_end_pause_count = 0
+ 	Rhythia.song_end_misses = 0
+ 	get_tree().paused = true
+--- a/scripts/init.gd
++++ b/scripts/init.gd
+@@ -49,7 +49,7 @@
+ 		stage("",true)
+ 		return
+ 	elif Rhythia.first_init_done:
+-		thread.start(Rhythia,"do_init")
++		Rhythia.call_deferred("do_init")
  
- func _pressed():
- 	var mapset:Mapset = replay.mapset
---- a/scripts/menu/replays/ReplayList.gd
-+++ b/scripts/menu/replays/ReplayList.gd
-@@ -20,8 +20,10 @@
- 		DirAccess.make_dir_recursive_absolute(Globals.Paths.replays)
- 	var dir = DirAccess.open(Globals.Paths.replays)
- 	for file in dir.get_files():
-+		if file.get_extension() != "rhyr": continue
- 		var full_path = Globals.Paths.replays.path_join(file)
- 		var replay = Replay.read_from_file(full_path)
-+		if replay == null or replay.mapset == null: continue
- 		replays.append(replay)
- 		paths[replay] = full_path
- 		dates[replay] = FileAccess.get_modified_time(full_path)
-@@ -71,4 +73,9 @@
- 	var replay = button.get_meta("replay")
- 	replays.erase(replay)
- 	DirAccess.remove_absolute(paths[replay])
-+	buttons.erase(button)
- 	button.queue_free()
-+	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
-+
-+func _exit_tree():
-+	if is_instance_valid(origin_button): origin_button.free()
---- a/scripts/menu/settings/SettingControl.gd
-+++ b/scripts/menu/settings/SettingControl.gd
-@@ -66,6 +66,8 @@
- func reset(value=get_setting()):
- 	signal_emitter.set(property_name,value)
- func signal_received(value):
-+	if OS.has_feature("web") and target == ["fullscreen"]:
-+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if value else DisplayServer.WINDOW_MODE_WINDOWED)
- 	set_setting(value)
- 	$Container/Revert.visible = target_setting.value != target_setting.default
+ 	Rhythia.is_init = false
  
-@@ -85,4 +87,4 @@
+--- a/scripts/ui/menu/RhythiansPortal.gd
++++ b/scripts/ui/menu/RhythiansPortal.gd
+@@ -173,7 +173,7 @@
  
- func save_setting(value):
- 	reset()
--	Rhythia.call_deferred("save_settings")
-+	Rhythia.schedule_save()
---- a/scripts/settings/Setting.gd
-+++ b/scripts/settings/Setting.gd
-@@ -43,6 +43,7 @@
- 	set(_value):
- 		if !validate_type(_value,type): _value = convert_type(_value,type)
- 		if type == Type.CATEGORY: return false
-+		if typeof(value) == typeof(_value) and value == _value: return false
- 		value = _value
- 		call_deferred("emit_signal","changed",value)
- 		return true
---- a/scripts/settings/Settings.gd
-+++ b/scripts/settings/Settings.gd
-@@ -162,7 +162,10 @@
- 	var data = {}
- 	if FileAccess.file_exists(path):
- 		var file = FileAccess.open(path, FileAccess.READ)
--		data = JSON.parse_string(file.get_as_text())
-+		if file != null:
-+			var parsed = JSON.parse_string(file.get_as_text())
-+			if parsed is Dictionary: data = parsed
-+			file.close()
- 	new_settings.load_from_data(data)
- 	return new_settings
- func save_to_file(path:String):
---- a/scripts/settings/SettingsCallbacks.gd
-+++ b/scripts/settings/SettingsCallbacks.gd
-@@ -48,6 +48,7 @@
- var pre_fullscreen_size:Vector2
- var pre_fullscreen_mode:int
- func fullscreen(value:bool):
-+	if OS.has_feature("web"): return
- 	if value and window.mode != Window.MODE_EXCLUSIVE_FULLSCREEN:
- 		pre_fullscreen_size = window.size
- 		pre_fullscreen_mode = window.mode
+ func _home():
+ 	title_label.text="Home"
+-	var account=_panel("Account",Rhythian.logged_in ? "%s · %d RHP" % [Rhythian.username,int(Rhythian.profile.get("rhp",0))] : "Not signed in")
++	var account=_panel("Account","%s · %d RHP" % [Rhythian.username,int(Rhythian.profile.get("rhp",0))] if Rhythian.logged_in else "Not signed in")
+ 	var row=RhythianUI.hbox(10)
+ 	account.add_child(row)
+ 	if Rhythian.logged_in:
+@@ -332,7 +332,7 @@
+ 	var match=data.get("match",{})
+ 	var mode=str(match.get("mode","1v1")).split(":")[0]
+ 	var panel=_panel("Battle %s" % mode,"Status: %s · %s" % [str(match.get("status","unknown")),str(match.get("matchType","casual"))])
+-	for player in data.get("players",[]): panel.add_child(RhythianUI.label("Team %d · %s · %s" % [int(player.get("team",0)),str(player.get("displayName",player.get("username","Player"))),player.get("accuracy",null)==null ? "—" : "%.2f%%" % float(player.get("accuracy"))],14))
++	for player in data.get("players",[]): panel.add_child(RhythianUI.label("Team %d · %s · %s" % [int(player.get("team",0)),str(player.get("displayName",player.get("username","Player"))),"—" if player.get("accuracy",null)==null else "%.2f%%" % float(player.get("accuracy"))],14))
+ 	var map=data.get("map",null)
+ 	if map!=null: panel.add_child(RhythianUI.label("Map: %s" % str(map.get("title","Unknown")),16,RhythianUI.C_ACCENT,1))
+ 	var actions=RhythianUI.hbox(10)
+--- a/scripts/ui/menu/Sidebar.gd
++++ b/scripts/ui/menu/Sidebar.gd
+@@ -1,87 +1,23 @@
+ extends Panel
+ 
+-var portal:Control
+-var account:Button
+-var nav = [["home","Home"],["maps","Maps"],["daily","Daily"],["path","Path"],["challenge","Challenge"],["online","Online"],["leaderboards","Leaderboards"],["battles","Battles"],["clips","Clips"],["search","Search"],["messages","Messages"],["global-chat","Global Chat"],["wiki","Wiki"],["rules","Rules"],["community","Community"]]
++func _ready():
++	for child in get_children(): child.hide()
++	var bar = HBoxContainer.new()
++	bar.rect_position = Vector2(12, 8)
++	add_child(bar)
++	for item in [["Maps", "Maps"], ["Play", "Maps"], ["Settings", "Settings"]]:
++		var button = Button.new()
++		button.text = item[0]
++		button.rect_min_size = Vector2(120, 44)
++		button.connect("pressed", self, "show_page", [item[1]])
++		bar.add_child(button)
++	show_page("Maps")
++	WebPortal.menu_ready()
+ 
+-func _ready():
+-	set_anchors_and_margins_preset(Control.PRESET_TOP_WIDE)
+-	anchor_right = 1.0
+-	rect_min_size.y = 78
+-	z_index = 100
+-	for child in get_children(): child.visible = false
+-	var background = ColorRect.new()
+-	background.color = Color(0.035,0.045,0.07,0.98)
+-	background.set_anchors_and_margins_preset(Control.PRESET_WIDE)
+-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+-	add_child(background)
+-	var scroll = HScrollBar.new()
+-	var bar = HBoxContainer.new()
+-	bar.set_anchors_and_margins_preset(Control.PRESET_WIDE)
+-	bar.margin_left = 18
+-	bar.margin_right = -18
+-	bar.margin_top = 9
+-	bar.margin_bottom = -9
+-	bar.add_constant_override("separation", 6)
+-	add_child(bar)
+-	var brand = Label.new()
+-	brand.text = "Rhythia · " + str(ProjectSettings.get_setting("application/config/version", "nightly"))
+-	brand.add_color_override("font_color",Color(0.72,0.75,0.82))
+-	brand.add_font_size_override("font_size",13)
+-	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+-	bar.add_child(brand)
+-	var center_scroll = ScrollContainer.new()
+-	center_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+-	center_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+-	center_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+-	bar.add_child(center_scroll)
+-	var center = HBoxContainer.new()
+-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+-	center.alignment = BoxContainer.ALIGN_CENTER
+-	center.add_constant_override("separation",4)
+-	center_scroll.add_child(center)
+-	var play = _button("Play",true)
+-	play.rect_min_size = Vector2(88,52)
+-	center.add_child(play)
+-	play.connect("pressed",self,"to_play")
+-	for item in nav:
+-		var b = _button(item[1],false)
+-		b.rect_min_size.x = 70 if item[1].length() <= 8 else 88
+-		center.add_child(b)
+-		b.connect("pressed",self,"open_page",[item[0]])
+-	account = _button(Rhythian.username if Rhythian.logged_in else "Sign in",false)
+-	account.rect_min_size = Vector2(112,44)
+-	bar.add_child(account)
+-	account.connect("pressed",self,"open_account")
+-	portal = load("res://scripts/ui/menu/RhythiansPortal.gd").new()
+-	get_parent().add_child(portal)
+-	portal.z_index = 50
++func show_page(page):
++	for name in ["Results", "Maps", "Settings", "Credits", "Content", "Language", "Rhythian"]:
++		var node = get_node_or_null("../Main/" + name)
++		if node: node.visible = name == page
+ 
+-func _button(text:String,primary:bool) -> Button:
+-	var b = Button.new()
+-	b.text = text
+-	b.focus_mode = Control.FOCUS_NONE
+-	b.add_color_override("font_color",Color(1,1,1,1))
+-	b.add_color_override("font_color_hover",Color(1,1,1,1))
+-	b.add_font_size_override("font_size",16 if primary else 12)
+-	return b
+-
+-func _process(_delta:float):
+-	if account != null: account.text = Rhythian.username if Rhythian.logged_in else "Sign in"
+-
+-func open_page(page:String):
+-	_hide_game_pages()
+-	if portal != null and portal.has_method("open_page"): portal.open_page(page)
+-
+-func open_account(): open_page("account")
+-
+-func to_play():
+-	if portal != null and portal.has_method("close_page"): portal.close_page()
+-	_hide_game_pages()
+-	var results = get_node_or_null("../Main/Results")
+-	if results != null: results.visible = true
+-
+-func _hide_game_pages():
+-	for path in ["../Main/Results","../Main/Maps","../Main/Settings","../Main/Credits","../Main/Content","../Main/Language","../Main/Rhythian"]:
+-		var node = get_node_or_null(path)
+-		if node != null: node.visible = false
++func press(index):
++	show_page("Maps")
 --- /dev/null
-+++ b/scripts/web/SspmCheck.gd
-@@ -0,0 +1,182 @@
-+extends RefCounted
-+
-+var bytes:PackedByteArray
-+var audio:PackedByteArray
-+var pos:int = 0
-+var error:String = ""
-+
-+func take(size:int) -> PackedByteArray:
-+	if size < 0 or size > bytes.size() - pos:
-+		error = "The map file is truncated or contains invalid offsets."
-+		return PackedByteArray()
-+	var result = bytes.slice(pos, pos + size)
-+	pos += size
-+	return result
-+
-+func number(size:int) -> int:
-+	var value = take(size)
-+	if value.size() != size: return 0
-+	match size:
-+		1: return value[0]
-+		2: return value.decode_u16(0)
-+		4: return value.decode_u32(0)
-+		8: return value.decode_u64(0)
-+	return 0
-+
-+func jump(offset:int):
-+	if offset < 0 or offset > bytes.size():
-+		error = "The map contains an invalid section offset."
-+		return
-+	pos = offset
-+
-+func text16() -> String:
-+	return take(number(2)).get_string_from_utf8()
-+
-+func line() -> String:
-+	var start = pos
-+	while pos < bytes.size() and bytes[pos] != 10 and pos - start < 65536:
-+		pos += 1
-+	if pos == bytes.size() or pos - start >= 65536:
-+		error = "The map has invalid metadata."
-+		return ""
-+	var value = bytes.slice(start, pos).get_string_from_utf8().strip_edges()
-+	pos += 1
-+	return value
-+
-+func position():
-+	var mode = number(1)
-+	if mode == 0:
-+		take(2)
-+	elif mode == 1:
-+		var point = take(8)
-+		if point.size() == 8 and (not is_finite(point.decode_float(0)) or not is_finite(point.decode_float(4))):
-+			error = "The map contains invalid note positions."
-+	else:
-+		error = "The map contains an invalid position type."
-+
-+func field(type:int, depth:int = 0):
-+	if not error.is_empty(): return
-+	if depth > 8:
-+		error = "The map metadata is nested too deeply."
-+		return
-+	match type:
-+		1: take(1)
-+		2: take(2)
-+		3, 5: take(4)
-+		4, 6: take(8)
-+		7: position()
-+		8, 9: take(number(2))
-+		10, 11: take(number(4))
-+		12:
-+			var element_type = number(1)
-+			var count = number(2)
-+			for i in count:
-+				field(element_type, depth + 1)
-+				if not error.is_empty(): return
-+		_: error = "The map uses an unsupported metadata type."
-+
-+func validate(data:PackedByteArray) -> String:
-+	bytes = data
-+	pos = 0
-+	error = ""
-+	if bytes.size() < 16 or take(4) != PackedByteArray([83, 83, 43, 109]):
-+		return "This is not a valid SSPM file."
-+	var version = number(2)
-+	if version == 1: v1()
-+	elif version == 2: v2()
-+	else: return "Only SSPM versions 1 and 2 are supported."
-+	return error
-+
-+func v1():
-+	take(2)
-+	if line().is_empty(): error = "The map has no ID."
-+	line()
-+	line()
-+	take(4)
-+	var count = number(4)
-+	if count < 1 or count > 1000000:
-+		error = "The map must contain between 1 and 1,000,000 notes."
-+		return
-+	number(1)
-+	var cover = number(1)
-+	if cover == 1:
-+		var height = number(2)
-+		var width = number(2)
-+		take(2)
-+		var size = number(8)
-+		if width > 4096 or height > 4096 or size > 67108864:
-+			error = "The map cover is too large."
-+			return
-+		take(size)
-+	elif cover == 2: take(number(8))
-+	elif cover != 0: error = "The map has an invalid cover type."
-+	if number(1) != 1:
-+		error = "The map needs embedded audio to play in the browser."
-+		return
-+	var audio_size = number(8)
-+	if audio_size < 12: error = "The map audio is missing."
-+	audio = take(audio_size)
-+	for i in count:
-+		if not error.is_empty(): return
-+		take(4)
-+		position()
-+
-+func v2():
-+	jump(0x26)
-+	var count = number(4)
-+	if count < 1 or count > 1000000:
-+		error = "The map must contain between 1 and 1,000,000 markers."
-+		return
-+	take(3)
-+	if number(1) != 1:
-+		error = "The map needs embedded audio to play in the browser."
-+		return
-+	var has_cover = number(1)
-+	jump(0x40)
-+	var audio_offset = number(8)
-+	var audio_size = number(8)
-+	var cover_offset = number(8)
-+	var cover_size = number(8)
-+	var definition_offset = number(8)
-+	jump(0x70)
-+	var marker_offset = number(8)
-+	jump(0x80)
-+	if text16().is_empty(): error = "The map has no ID."
-+	text16()
-+	text16()
-+	for i in number(2): text16()
-+	for i in number(2):
-+		text16()
-+		field(number(1))
-+		if not error.is_empty(): return
-+	jump(audio_offset)
-+	if audio_size < 12: error = "The map audio is missing."
-+	audio = take(audio_size)
-+	if has_cover:
-+		jump(cover_offset)
-+		take(cover_size)
-+	jump(definition_offset)
-+	var types:Array = []
-+	var note_type:int = -1
-+	for i in number(1):
-+		var label = text16()
-+		var values:Array = []
-+		for j in number(1): values.append(number(1))
-+		if number(1) != 0: error = "The map has invalid marker definitions."
-+		if label == "ssp_note" and not values.is_empty() and values[0] == 7: note_type = i
-+		types.append(values)
-+	if note_type < 0:
-+		error = "The map contains no supported notes."
-+		return
-+	jump(marker_offset)
-+	var notes = 0
-+	for i in count:
-+		if not error.is_empty(): return
-+		take(4)
-+		var type = number(1)
-+		if type >= types.size():
-+			error = "The map contains an invalid marker type."
-+			return
-+		if type == note_type: notes += 1
-+		for value in types[type]: field(value)
-+	if notes == 0: error = "The map contains no notes."
---- /dev/null
-+++ b/scripts/web/WebStorage.gd
-@@ -0,0 +1,222 @@
++++ b/web/Bridge.gd
+@@ -0,0 +1,75 @@
 +extends Node
 +
-+const SspmCheck = preload("res://scripts/web/SspmCheck.gd")
-+const MAX_MAP_BYTES = 134217728
-+signal maps_changed
-+var import_callback:JavaScriptObject
-+var browser_window:JavaScriptObject
++var callback
++var window
++var active_map = {}
++var menu_loaded = false
++var active_mode = "lock"
 +
 +func _ready():
-+	if not OS.has_feature("web"): return
-+	load_profiles()
-+	get_window().files_dropped.connect(_files_dropped)
-+	browser_window = JavaScriptBridge.get_interface("window")
-+	import_callback = JavaScriptBridge.create_callback(_browser_import)
-+	browser_window.rhythiaImport = import_callback
-+	browser_window.rhythiaStoragePersistent = OS.is_userfs_persistent()
-+	profile_callback = JavaScriptBridge.create_callback(_profile_command)
-+	browser_window.rhythiaProfile = profile_callback
-+	editor_callback = JavaScriptBridge.create_callback(_editor_command)
-+	browser_window.rhythiaEditor = editor_callback
-+	browser_window.rhythiaProfilesJSON = JSON.stringify(profiles)
++	if not OS.has_feature("HTML5"): return
++	window = JavaScript.get_interface("window")
++	callback = JavaScript.create_callback(self, "command")
++	window.rhythiansCommand = callback
 +
-+func _browser_import(args:Array):
-+	if args.size() != 2 or not JavaScriptBridge.is_js_buffer(args[1]): return
-+	var result = import_map(str(args[0]), JavaScriptBridge.js_buffer_to_packed_byte_array(args[1]))
-+	browser_window.rhythiaImportResult(JSON.stringify(result))
++func menu_ready():
++	menu_loaded = true
++	print("RHYTHIANS_MENU_READY")
++	if window: window.rhythiansReady(JSON.print({"persistent": OS.is_userfs_persistent(), "spin": Rhythia.cam_unlock}))
 +
-+func _files_dropped(files:PackedStringArray):
-+	for path in files:
-+		var file = FileAccess.open(path, FileAccess.READ)
-+		var result:Dictionary
-+		if file == null:
-+			result = {"ok": false, "message": "Could not open the dropped file."}
-+		elif file.get_length() > MAX_MAP_BYTES:
-+			result = {"ok": false, "message": "Maps must be smaller than 128 MiB."}
-+		else:
-+			result = import_map(path.get_file(), file.get_buffer(file.get_length()))
-+		if file: file.close()
-+		if browser_window: browser_window.rhythiaImportResult(JSON.stringify(result))
++func command(args):
++	if args.empty(): return
++	var parsed = JSON.parse(str(args[0]))
++	if parsed.error != OK or typeof(parsed.result) != TYPE_DICTIONARY: return
++	var data = parsed.result
++	match data.get("action", ""):
++		"spin":
++			Rhythia.cam_unlock = bool(data.get("enabled", false))
++			Rhythia.save_settings()
++		"save": Rhythia.save_settings()
++		"play":
++			if not menu_loaded: return
++			var path = str(data.get("path", ""))
++			if not path.begins_with("/tmp/rhythians-") or not path.ends_with(".sspm"): return
++			var song = Rhythia.registry_song.add_sspm_map(path)
++			if song == null:
++				window.rhythiansError("This map cannot be loaded by the client.")
++				return
++			active_map = data.get("map", {})
++			Rhythia.cam_unlock = bool(data.get("spin", false))
++			active_mode = "spin" if Rhythia.cam_unlock else "lock"
++			Rhythia.save_settings()
++			mode_sync_enabled = true
++			last_spin = Rhythia.cam_unlock
++			Rhythia.select_song(song)
++			var sidebar = get_tree().current_scene.get_node_or_null("Sidebar")
++			if sidebar: sidebar.press(0)
++			window.rhythiansSelected()
 +
-+func import_map(filename:String, data:PackedByteArray) -> Dictionary:
-+	if Rhythia.loading or Rhythia.is_init:
-+		return {"ok": false, "message": "Wait for the map menu before importing."}
-+	if get_tree().current_scene and get_tree().current_scene.get_meta("is_game", false):
-+		return {"ok": false, "message": "Return to the menu before importing maps."}
-+	if filename.get_extension().to_lower() != "sspm":
-+		return {"ok": false, "message": "Choose an .sspm map file."}
-+	if data.size() > MAX_MAP_BYTES:
-+		return {"ok": false, "message": "Maps must be smaller than 128 MiB."}
-+	var validation = SspmCheck.new().validate(data)
-+	if not validation.is_empty(): return {"ok": false, "message": validation}
-+	var hash = HashingContext.new()
-+	hash.start(HashingContext.HASH_SHA256)
-+	hash.update(data)
-+	var target = Globals.Paths.maps.path_join(hash.finish().hex_encode() + ".sspm")
-+	if FileAccess.file_exists(target):
-+		open_editor(target)
-+		return {"ok": true, "message": "Opened imported map."}
-+	var staged = Globals.Paths.user.path_join("import.tmp")
-+	var file = FileAccess.open(staged, FileAccess.WRITE)
-+	if file == null: return {"ok": false, "message": "Browser storage could not save this map."}
-+	file.store_buffer(data)
-+	file.close()
-+	var mapset = Mapset.read_from_file(staged, true)
-+	if mapset == null or mapset.broken or mapset.maps.is_empty() or mapset.maps[0].notes.is_empty() or mapset.audio == null or mapset.audio.get_length() <= 0:
-+		DirAccess.remove_absolute(staged)
-+		return {"ok": false, "message": "The map has no playable notes or its audio cannot be decoded."}
-+	if Rhythia.mapsets.get_by_id(mapset.id) != null:
-+		DirAccess.remove_absolute(staged)
-+		open_editor(Rhythia.mapsets.get_by_id(mapset.id).path)
-+		return {"ok": true, "message": "Opened existing map with this ID."}
-+	if DirAccess.rename_absolute(staged, target) != OK:
-+		DirAccess.remove_absolute(staged)
-+		return {"ok": false, "message": "Browser storage could not finish saving this map."}
-+	mapset.path = target
-+	Rhythia.mapsets.add_item(Mapset.read_from_file(target))
-+	maps_changed.emit()
-+	open_editor(target, mapset)
-+	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
-+	return {"ok": true, "message": "Imported " + mapset.name + "."}
++func begin_run():
++	active_mode = "spin" if Rhythia.cam_unlock else "lock"
 +
-+var profiles:Dictionary = {"active": "default", "items": [{"id": "default", "name": "Default"}]}
-+var profile_callback:JavaScriptObject
-+var editor_callback:JavaScriptObject
-+var editor_path:String = ""
-+var editor_map:Mapset
++func finished():
++	if not window or active_map.empty(): return
++	var total = max(Rhythia.song_end_total_notes, 1)
++	var mods = []
++	for key in ["mod_mirror_x", "mod_mirror_y", "mod_extra_energy", "mod_no_regen", "mod_sudden_death", "mod_ghost", "mod_flashlight", "mod_nearsighted", "mod_hardrock", "mod_chaos"]:
++		if Rhythia.get(key): mods.append(key)
++	window.rhythiansScore(JSON.print({
++		"challengeMapId": str(active_map.get("id", "")),
++		"accuracy": float(Rhythia.song_end_hits) / total * 100.0,
++		"misses": int(Rhythia.song_end_misses),
++		"speed": float(Globals.speed_multi[Rhythia.mod_speed_level]),
++		"cameraMode": active_mode,
++		"modifiers": PoolStringArray(mods).join(","),
++		"resultQualified": true,
++		"gameVersion": "rhythians-web-1",
++		"integrationVersion": "rhythians-web-1"
++	}))
 +
-+func load_profiles():
-+	var path = Globals.web_root.path_join("profiles.json")
-+	if FileAccess.file_exists(path):
-+		var saved = JSON.parse_string(FileAccess.get_file_as_string(path))
-+		if saved is Dictionary and saved.get("items") is Array and saved.get("active") is String:
-+			var clean:Array = []
-+			for item in saved.items:
-+				if item is Dictionary and item.get("id") is String and item.get("name") is String:
-+					if item.id == "default" or (item.id.length() == 32 and item.id.is_valid_hex_number()): clean.append(item)
-+			if not clean.is_empty(): profiles = {"items": clean, "active": saved.active}
-+	var found = false
-+	for item in profiles.items:
-+		if item.id == profiles.active: found = true
-+	if not found: profiles.active = profiles.items[0].id
-+	Globals.active_profile = profiles.active
-+	Globals.update_paths()
-+
-+func save_profiles() -> bool:
-+	var file = FileAccess.open(Globals.web_root.path_join("profiles.json"), FileAccess.WRITE)
-+	if file == null: return false
-+	file.store_string(JSON.stringify(profiles))
-+	file.close()
-+	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
-+	return true
-+
-+func create_profile(label:String) -> String:
-+	label = label.strip_edges().left(40)
-+	if label.is_empty() or profiles.items.size() >= 32: return ""
-+	for item in profiles.items:
-+		if item.name.to_lower() == label.to_lower(): return ""
-+	var id = Crypto.new().generate_random_bytes(16).hex_encode()
-+	profiles.items.append({"id": id, "name": label})
-+	if not save_profiles():
-+		profiles.items.pop_back()
-+		return ""
-+	return id
-+
-+func switch_profile(id:String) -> bool:
-+	if Rhythia.loading or Rhythia.is_init: return false
-+	if get_tree().current_scene and get_tree().current_scene.get_meta("is_game", false): return false
-+	var found = false
-+	for item in profiles.items:
-+		if item.id == id: found = true
-+	if not found: return false
-+	Rhythia.save_settings()
-+	var previous = profiles.active
-+	profiles.active = id
-+	if not save_profiles():
-+		profiles.active = previous
-+		return false
-+	Globals.active_profile = id
-+	Globals.update_paths()
-+	Rhythia.load_settings()
-+	Rhythia.playlists.clear()
-+	Rhythia._load_playlists()
-+	editor_map = null
-+	editor_path = ""
-+	return true
-+
-+func _profile_command(args:Array):
-+	if args.size() < 1: return
-+	var request = JSON.parse_string(str(args[0]))
-+	if not request is Dictionary: return
-+	if request.get("action") == "flush":
-+		Rhythia.save_settings()
-+		return
-+	var id = str(request.get("id", ""))
-+	if request.get("action") == "create": id = create_profile(str(request.get("name", "")))
-+	var ok = switch_profile(id)
-+	browser_window.rhythiaProfileResult(JSON.stringify({"ok": ok, "profiles": profiles}))
-+	if ok: get_tree().change_scene_to_file("res://scenes/Menu.tscn")
-+
-+func open_editor(path:String, loaded:Mapset = null):
-+	if not browser_window: return
-+	editor_path = path
-+	editor_map = loaded if loaded != null else Mapset.read_from_file(path, true)
-+	send_editor_page(0)
-+
-+func send_editor_page(page:int):
-+	if editor_map == null: return
-+	var notes = editor_map.maps[0].notes
-+	page = clampi(page, 0, maxi(0, (notes.size() - 1) / 100))
-+	var rows:Array = []
-+	for i in range(page * 100, mini(notes.size(), (page + 1) * 100)):
-+		var note = notes[i]
-+		rows.append({"index": i, "time": note.time, "x": note.x, "y": note.y})
-+	browser_window.rhythiaEditorPage(JSON.stringify({"name": editor_map.name, "count": notes.size(), "page": page, "rows": rows}))
-+
-+func save_editor_copy(edits:Dictionary) -> Dictionary:
-+	if editor_map == null or edits.size() > 10000: return {"ok": false, "message": "Open a map first; save at most 10,000 edits at a time."}
-+	var validator = SspmCheck.new()
-+	if not validator.validate(FileAccess.get_file_as_bytes(editor_path)).is_empty(): return {"ok": false, "message": "The source map is unavailable."}
-+	var notes = editor_map.maps[0].notes
-+	for key in edits:
-+		var i = str(key).to_int()
-+		var edit = edits[key]
-+		if str(i) != str(key) or i < 0 or i >= notes.size() or not edit is Dictionary: return {"ok": false, "message": "Invalid note index."}
-+		for field in ["time", "x", "y"]:
-+			if not (edit.get(field) is float or edit.get(field) is int) or not is_finite(float(edit[field])): return {"ok": false, "message": "Note values must be finite numbers."}
-+		if edit.time < 0 or edit.time > 4294967 or absf(edit.x) > 1000 or absf(edit.y) > 1000: return {"ok": false, "message": "Note values are outside supported limits."}
-+	var buffer = StreamPeerBuffer.new()
-+	buffer.big_endian = false
-+	buffer.put_data("SS+m".to_ascii_buffer())
-+	buffer.put_u16(1)
-+	buffer.put_u16(0)
-+	var id = editor_map.id + "-edit-" + Crypto.new().generate_random_bytes(8).hex_encode()
-+	for label in [id, editor_map.name + " (edited)", editor_map.creator]:
-+		buffer.put_data((str(label).replace("\n", " ").replace("\r", " ") + "\n").to_utf8_buffer())
-+	buffer.put_u32(int(editor_map.length * 1000))
-+	buffer.put_u32(notes.size())
-+	buffer.put_u8(0)
-+	buffer.put_u8(0)
-+	buffer.put_u8(1)
-+	buffer.put_u64(validator.audio.size())
-+	buffer.put_data(validator.audio)
-+	for i in notes.size():
-+		var note = notes[i]
-+		var edit = edits.get(str(i), {"time": note.time, "x": note.x, "y": note.y})
-+		buffer.put_u32(roundi(edit.time * 1000))
-+		buffer.put_u8(1)
-+		buffer.put_float(edit.x)
-+		buffer.put_float(edit.y)
-+	return import_map(id + ".sspm", buffer.data_array)
-+
-+func _editor_command(args:Array):
-+	if args.size() < 1: return
-+	var request = JSON.parse_string(str(args[0]))
-+	if not request is Dictionary: return
-+	if request.get("action") == "page": send_editor_page(int(request.get("page", 0)))
-+	elif request.get("action") == "close":
-+		editor_map = null
-+		editor_path = ""
-+	elif request.get("action") == "save" and request.get("edits") is Dictionary:
-+		var result = save_editor_copy(request.edits)
-+		browser_window.rhythiaEditorSaved(JSON.stringify(result))
++var mode_sync_enabled = false
++var last_spin = false
++func _process(_delta):
++	if window and mode_sync_enabled and last_spin != Rhythia.cam_unlock:
++		last_spin = Rhythia.cam_unlock
++		window.rhythiansMode(last_spin)
 --- /dev/null
-+++ b/tests/Integration.gd
-@@ -0,0 +1,106 @@
++++ b/web/DiscordDisabled.gd
+@@ -0,0 +1,5 @@
 +extends Node
-+
-+var failures:int = 0
-+
-+func _ready():
-+	call_deferred("run")
-+
-+func check(value:bool, label:String):
++enum ActivityType { Playing }
++class Activity extends Reference:
++	pass
++var activity_manager
+--- /dev/null
++++ b/web/NativeDialogDisabled.gd
+@@ -0,0 +1,13 @@
++extends Node
++signal files_selected(paths)
++signal file_selected(path)
++signal dir_selected(path)
++signal canceled
++var dialog_title = ""
++var filters = []
++var current_dir = ""
++var current_file = ""
++func show():
++	emit_signal("canceled")
++func popup():
++	emit_signal("canceled")
+--- /dev/null
++++ b/web/app.css
+@@ -0,0 +1 @@
++:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;background:#0a0c12;color:#edf0fa;--line:#252b3c;--muted:#99a3b9;--accent:#9b7aff}*{box-sizing:border-box}body{margin:0}header{display:flex;align-items:center;gap:28px;padding:18px 4vw;border-bottom:1px solid var(--line);background:#10131ce8;position:sticky;top:0;z-index:5}.brand{display:flex;align-items:center;gap:10px;color:white;font-weight:800;font-size:22px;text-decoration:none}.brand img{width:36px;height:36px;object-fit:contain}nav{display:flex;gap:20px;flex:1;overflow:auto}a{color:#c6b5ff;text-decoration:none}nav a{color:var(--muted);white-space:nowrap}nav a[aria-current=page]{color:white}button{background:#242039;color:white;border:1px solid #574178;border-radius:10px;padding:10px 16px;cursor:pointer;font:inherit}button:hover{background:#393054}button:disabled{opacity:.5;cursor:wait}main{max-width:1450px;margin:auto;padding:36px 4vw}.banner{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}.eyebrow{letter-spacing:.17em;font-size:11px;color:#bca7ff}h1{font-size:46px;letter-spacing:-.045em;margin:12px 0}h2{margin:0 0 12px;font-size:22px}p{line-height:1.55;color:var(--muted)}.mode{padding:14px;border:1px solid var(--line);border-radius:14px}.mode span,.badge{font-size:11px;padding:4px 8px;border-radius:6px;background:#27223c;color:#d2baff}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}.card{border:1px solid var(--line);border-radius:16px;background:#111620;overflow:hidden;content-visibility:auto;contain-intrinsic-size:320px}.card img.cover{width:100%;height:138px;object-fit:cover;background:linear-gradient(135deg,#37234a,#172d40)}.card .body{padding:18px}.card h2{font-size:17px}.card p{font-size:13px}.card button{width:100%;margin-top:14px}.meta{display:flex;align-items:center;justify-content:space-between;gap:8px}.rating{font-weight:700;color:#dbc987}progress{width:100%;accent-color:var(--accent);height:9px}.download-label{display:block;font-size:12px;margin-top:8px;color:var(--muted)}#rank{border:1px solid var(--line);padding:20px;border-radius:15px;margin-bottom:24px}#rank progress{margin-top:14px}#status:empty{display:none}#status{padding:14px;background:#211b2e;border-radius:10px}#pagination{display:flex;justify-content:center;gap:20px;align-items:center;margin:26px}dialog{max-width:min(500px,92vw);border:1px solid #574178;background:#171322;color:white;border-radius:18px;padding:28px}dialog::backdrop{background:#000b}#code{font-size:30px;letter-spacing:.12em}.profile-head{display:flex;gap:20px;align-items:center}.avatar{width:86px;height:86px;border-radius:18px;object-fit:cover}.stats{display:flex;flex-wrap:wrap;gap:16px;margin:24px 0}.stat{padding:20px;background:#151a25;border:1px solid var(--line);border-radius:14px;min-width:140px}.stat strong{font-size:28px;display:block}.article{white-space:pre-wrap;line-height:1.7;max-width:850px}.row{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:16px;gap:14px}.row .avatar{width:40px;height:40px}.tabs{display:flex;gap:12px;margin-bottom:20px}#game{position:fixed;inset:0;z-index:10;background:#000}.game-tools{height:48px;display:flex;align-items:center;gap:15px;padding:4px 12px;background:#10131c}#canvas{display:block;width:100%;height:calc(100dvh - 48px);outline:0}#drop{position:fixed;inset:10px;z-index:100;border:3px dashed #9b7aff;background:#151024e8;display:grid;place-items:center;font-size:24px;pointer-events:none}video{width:100%;max-height:360px}select{padding:9px;background:#1b1727;color:white;border:1px solid #574178;border-radius:8px}[hidden]{display:none!important}@media(max-width:850px){header{gap:14px;flex-wrap:wrap}nav{order:3;flex-basis:100%;padding-top:6px}.banner{align-items:flex-start;gap:16px}h1{font-size:36px}.brand{flex:1}.mode{font-size:12px}}@media(prefers-reduced-motion:no-preference){button,a{transition:background .15s,color .15s}.card:hover{border-color:#534168}}
+--- /dev/null
++++ b/web/app.js
+@@ -0,0 +1,95 @@
++import { validateSspm } from './sspm.mjs';
++const BASE = 'https://rhythians.vercel.app';
++const $ = id => document.getElementById(id);
++const db = await new Promise((resolve,reject) => {
++  const r = indexedDB.open('RhythiansBrowser',2);
++  r.onupgradeneeded = () => { for (const name of ['account','maps','scores','settings','mapmeta']) if(!r.result.objectStoreNames.contains(name)) r.result.createObjectStore(name); };
++  r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
++  r.onblocked = () => reject(new Error('Close other Rhythians tabs to update browser storage.'));
++}).catch(error=>{ $('status').textContent='Browser storage could not open: '+error.message;throw error; });
++function storage(store,method,key,value) {
++  return new Promise((resolve,reject) => {
++    const tx = db.transaction(store,method === 'get' || method === 'getAll' || method === 'getKey' ? 'readonly' : 'readwrite');
++    const object = tx.objectStore(store); const r = method === 'put' ? object.put(value,key) : method === 'getAll' ? object.getAll() : object[method](key);
++    tx.oncomplete = () => resolve(r.result); tx.onerror = tx.onabort = () => reject(tx.error || r.error);
++  });
++}
++let account = await storage('account','get','current');
++let offset = 0, hasMore = false, generation = 0, downloadBusy = false, loginGeneration = 0;
++let profileCache;
++let engineReady, engineStarted = false, activeAccount;
++let spin = Boolean(await storage('settings','get','spin'));
++$('spin').checked = spin;
++function notice(message) { $('status').textContent = message; }
++function node(tag,text,className) { const n = document.createElement(tag); if(text != null)n.textContent=text;if(className)n.className=className;return n; }
++function safeUrl(value) { try {const u=new URL(value,BASE);return ['https:','http:'].includes(u.protocol) ? u.href : ''; } catch{return '';} }
++function picture(url,alt,className='cover') {const img=node('img',null,className);img.alt=alt;img.loading='lazy';img.decoding='async';img.src=safeUrl(url)||'logo.png';img.onerror=()=>{img.onerror=null;img.src='logo.png';};return img;}
++async function api(path,body,auth=account) {
++  const response=await fetch(BASE+path,{method:body === undefined ? 'GET':'POST',headers:{...(body === undefined ? {}:{'Content-Type':'application/json'}),...(auth?.token ? {Authorization:'Bearer '+auth.token}:{})},...(body === undefined ? {}:{body:JSON.stringify(body)}),credentials:'omit',signal:AbortSignal.timeout(45000)});
++  const data=await response.json().catch(()=>({error:'Invalid server response.'}));
++  if(!response.ok || data.ok === false) {const error=new Error(data.error||`Request failed (${response.status}).`);error.status=response.status;throw error;}return data;
++}
++function accountButton(){ $('account').textContent=account ? `${account.username} · Sign out`:'Sign in'; }
++accountButton();
++$('account').onclick=async()=>{
++  if(account){account=null;await storage('account','delete','current');accountButton();await render();return;}
++  const attempt=++loginGeneration;$('login').showModal();$('code').textContent='…';$('authorize').removeAttribute('href');$('login-status').textContent='Requesting a code…';
++  try {
++    const data=await api('/api/rhythkit/device/start',{},null);if(attempt!==loginGeneration)return;
++    const verification=new URL(data.verificationUrl);if(verification.origin!==BASE)throw new Error('Unexpected authorization website.');
++    $('code').textContent=data.userCode;$('authorize').href=verification.href;$('login-status').textContent='Waiting for approval. Passwords are entered only on Rhythians.';
++    const expiry=Date.now()+data.expiresIn*1000;
++    while(attempt===loginGeneration && Date.now()<expiry){
++      await new Promise(r=>setTimeout(r,5000));if(attempt!==loginGeneration)return;
++      const result=await api('/api/rhythkit/device/poll',{deviceCode:data.deviceCode},null);
++      if(attempt!==loginGeneration)return;
++      if(result.authorized && result.token){account={token:result.token,userId:result.userId,username:result.username,installationId:result.installationId};await storage('account','put','current',account);$('login').close();accountButton();await render();flushScores();return;}
++    }
++    if(attempt===loginGeneration)$('login-status').textContent='Code expired. Close this window and try again.';
++  }catch(error){$('login-status').textContent=error.message;}
++};
++$('cancel-login').onclick=()=>{$('login').close();};$('login').onclose=()=>{loginGeneration++;};
++$('spin').onchange=async()=>{spin=$('spin').checked;await storage('settings','put','spin',spin);if(window.rhythiansCommand)window.rhythiansCommand(JSON.stringify({action:'spin',enabled:spin}));};
++window.rhythiansReady=text=>{const state=JSON.parse(text);if(!state.persistent)notice('Game settings storage is unavailable in this browser.');engineReady?.resolve();};
++window.rhythiansMode=async enabled=>{spin=Boolean(enabled);$('spin').checked=spin;await storage('settings','put','spin',spin);};
++window.rhythiansError=message=>{$('game-status').textContent=message;};
++window.rhythiansSelected=()=>{$('game-status').textContent='Choose modifiers and press Play in the game.';};
++window.rhythiansScore=async text=>{
++  if(!activeAccount)return;
++  const score={...JSON.parse(text),clientScoreId:crypto.randomUUID(),completedAt:new Date().toISOString()};
++  await storage('scores','put',score.clientScoreId,{score,userId:activeAccount.userId});
++  $('game-status').textContent='Pass saved. Submitting to Rhythians…';await flushScores();
++};
++async function flushScores(){if(!account)return;for(const item of await storage('scores','getAll')){if(item.userId!==account.userId)continue;try{await api('/api/rhythkit/scores',item.score);await storage('scores','delete',item.score.clientScoreId);$('game-status').textContent=`${item.score.cameraMode === 'spin'?'Spin':'Lock'} pass recorded. Rank points require official Rhythia verification.`;}catch(error){if(error.status===409)await storage('scores','delete',item.score.clientScoreId);else {$('game-status').textContent='Pass queued: '+error.message;break;}}}}
++async function startEngine(){
++  if(engineStarted)return engineReady.promise;
++  if(!Engine.isWebGLAvailable())throw new Error('WebGL is unavailable. Enable graphics acceleration to play.');
++  let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});engineReady={promise,resolve,reject};engineStarted=true;
++  const timer=setTimeout(()=>reject(new Error('The game did not finish loading. Reload to retry.')),120000);
++  window.gameEngine.startGame({onProgress:(a,b)=>{$('game-status').textContent=b?`Loading game ${Math.round(a/b*100)}%`:'Loading game…';},onPrintError:message=>{console.error(message);if(/SCRIPT ERROR|Parse Error/.test(message))reject(new Error(message));}}).catch(reject);
++  try{await promise;}finally{clearTimeout(timer);}
++}
++async function play(map){try{$('game').hidden=false;await startEngine();const saved=await storage('maps','get',map.id);if(!saved)throw new Error('Download this map first.');const path='/tmp/rhythians-'+map.id.replace(/[^a-zA-Z0-9_-]/g,'')+'.sspm';window.gameEngine.copyToFS(path,await saved.blob.arrayBuffer());activeAccount=account && !map.id.startsWith('local-') ? {...account}:null;window.rhythiansCommand(JSON.stringify({action:'play',path,map,spin}));$('canvas').focus();}catch(error){$('game-status').textContent=error.message;}}
++$('back').onclick=()=>{$('game').hidden=true;window.rhythiansCommand?.(JSON.stringify({action:'save'}));render();};
++async function download(map,button,progress,label){if(downloadBusy)return;downloadBusy=true;button.disabled=true;progress.hidden=false;try{
++  const response=await fetch(BASE+`/api/rhythkit/maps/${encodeURIComponent(map.id)}/download`,{headers:{Authorization:'Bearer '+account.token},credentials:'omit',signal:AbortSignal.timeout(180000)});
++  if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||`Download failed (${response.status}).`);}
++  const total=Number(response.headers.get('Content-Length'))||0;if(total>134217728)throw new Error('Map exceeds 128 MiB.');
++  if(total){progress.max=total;progress.value=0;}else progress.removeAttribute('value');
++  const reader=response.body.getReader(),chunks=[];let received=0;
++  while(true){const {done,value}=await reader.read();if(done)break;received+=value.byteLength;if(received>134217728){await reader.cancel();throw new Error('Map exceeds 128 MiB.');}chunks.push(value);if(total)progress.value=received;label.textContent=total?`Downloading ${Math.round(received/total*100)}%`:`Downloading ${(received/1048576).toFixed(1)} MiB`;}
++  const blob=new Blob(chunks);await saveMap(map,blob);button.textContent='Play';button.onclick=()=>play(map);label.textContent='Saved in this browser';
++}catch(error){label.textContent=error.message;}finally{downloadBusy=false;button.disabled=false;progress.hidden=true;}}
++async function saveMap(map,blob){validateSspm(await blob.arrayBuffer());await storage('maps','put',map.id,{map,blob});await storage('mapmeta','put',map.id,map);}
++async function mapCard(map){const card=node('article',null,'card');card.append(picture(map.imageUrl,map.title));const body=node('div',null,'body');body.append(node('h2',map.title),node('p',`${map.artist||''} · ${map.mapper||''}`));const meta=node('div',null,'meta');meta.append(node('span',`${Number(map.rating||0).toFixed(2)} ★`,'rating'),node('span',map.isRanked?`Ranked · ${map.rankName}`:map.isLegacy?'Legacy':'Unranked','badge'));body.append(meta);const button=node('button'),progress=node('progress'),label=node('span','','download-label');progress.hidden=true;const saved=await storage('maps','getKey',map.id);button.textContent=saved?'Play':'Download';button.onclick=()=>saved?play(map):download(map,button,progress,label);body.append(button,progress,label);card.append(body);return card;}
++async function showMaps(local,gen){const maps=local?(await storage('mapmeta','getAll')):(await api(`/api/rhythkit/maps?limit=40&offset=${offset}`));if(gen!==generation)return;const entries=local?maps.slice(offset,offset+40):maps.maps;hasMore=local?maps.length>offset+40:maps.hasMore;const grid=node('div',null,'grid');const cards=await Promise.all(entries.map(mapCard));if(gen!==generation)return;grid.append(...cards);$('content').append(grid);if(!entries.length)$('content').append(node('p',local?'Drop SSPM maps anywhere on this page, or download one from Maps.':'No maps on this page.'));$('pagination').hidden=false;$('prev').disabled=offset===0;$('next').disabled=!hasMore;$('page-number').textContent=`Page ${offset/40+1}`;}
++async function profile(gen){const data=await api('/api/rhythkit/portal?page=profile');if(gen!==generation)return;const p=data.profile;const head=node('section',null,'profile-head');head.append(picture(p.avatar,p.username,'avatar'));const info=node('div');info.append(node('h2',p.displayName||p.username),node('p',p.title||'Rhythian'));head.append(info);$('content').append(head,node('p',p.bio||''));const stats=node('div',null,'stats');for(const [label,value] of [['RHP',p.rhp],['RPL',p.modes?.rpl],['RPS',p.modes?.rps],['Global rank',p.globalRank]]){const s=node('div',label,'stat');s.append(node('strong',value??0));stats.append(s);}$('content').append(stats);const link=node('a','Open profile and account linking on Rhythians');link.href=BASE+'/profile/'+encodeURIComponent(p.profileHandle);link.target='_blank';link.rel='noopener';$('content').append(link);showRank(p);const history=await api('/api/rhythkit/scores?limit=25');if(gen!==generation)return;$('content').append(node('h2','Recent client passes'));for(const score of history.scores){const row=node('div',null,'row');row.append(node('span',score.title),node('span',`${score.cameraMode === 'spin'?'Spin':'Lock'} · ${Number(score.accuracy).toFixed(2)}%`));$('content').append(row);}}
++function showRank(p){if(!p.rank)return;$('rank').hidden=false;$('rank').replaceChildren(node('strong',`${p.rank.name} ${p.rank.isExpert?'':p.rank.tier} · ${p.rhp} RHP`));const progress=node('progress');progress.max=1;progress.value=p.rank.isExpert?1:Math.max(0,Math.min(1,p.rank.progressToNextTier||0));$('rank').append(progress);}
++async function community(page,gen){const data=await api('/api/rhythkit/portal?page='+page);if(gen!==generation)return;if(page==='leaderboards'){const tabs=node('div',null,'tabs'),list=node('section');function display(mode){list.replaceChildren();const rows=mode==='rhp'?data.rhp:data.modes?.[mode]||[];rows.forEach((p,i)=>{const row=node('div',null,'row');row.append(node('span',i+1),picture(p.avatar,p.username,'avatar'),node('strong',p.displayName||p.username),node('span',p.points??p.rhp??0));list.append(row);});}for(const mode of ['rhp','lock','spin']){const b=node('button',mode==='rhp'?'RHP':mode==='spin'?'Spin · RPS':'Lock · RPL');b.onclick=()=>display(mode);tabs.append(b);}$('content').append(tabs,list);display('rhp');return;}
++const grid=node('div',null,page==='clips'?'grid':'');for(const item of data[page==='clips'?'clips':'articles']||[]){const card=node('article',null,'card'),body=node('div',null,'body');body.append(node('h2',item.title),node('p',item.description||''));if(page==='clips'){card.append(picture(item.thumbnailUrl,item.title));if(item.videoUrl){const video=node('video');video.controls=true;video.preload='none';video.src=safeUrl(item.videoUrl);body.append(video);}const link=node('a','Open clip');link.href=BASE+'/clips/'+encodeURIComponent(item.id);link.target='_blank';link.rel='noopener';body.append(link);}else{const details=node('details'),summary=node('summary','Read article');details.append(summary,node('div',item.content||'','article'));body.append(details);}card.append(body);grid.append(card);}$('content').append(grid);}
++async function cachedProfile(){if(profileCache?.userId===account?.userId && Date.now()-profileCache.time<120000)return profileCache.data;const data=await api('/api/rhythkit/portal?page=profile');profileCache={userId:account?.userId,time:Date.now(),data};return data;}
++async function render(){const gen=++generation;const page=location.hash.slice(1)||'maps';$('title').textContent=({maps:'Maps',profile:'Your profile',leaderboards:'Leaderboards',wiki:'Wiki',clips:'Clips',library:'Downloaded maps'})[page]||'Maps';$('content').replaceChildren();$('pagination').hidden=true;$('rank').hidden=true;notice('');for(const a of document.querySelectorAll('nav a'))a.setAttribute('aria-current',a.hash===`#${page}`?'page':'false');if(!account && page!=='library'){notice('Sign in to link your Rhythians account. Downloaded maps remain available offline.');return;}try{if(page==='maps'||page==='library'){await showMaps(page==='library',gen);if(page==='maps'){const p=await cachedProfile();if(gen===generation)showRank(p.profile);}}else if(page==='profile')await profile(gen);else if(['leaderboards','wiki','clips'].includes(page))await community(page,gen);}catch(error){if(gen===generation)notice(error.message);}}
++$('prev').onclick=()=>{offset=Math.max(0,offset-40);render();};$('next').onclick=()=>{offset+=40;render();};window.onhashchange=()=>{offset=0;render();};
++window.addEventListener('dragover',event=>{event.preventDefault();$('drop').hidden=false;},true);window.addEventListener('dragleave',event=>{if(!event.relatedTarget)$('drop').hidden=true;},true);window.addEventListener('drop',async event=>{event.preventDefault();event.stopImmediatePropagation();$('drop').hidden=true;try{for(const file of event.dataTransfer.files){if(!/\.sspm$/i.test(file.name)||file.size>134217728)throw new Error('Choose an SSPM file below 128 MiB.');const id='local-'+crypto.randomUUID();await saveMap({id,title:file.name.replace(/\.sspm$/i,''),isRanked:false},file);}location.hash='library';await render();}catch(error){notice(error.message);}},true);
++document.addEventListener('visibilitychange',()=>{if(document.hidden&&engineStarted)window.rhythiansCommand?.(JSON.stringify({action:'save'}));});window.addEventListener('online',flushScores);window.addEventListener('unhandledrejection',event=>notice(event.reason?.message||'An unexpected error occurred.'));
++await render();flushScores();
+--- /dev/null
++++ b/web/logo.b64
+@@ -0,0 +1 @@
++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
+--- /dev/null
++++ b/web/shell.html
+@@ -0,0 +1,7 @@
++<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rhythians</title><link rel="icon" href="favicon.ico"><link rel="stylesheet" href="app.css">$GODOT_HEAD_INCLUDE</head><body>
++<header><a class="brand" href="#maps"><img src="logo.png" alt="Rhythians logo">Rhythians</a><nav aria-label="Main navigation"><a href="#maps">Maps</a><a href="#profile">Profile</a><a href="#leaderboards">Leaderboards</a><a href="#wiki">Wiki</a><a href="#clips">Clips</a><a href="#library">Downloaded</a></nav><button id="account">Sign in</button></header>
++<main id="portal"><section class="banner"><div><p class="eyebrow">RHYTHIANS · BROWSER CLIENT</p><h1 id="title">Maps</h1><p id="subtitle">Find your next pass.</p></div><label class="mode"><input type="checkbox" id="spin"> Spin mode <span>RPS</span></label></section><section id="rank" hidden></section><p id="status" role="status" aria-live="polite"></p><div id="content"></div><div id="pagination" hidden><button id="prev">Previous</button><span id="page-number"></span><button id="next">Next</button></div></main>
++<section id="game" hidden><div class="game-tools"><button id="back">Back to Rhythians</button><span id="game-status"></span></div><canvas id="canvas" tabindex="0" aria-label="Rhythians game"></canvas></section>
++<dialog id="login"><h2>Link Rhythians</h2><p>Approve this browser from your Rhythians account.</p><strong id="code"></strong><p><a id="authorize" target="_blank" rel="noopener noreferrer">Open Rhythians to approve</a></p><p id="login-status" role="status"></p><button id="cancel-login">Cancel</button></dialog>
++<div id="drop" hidden>Drop an SSPM map to add it to your library</div>
++<script src="$GODOT_URL"></script><script>window.gameEngine = new Engine($GODOT_CONFIG);</script><script type="module" src="app.js"></script></body></html>
+--- /dev/null
++++ b/web/sspm.mjs
+@@ -0,0 +1,11 @@
++export function validateSspm(buffer) {
++  const view=new DataView(buffer);let p=0;
++  const take=n=>{if(!Number.isSafeInteger(n)||n<0||p+n>view.byteLength)throw new Error('SSPM data is truncated or invalid.');const start=p;p+=n;return start;};
++  const u8=()=>view.getUint8(take(1));const u16=()=>view.getUint16(take(2),true);const u32=()=>view.getUint32(take(4),true);const u64=()=>Number(view.getBigUint64(take(8),true));
++  const jump=n=>{p=0;take(n);};const text=()=>take(u16());
++  const position=()=>{const mode=u8();if(mode===0)take(2);else if(mode===1){const a=view.getFloat32(take(4),true),b=view.getFloat32(take(4),true);if(!Number.isFinite(a)||!Number.isFinite(b))throw new Error('Invalid note coordinates.');}else throw new Error('Invalid note position type.');};
++  const field=(type,depth=0)=>{if(depth>8)throw new Error('SSPM metadata is nested too deeply.');if(type===1)take(1);else if(type===2)take(2);else if(type===3||type===5)take(4);else if(type===4||type===6)take(8);else if(type===7)position();else if(type===8||type===9)take(u16());else if(type===10||type===11)take(u32());else if(type===12){const subtype=u8(),count=u16();for(let i=0;i<count;i++)field(subtype,depth+1);}else throw new Error('Unsupported SSPM metadata.');};
++  if(u32()!==0x6d2b5353)throw new Error('This is not an SSPM map.');const version=u16();
++  if(version===1){take(2);for(let i=0;i<3;i++){let length=0;while(u8()!==10){if(++length>65536)throw new Error('Invalid SSPM text.');}}take(4);const count=u32();if(count<1||count>1000000)throw new Error('Unsupported note count.');u8();const cover=u8();if(cover===1){const height=u16(),width=u16();take(2);if(height>4096||width>4096)throw new Error('Map artwork is too large.');take(u64());}else if(cover===2)take(u64());else if(cover!==0)throw new Error('Invalid artwork type.');if(u8()!==1)throw new Error('The map needs embedded audio.');const audio=u64();if(audio<12)throw new Error('Map audio is missing.');take(audio);for(let i=0;i<count;i++){take(4);position();}return version;}
++  if(version!==2)throw new Error('Only SSPM v1 and v2 are supported.');jump(0x26);const count=u32();if(count<1||count>1000000)throw new Error('Unsupported marker count.');take(3);if(u8()!==1)throw new Error('The map needs embedded audio.');const cover=u8();jump(0x30);const custom=u64();u64();const audioOffset=u64(),audioLength=u64(),coverOffset=u64(),coverLength=u64(),definitions=u64();u64();const markers=u64();u64();text();text();text();const authors=u16();for(let i=0;i<authors;i++)text();jump(custom);const fields=u16();for(let i=0;i<fields;i++){text();field(u8());}jump(audioOffset);if(audioLength<12)throw new Error('Map audio is missing.');take(audioLength);if(cover){jump(coverOffset);take(coverLength);}jump(definitions);const types=[],size=u8();let noteType=-1;const decoder=new TextDecoder();for(let i=0;i<size;i++){const length=u16(),start=take(length),name=decoder.decode(new Uint8Array(buffer,start,length));const attributes=[],number=u8();for(let j=0;j<number;j++)attributes.push(u8());if(u8()!==0)throw new Error('Invalid marker definition.');if(name==='ssp_note'&&attributes[0]===7)noteType=i;types.push(attributes);}if(noteType<0)throw new Error('Map has no supported notes.');jump(markers);let notes=0;for(let i=0;i<count;i++){take(4);const type=u8();if(!types[type])throw new Error('Unknown marker type.');if(type===noteType)notes++;for(const attribute of types[type])field(attribute);}if(!notes)throw new Error('Map has no notes.');return version;
++}
+--- /dev/null
++++ b/web/tests/Smoke.gd
+@@ -0,0 +1,53 @@
++extends Node
++var failures = 0
++class Capture extends Reference:
++	var payload = {}
++	var count = 0
++	func rhythiansScore(text):
++		payload = JSON.parse(text).result
++		count += 1
++func check(value,label):
 +	if value: print("PASS: " + label)
 +	else:
 +		failures += 1
 +		push_error("FAIL: " + label)
-+
-+func run():
-+	await get_tree().process_frame
-+	Globals.Paths.user = "user://test-web"
-+	Globals.update_paths()
-+	Rhythia.init()
-+	await Rhythia.on_init_complete
-+	var menu = load("res://scenes/Menu.tscn").instantiate()
-+	get_tree().root.add_child(menu)
-+	get_tree().current_scene = menu
-+	await get_tree().process_frame
-+	var bundled_registry = Registry.new()
-+	var bundled_loader = MapsetLoader.new(bundled_registry)
-+	bundled_loader.load_from_folder("res://tests/bundle")
-+	check(bundled_registry.items.size() == 1, "bundled SSPM loads from read-only resource folder")
-+	check(bundled_registry.items[0].audio == null and bundled_registry.items[0].length == 5.0, "library metadata skips audio decoding")
-+	bundled_loader.free()
-+	var validator = load("res://scripts/web/SspmCheck.gd").new()
++func _ready():
++	var start = OS.get_ticks_msec()
++	while not Rhythia.first_init_done and OS.get_ticks_msec() - start < 15000:
++		yield(get_tree(), "idle_frame")
++	check(Rhythia.first_init_done, "client initializes")
 +	for version in [1, 2]:
-+		var path = "res://tests/fixtures/browser-test-v%s.sspm" % version
-+		var bytes = FileAccess.get_file_as_bytes(path)
-+		check(validator.validate(bytes).is_empty(), "validate SSPM v%s" % version)
-+		var before = Rhythia.mapsets.items.size()
-+		WebStorage._files_dropped(PackedStringArray([path]))
-+		check(Rhythia.mapsets.items.size() == before + 1, "dropped map v%s registered" % version)
-+		var mapset = Rhythia.mapsets.get_by_id("web-test-v%s" % version)
-+		check(mapset != null and FileAccess.file_exists(mapset.path), "map saved to user data")
-+		mapset = Mapset.read_from_file(mapset.path, true)
-+		check(mapset.maps[0].notes.size() == 5, "notes decoded")
-+		check(absf(mapset.audio.get_length() - 6.0) < 0.01, "audio decoded at correct duration")
-+		var again = WebStorage.import_map(path, bytes)
-+		check(again.ok and Rhythia.mapsets.items.size() == before + 1, "duplicate import is idempotent")
-+		check(not validator.validate(bytes.slice(0, bytes.size() - 2)).is_empty(), "truncated notes rejected")
-+	var result = WebStorage.import_map("broken.sspm", FileAccess.get_file_as_bytes("res://tests/fixtures/broken.sspm"))
-+	check(not result.ok, "invalid map rejected")
-+	Rhythia.settings.volume.master = 0.37
++		var song = Rhythia.registry_song.add_sspm_map("res://web/tests/v%d.sspm" % version)
++		check(song != null and not song.is_broken and song.note_count == 5, "SSPM v%d import" % version)
++		check(song != null and song.stream() != null and abs(song.stream().get_length() - 6.0) < 0.01, "embedded audio duration")
++	var capture = Capture.new()
++	WebPortal.window = capture
++	WebPortal.active_map = {"id": "test"}
++	Rhythia.cam_unlock = true
++	WebPortal.begin_run()
++	Rhythia.song_end_total_notes = 5
++	Rhythia.song_end_hits = 4
++	Rhythia.song_end_misses = 1
++	WebPortal.finished()
++	check(capture.payload.cameraMode == "spin" and capture.payload.accuracy == 80, "spin score payload uses actual camera mode")
++	Rhythia.cam_unlock = false
++	WebPortal.begin_run()
++	WebPortal.finished()
++	check(capture.payload.cameraMode == "lock", "lock score payload")
++	var count = capture.count
++	Rhythia.mod_nofail = true
++	Rhythian.on_song_ended(Globals.END_PASS)
++	check(capture.count == count, "no-fail runs are not submitted")
++	Rhythia.mod_nofail = false
++	Rhythia.cam_unlock = true
 +	Rhythia.save_settings()
-+	var saved = GameSettings.load_from_file(Globals.Paths.settings)
-+	check(absf(saved.volume.master - 0.37) < 0.001, "settings round trip")
-+	var fresh = Registry.new()
-+	var loader = MapsetLoader.new(fresh)
-+	loader.load_from_folder(Globals.Paths.maps)
-+	check(fresh.items.size() == 2, "map library restored from user data")
-+	loader.free()
-+	var set = Rhythia.mapsets.get_by_id("web-test-v1")
-+	Rhythia.selected_mods.no_fail = true
-+	var game = Rhythia.load_game_scene(Rhythia.GameType.SOLO, set)
-+	get_tree().root.add_child(game)
-+	get_tree().current_scene = game
-+	await get_tree().process_frame
-+	await get_tree().process_frame
-+	check(game.map.notes.size() == 5, "game scene loads imported notes")
-+	game.replay_manager.stop()
-+	var replay_path = Globals.Paths.user.path_join("recent.rhyr")
-+	check(FileAccess.file_exists(replay_path), "replay written to user data")
-+	var replay = Replay.read_from_file(replay_path)
-+	check(replay != null and replay.mapset_id == set.id, "replay round trip")
-+	game.get_node("PauseHandler").attempt_pause()
-+	check(get_tree().paused, "pause works")
-+	game.get_node("PauseHandler").attempt_resume()
-+	await get_tree().create_timer(0.4).timeout
-+	check(not get_tree().paused, "resume completes without hanging")
-+	game.queue_free()
-+	await get_tree().process_frame
-+	get_tree().current_scene = menu
-+	WebStorage.editor_path = set.path
-+	WebStorage.editor_map = Mapset.read_from_file(set.path, true)
-+	var bad_edit = WebStorage.save_editor_copy({"0": {"time": -1, "x": 1, "y": 1}})
-+	check(not bad_edit.ok, "editor rejects invalid timing")
-+	var edited = WebStorage.save_editor_copy({"0": {"time": 0.5, "x": 1.25, "y": 0.75}})
-+	check(edited.ok, "editor saves playable copy")
-+	var copy = Mapset.read_from_file(Rhythia.mapsets.items.back().path, true)
-+	check(copy.id != set.id and copy.maps[0].notes[0].time == 0.5 and copy.maps[0].notes[0].x == 1.25, "edited note round trip and original preserved")
-+	check(absf(copy.audio.get_length() - 6.0) < 0.01, "editor preserves embedded audio")
-+	Globals.web_root = "user://test-profiles"
-+	Globals.web_profiles_enabled = true
-+	WebStorage.load_profiles()
-+	Rhythia.load_settings()
-+	Rhythia.settings.volume.master = 0.23
-+	Rhythia.schedule_save()
-+	await get_tree().create_timer(0.35).timeout
-+	check(absf(GameSettings.load_from_file(Globals.Paths.settings).volume.master - 0.23) < 0.001, "settings autosave after debounce")
-+	var shared_maps = Globals.Paths.maps
-+	var default_replays = Globals.Paths.replays
-+	var profile = WebStorage.create_profile("Practice")
-+	check(not profile.is_empty() and WebStorage.switch_profile(profile), "create and switch local profile")
-+	check(Globals.Paths.maps == shared_maps and Globals.Paths.replays != default_replays, "maps shared and replay paths isolated")
-+	Rhythia.settings.volume.master = 0.61
-+	Rhythia.save_settings()
-+	check(WebStorage.switch_profile("default") and absf(Rhythia.settings.volume.master - 0.23) < 0.001, "default profile settings restored")
-+	check(WebStorage.switch_profile(profile) and absf(Rhythia.settings.volume.master - 0.61) < 0.001, "second profile settings restored")
-+	check(WebStorage.create_profile("Practice").is_empty() and not WebStorage.switch_profile("../../invalid"), "invalid and duplicate profiles rejected")
-+	print("INTEGRATION_FAILURES=" + str(failures))
++	Rhythia.cam_unlock = false
++	Rhythia.load_saved_settings()
++	check(Rhythia.cam_unlock, "spin preference saves and restores")
++	WebPortal.window = null
++	var menu = load("res://scenes/menu/menu2.tscn").instance()
++	get_tree().root.add_child(menu)
++	yield(get_tree(), "idle_frame")
++	check(WebPortal.menu_loaded, "real client menu loads")
++	print("SMOKE_FAILURES=" + str(failures))
 +	get_tree().quit(1 if failures else 0)
 --- /dev/null
-+++ b/tests/Integration.tscn
-@@ -0,0 +1,6 @@
-+[gd_scene load_steps=2 format=3]
-+
-+[ext_resource type="Script" path="res://tests/Integration.gd" id="1"]
-+
-+[node name="Integration" type="Node"]
-+script = ExtResource("1")
++++ b/web/tests/Smoke.tscn
+@@ -0,0 +1,4 @@
++[gd_scene load_steps=2 format=2]
++[ext_resource path="res://web/tests/Smoke.gd" type="Script" id=1]
++[node name="Smoke" type="Node"]
++script = ExtResource( 1 )
 --- /dev/null
-+++ b/tests/Restore.gd
-@@ -0,0 +1,21 @@
-+extends Node
-+
-+func _ready():
-+	call_deferred("run")
-+
-+func run():
-+	await get_tree().process_frame
-+	Globals.Paths.user = "user://test-web"
-+	Globals.update_paths()
-+	Rhythia.init()
-+	await Rhythia.on_init_complete
-+	var settings = GameSettings.load_from_file(Globals.Paths.settings)
-+	var replay = Replay.read_from_file(Globals.Paths.user.path_join("recent.rhyr"))
-+	var success = Rhythia.mapsets.items.size() >= 3 and absf(settings.volume.master - 0.37) < 0.001 and replay != null and replay.mapset != null
-+	Globals.web_root = "user://test-profiles"
-+	Globals.web_profiles_enabled = true
-+	WebStorage.load_profiles()
-+	Rhythia.load_settings()
-+	success = success and WebStorage.profiles.active != "default" and absf(Rhythia.settings.volume.master - 0.61) < 0.001
-+	print("FRESH_PROCESS_RESTORE=" + str(success))
-+	get_tree().quit(0 if success else 1)
---- /dev/null
-+++ b/tests/Restore.tscn
-@@ -0,0 +1,6 @@
-+[gd_scene load_steps=2 format=3]
-+
-+[ext_resource type="Script" path="res://tests/Restore.gd" id="1"]
-+
-+[node name="Restore" type="Node"]
-+script = ExtResource("1")
---- /dev/null
-+++ b/tests/make_fixtures.py
-@@ -0,0 +1,44 @@
++++ b/web/tests/make_fixtures.py
+@@ -0,0 +1,41 @@
 +from pathlib import Path
 +import io
 +import math
 +import struct
 +import wave
 +
-+root = Path(__file__).parent / 'fixtures'
++root = Path(__file__).parent
 +root.mkdir(exist_ok=True)
 +stream = io.BytesIO()
 +with wave.open(stream, 'wb') as audio:
@@ -1274,7 +1153,7 @@
 +v1 = b'SS+m' + pack('<HH', 1, 0) + b'web-test-v1\nBrowser Test V1\nWeb Rhythia Tests\n'
 +v1 += pack('<IIBBBQ', 5000, len(notes), 1, 0, 1, len(track)) + track
 +v1 += b''.join(pack('<IBBB', t, 0, x, y) for t, x, y in notes)
-+(root / 'browser-test-v1.sspm').write_bytes(v1)
++(root / 'v1.sspm').write_bytes(v1)
 +def text(value):
 +    value = value.encode()
 +    return pack('<H', len(value)) + value
@@ -1293,310 +1172,24 @@
 +struct.pack_into('<QQ', v2, 0x40, audio_offset, len(track))
 +struct.pack_into('<Q', v2, 0x60, definition_offset)
 +struct.pack_into('<Q', v2, 0x70, marker_offset)
-+(root / 'browser-test-v2.sspm').write_bytes(v2)
++struct.pack_into('<QQ', v2, 0x30, definition_offset - 2, 2)
++(root / 'v2.sspm').write_bytes(v2)
 +(root / 'broken.sspm').write_bytes(b'SS+m\x02\x00' + bytes(16))
 +print(root)
-+
-+bundle = root.parent / "bundle"
-+bundle.mkdir(exist_ok=True)
-+(bundle / "test.SSPM").write_bytes(v2)
 --- /dev/null
-+++ b/web/shell.html
-@@ -0,0 +1,297 @@
-+<!doctype html>
-+<html lang="en">
-+<head>
-+<meta charset="utf-8">
-+<meta name="viewport" content="width=device-width, initial-scale=1">
-+<title>Rhythia · Web</title>
-+<style>
-+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101217; color: #eff5ff; }
-+* { box-sizing: border-box; }
-+body { margin: 0; overflow: hidden; }
-+#canvas { display: block; width: 100vw; height: 100dvh; outline: none; }
-+#loading { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 20%, #233d55, #101217 65%); }
-+.panel { max-width: 520px; padding: 32px; text-align: center; }
-+h1 { font-size: clamp(40px, 8vw, 64px); letter-spacing: -.05em; margin: 8px 0; }
-+.tag { color: #83cfff; letter-spacing: .2em; font-size: 12px; }
-+p { line-height: 1.6; color: #b5c4d5; }
-+button { border: 0; border-radius: 10px; padding: 14px 28px; font: inherit; font-weight: 650; background: #84d2ff; color: #102334; cursor: pointer; }
-+button:disabled { opacity: .5; cursor: wait; }
-+progress { display: block; width: 100%; height: 10px; margin: 24px 0; accent-color: #84d2ff; }
-+#detail { font-size: 13px; min-height: 42px; overflow-wrap: anywhere; }
-+a { color: #b6ddff; }
-+footer { margin-top: 30px; font-size: 12px; color: #8595a6; }
-+#tools { position: fixed; right: 12px; top: 12px; z-index: 5; display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 90px); }
-+#tools button { padding: 9px 14px; font-size: 13px; }
-+#storage { font-size: 12px; color: #d7eaff; background: #17222fe8; padding: 8px; border-radius: 6px; }
-+#message { position: fixed; bottom: 34px; right: 16px; max-width: min(480px, 90vw); background: #203344; padding: 14px; border-radius: 8px; z-index: 5; font-size: 14px; }
-+#dropzone { position: fixed; inset: 8px; z-index: 30; border: 3px dashed #84d2ff; background: #101217df; display: grid; place-items: center; font-size: 28px; pointer-events: none; }
-+dialog { color: #eff5ff; background: #17222f; border: 1px solid #476379; border-radius: 12px; width: min(860px, 94vw); max-height: 90dvh; }
-+dialog::backdrop { background: #000a; }
-+.editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; }
-+#note-rows { overflow: auto; max-height: 50dvh; }
-+table { width: 100%; border-collapse: collapse; } th, td { padding: 6px; text-align: left; }
-+input, select { color: #eff5ff; background: #101217; border: 1px solid #476379; padding: 8px; border-radius: 6px; }
-+td input { width: 100%; min-width: 65px; }
-+@media (max-width: 720px) { #storage { display: none; } #tools { flex-wrap: wrap; } }
-+[hidden] { display: none !important; }
-+</style>
-+$GODOT_HEAD_INCLUDE
-+</head>
-+<body>
-+<canvas id="canvas" tabindex="0" aria-label="Rhythia game"></canvas>
-+<div id="loading">
-+<main class="panel">
-+<span class="tag">BROWSER EDITION</span>
-+<h1>Rhythia</h1>
-+<p>An aim-based rhythm game. Move your mouse to follow the notes.</p>
-+<button id="start" type="button">Launch game</button>
-+<progress id="progress" hidden></progress>
-+<p id="detail" role="status" aria-live="polite">The first load downloads the game assets. A keyboard and mouse are recommended.</p>
-+<button id="retry" type="button" hidden>Reload</button>
-+<footer>Based on <a href="https://github.com/kermeow/RhythiaRewrite">RhythiaRewrite</a> · <a href="https://github.com/Evaxle/Web-Rhythia">Source &amp; licence</a></footer>
-+</main>
-+</div>
-+<div id="tools" hidden><span id="storage"></span><select id="profiles" aria-label="Active profile"></select><button id="new-profile" type="button">New profile</button><button id="import" type="button">Import .sspm</button><input id="files" type="file" accept=".sspm" multiple hidden></div>
-+<p id="message" role="status" aria-live="polite" hidden></p>
-+<div id="dropzone" hidden>Drop SSPM to open the note editor</div>
-+<dialog id="editor" aria-labelledby="editor-title">
-+<h2 id="editor-title">SSPM note editor</h2><p id="editor-map"></p>
-+<p>Edit note times in seconds and X/Y positions. Save creates a separate playable copy; the original stays intact. Other SSPM metadata and artwork are not copied.</p>
-+<div id="note-rows"><table><thead><tr><th>Note</th><th>Time (s)</th><th>X</th><th>Y</th></tr></thead><tbody id="notes"></tbody></table></div>
-+<div class="editor-actions"><button id="previous-notes" type="button">Previous</button><span id="note-page"></span><button id="next-notes" type="button">Next</button><button id="save-notes" type="button">Save edited copy</button><button id="close-editor" type="button">Close</button></div>
-+</dialog>
-+<dialog id="profile-dialog" aria-labelledby="profile-title"><form id="profile-form"><h2 id="profile-title">New local profile</h2><label>Name <input id="profile-name" maxlength="40" required></label><div class="editor-actions"><button type="submit">Create</button><button id="cancel-profile" type="button">Cancel</button></div></form></dialog>
-+<noscript>Enable JavaScript to play Rhythia.</noscript>
-+<script src="$GODOT_URL"></script>
-+<script>
-+const config = $GODOT_CONFIG;
-+config.persistentPaths = ['/userfs'];
-+const engine = new Engine(config);
-+const loading = document.getElementById('loading');
-+const start = document.getElementById('start');
-+const progress = document.getElementById('progress');
-+const detail = document.getElementById('detail');
-+const retry = document.getElementById('retry');
-+let ready = false;
-+let failed = false;
-+let importBusy = false;
-+let importResolve;
-+let messageTimer;
-+const importButton = document.getElementById('import');
-+const fileInput = document.getElementById('files');
-+function notify(message) {
-+  const box = document.getElementById('message');
-+  box.textContent = message;
-+  box.hidden = false;
-+  clearTimeout(messageTimer);
-+  messageTimer = setTimeout(() => { box.hidden = true; }, 10000);
++++ b/web/tests/sspm.mjs
+@@ -0,0 +1,14 @@
++import assert from 'node:assert/strict';
++import { readFileSync, readdirSync } from 'node:fs';
++import { fileURLToPath } from 'node:url';
++import { validateSspm } from '../sspm.mjs';
++const buffer = bytes => bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
++for(const version of [1,2]){
++ const bytes=readFileSync(new URL(`v${version}.sspm`,import.meta.url));
++ assert.equal(validateSspm(buffer(bytes)),version);
++ assert.throws(()=>validateSspm(buffer(bytes.subarray(0,bytes.length-2))));
++ const bad=Buffer.from(bytes);bad[0]=0;assert.throws(()=>validateSspm(buffer(bad)));
 +}
-+window.rhythiaImportResult = text => {
-+  const result = JSON.parse(text);
-+  notify(result.message);
-+  if (importResolve) {
-+    importResolve(result);
-+    importResolve = undefined;
-+  }
-+};
-+importButton.addEventListener('click', () => fileInput.click());
-+async function importFiles(files) {
-+  if (importBusy || !ready) { notify('Wait for the current import to finish.'); return; }
-+  if (editor.open) editor.close();
-+  importBusy = true;
-+  importButton.disabled = true;
-+  try {
-+    for (const file of files) {
-+      if (file.size > 128 * 1024 * 1024) { notify('Maps must be smaller than 128 MiB.'); continue; }
-+      const data = await file.arrayBuffer();
-+      await new Promise(resolve => {
-+        importResolve = resolve;
-+        window.rhythiaImport(file.name, data);
-+      });
-+    }
-+  } catch (error) {
-+    notify('Import failed: ' + error.message);
-+  } finally {
-+    importResolve = undefined;
-+    importBusy = false;
-+    importButton.disabled = false;
-+    fileInput.value = '';
-+  }
-+}
-+fileInput.addEventListener('change', () => importFiles(Array.from(fileInput.files)));
-+let dragDepth = 0;
-+let queuedFiles = [];
-+const dropzone = document.getElementById('dropzone');
-+window.addEventListener('dragenter', event => {
-+  if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
-+  event.preventDefault();
-+  dragDepth++;
-+  dropzone.hidden = false;
-+}, true);
-+window.addEventListener('dragleave', event => {
-+  event.preventDefault();
-+  if (--dragDepth <= 0) { dragDepth = 0; dropzone.hidden = true; }
-+}, true);
-+window.addEventListener('dragover', event => {
-+  event.preventDefault();
-+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-+}, true);
-+window.addEventListener('drop', event => {
-+  event.preventDefault();
-+  event.stopImmediatePropagation();
-+  dragDepth = 0;
-+  dropzone.hidden = true;
-+  const files = Array.from(event.dataTransfer?.files || []).filter(file => /\.sspm$/i.test(file.name));
-+  if (!files.length) { notify('Drop an .sspm map file.'); return; }
-+  if (!ready) {
-+    queuedFiles = files;
-+    notify('Map selected. Launch the game to open it in the editor.');
-+  } else importFiles(files);
-+}, true);
-+const profileSelect = document.getElementById('profiles');
-+const profileDialog = document.getElementById('profile-dialog');
-+function renderProfiles(data) {
-+  profileSelect.replaceChildren(...data.items.map(item => {
-+    const option = document.createElement('option');
-+    option.value = item.id;
-+    option.textContent = item.name;
-+    option.selected = item.id === data.active;
-+    return option;
-+  }));
-+}
-+window.rhythiaProfileResult = text => {
-+  const result = JSON.parse(text);
-+  renderProfiles(result.profiles);
-+  window.rhythiaProfilesJSON = JSON.stringify(result.profiles);
-+  notify(result.ok ? 'Profile loaded.' : 'Could not switch profile. Use a unique name and return to the menu.');
-+};
-+profileSelect.addEventListener('change', () => window.rhythiaProfile(JSON.stringify({action:'switch', id:profileSelect.value})));
-+document.getElementById('new-profile').addEventListener('click', () => profileDialog.showModal());
-+document.getElementById('cancel-profile').addEventListener('click', () => profileDialog.close());
-+document.getElementById('profile-form').addEventListener('submit', event => {
-+  event.preventDefault();
-+  window.rhythiaProfile(JSON.stringify({action:'create',name:document.getElementById('profile-name').value}));
-+  profileDialog.close();
-+});
-+document.addEventListener('visibilitychange', () => {
-+  if (document.hidden && ready) window.rhythiaProfile(JSON.stringify({action:'flush'}));
-+});
-+window.addEventListener('pagehide', () => {
-+  if (ready) window.rhythiaProfile(JSON.stringify({action:'flush'}));
-+});
-+const editor = document.getElementById('editor');
-+let editorPage = 0;
-+let edits = {};
-+window.rhythiaEditorPage = text => {
-+  const data = JSON.parse(text);
-+  if (!editor.open) { edits = {}; editor.showModal(); }
-+  editorPage = data.page;
-+  document.getElementById('editor-map').textContent = data.name + ' · ' + data.count + ' notes';
-+  document.getElementById('note-page').textContent = `Page ${data.page + 1} / ${Math.ceil(data.count / 100)}`;
-+  document.getElementById('previous-notes').disabled = data.page === 0;
-+  document.getElementById('next-notes').disabled = (data.page + 1) * 100 >= data.count;
-+  const fragment = document.createDocumentFragment();
-+  for (const row of data.rows) {
-+    const values = edits[row.index] || row;
-+    const tr = document.createElement('tr');
-+    const label = document.createElement('td');
-+    label.textContent = row.index + 1;
-+    tr.append(label);
-+    for (const field of ['time','x','y']) {
-+      const td = document.createElement('td');
-+      const input = document.createElement('input');
-+      input.type = 'number'; input.step = '0.001'; input.value = values[field];
-+      input.setAttribute('aria-label', `Note ${row.index + 1} ${field}`);
-+      input.addEventListener('input', () => {
-+        if (!edits[row.index]) edits[row.index] = {time:row.time,x:row.x,y:row.y};
-+        edits[row.index][field] = input.value === '' ? null : Number(input.value);
-+      });
-+      td.append(input); tr.append(td);
-+    }
-+    fragment.append(tr);
-+  }
-+  document.getElementById('notes').replaceChildren(fragment);
-+};
-+for (const [button, offset] of [['previous-notes',-1],['next-notes',1]]) {
-+  document.getElementById(button).addEventListener('click', () => window.rhythiaEditor(JSON.stringify({action:'page',page:editorPage + offset})));
-+}
-+document.getElementById('close-editor').addEventListener('click', () => editor.close());
-+editor.addEventListener('close', () => {
-+  edits = {};
-+  window.rhythiaEditor(JSON.stringify({action:'close'}));
-+  document.getElementById('canvas').focus();
-+});
-+document.getElementById('save-notes').addEventListener('click', () => {
-+  window.rhythiaEditor(JSON.stringify({action:'save',edits}));
-+});
-+window.rhythiaEditorSaved = text => {
-+  const result = JSON.parse(text);
-+  notify(result.message);
-+  if (result.ok) { edits = {}; window.rhythiaEditor(JSON.stringify({action:'page',page:0})); }
-+};
-+
-+function fail(error) {
-+  if (ready || failed) return;
-+  failed = true;
-+  detail.textContent = 'Could not load the game: ' + (error.message || String(error));
-+  progress.hidden = true;
-+  start.hidden = true;
-+  retry.hidden = false;
-+  console.error(error);
-+}
-+
-+retry.addEventListener('click', () => location.reload());
-+window.addEventListener('rhythia-game', () => { document.getElementById('tools').hidden = true; });
-+window.addEventListener('rhythia-ready', () => {
-+  if (failed) return;
-+  ready = true;
-+  document.getElementById('tools').hidden = false;
-+  renderProfiles(JSON.parse(window.rhythiaProfilesJSON || '{"active":"default","items":[{"id":"default","name":"Default"}]}'));
-+  if (queuedFiles.length) { const files = queuedFiles; queuedFiles = []; importFiles(files); }
-+  document.getElementById('storage').textContent = window.rhythiaStoragePersistent ? 'Maps and settings saved in this browser' : 'Storage unavailable — data will be lost on reload';
-+  document.body.dataset.gameState = 'ready';
-+  loading.hidden = true;
-+  document.getElementById('canvas').focus();
-+});
-+window.addEventListener('error', event => fail(event.error || event.message));
-+window.addEventListener('unhandledrejection', event => fail(event.reason));
-+start.addEventListener('click', async () => {
-+  start.disabled = true;
-+  try {
-+    const missing = Engine.getMissingFeatures({ threads: $GODOT_THREADS_ENABLED });
-+    if (missing.length) throw new Error(missing.join(', ') + '. Enable hardware acceleration or try a browser with WebGL 2 support.');
-+    progress.hidden = false;
-+    start.hidden = true;
-+    detail.textContent = 'Downloading game…';
-+    await engine.startGame({
-+      onProgress(current, total) {
-+        if (total > 0) {
-+          progress.max = total;
-+          progress.value = current;
-+          detail.textContent = current < total ? `Downloading game… ${Math.round(current / total * 100)}%` : 'Starting Rhythia…';
-+        }
-+      },
-+      onPrintError(...args) {
-+        const message = args.join(' ');
-+        console.error(message);
-+        if (/Failed to save IDB|IndexedDB not available/i.test(message)) {
-+          document.getElementById('storage').textContent = 'Storage failed — changes may be lost on reload';
-+          notify('Browser storage could not save your data. Check available space and site storage permissions.');
-+        }
-+        if (/SCRIPT ERROR|Parse Error|Failed to instantiate|Failed to load script/.test(message)) fail(message);
-+      },
-+      onExit(code) {
-+        ready = false;
-+        loading.hidden = false;
-+        detail.textContent = code === 0 ? 'The game has closed.' : `The game exited with code ${code}.`;
-+        retry.hidden = false;
-+      }
-+    });
-+    if (!ready && !failed) detail.textContent = 'Loading the main menu…';
-+  } catch (error) {
-+    fail(error);
-+  }
-+});
-+</script>
-+</body>
-+</html>
++const root=new URL('../../bundled_maps/',import.meta.url);
++try{for(const file of readdirSync(root)){if(/\.sspm$/i.test(file))validateSspm(buffer(readFileSync(new URL(file,root))));}}catch(error){if(error.code!=='ENOENT')throw error;}
++console.log('SSPM_CHECKS=6');
