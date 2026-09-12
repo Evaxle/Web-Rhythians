@@ -18,7 +18,7 @@
  environment/defaults/default_clear_color=Color(0.0705882, 0.0705882, 0.0705882, 1)
 --- a/export_presets.cfg
 +++ b/export_presets.cfg
-@@ -328,8 +328,9 @@
+@@ -328,10 +328,11 @@
  custom_template/debug=""
  custom_template/release=""
  variant/extensions_support=false
@@ -27,8 +27,11 @@
 -vram_texture_compression/for_mobile=false
 +vram_texture_compression/for_mobile=true
  html/export_icon=true
- html/custom_html_shell=""
+-html/custom_html_shell=""
++html/custom_html_shell="res://web/shell.html"
  html/head_include=""
+ html/canvas_resize_policy=2
+ html/focus_canvas_on_start=true
 --- a/scripts/Rhythia.gd
 +++ b/scripts/Rhythia.gd
 @@ -62,6 +62,10 @@
@@ -42,3 +45,187 @@
  	var thread = Thread.new()
  	var err = thread.start(Callable(self,initialiser),Thread.PRIORITY_HIGH)
  	assert(err == OK) #,"Thread failed")
+--- a/scripts/menu/loading/Init.gd
++++ b/scripts/menu/loading/Init.gd
+@@ -5,6 +5,7 @@
+ @onready var tween:Tween = self.create_tween()
+ 
+ func _ready():
++	tween.stop()
+ 	Rhythia.warning_seen = ProjectSettings.get_setting_with_override("application/startup/disable_health_warning")
+ 	$Pre.modulate.a = 0
+ 	$Post.modulate.a = 0
+--- a/scripts/menu/Sidebar.gd
++++ b/scripts/menu/Sidebar.gd
+@@ -8,6 +8,9 @@
+ @onready var pages = [ $Buttons/Play, $Buttons/Multi, $Buttons/Content, $Buttons/Credits, $Buttons/Settings ]
+ 
+ func _ready():
++	tween.stop()
++	highlight_tween.stop()
++	$Buttons/Quit.visible = not OS.has_feature("web")
+ 	$Open.connect("mouse_entered", show_bar)
+ 	$Open.connect("pressed", show_bar)
+ 	$"../SidebarClose".connect("mouse_entered", hide_bar)
+@@ -21,6 +24,12 @@
+ 	$Buttons/Quit.connect("pressed", Callable(get_tree(),"call_deferred").bind("quit_animated"))
+ 
+ 	call_deferred("_move_highlight", pages[tabs.current_tab])
++	if OS.has_feature("web"):
++		call_deferred("_web_ready")
++
++func _web_ready():
++	JavaScriptBridge.eval("window.dispatchEvent(new Event('rhythia-ready'))")
++
+ func _move_highlight(button):
+ 	var dest_y = button.global_position.y
+ 	highlight_tween.kill()
+--- a/scripts/menu/maplist/MapList.gd
++++ b/scripts/menu/maplist/MapList.gd
+@@ -79,15 +79,13 @@
+ 	_update_paginator()
+ 
+ func _calculate_buttons_per_page(size):
+-	var columns = floor(size.x / 500)
+-	var rows = floor(size.y / 104)
++	var columns = maxi(1, floori(size.x / 500))
++	var rows = maxi(1, floori(size.y / 104))
+ 	button_container.columns = columns
+ 	buttons_per_page = columns * rows
+ func _calculate_pages():
+-	max_page = ceil(listed_mapsets.size() / buttons_per_page) - 1
+-	page = mini(page, max_page)
+-
+-	if page == -1 and max_page != -1: page = 0
++	max_page = maxi(0, ceili(float(listed_mapsets.size()) / buttons_per_page) - 1)
++	page = clampi(page, 0, max_page)
+ 
+ func _create_buttons():
+ 	if buttons.size() == buttons_per_page: return
+@@ -125,7 +123,14 @@
+ 	mapset_selected.emit(button.get_meta("mapset"))
+ 
+ func _update_paginator():
+-	$Paginator/Label.text = "Page %s of %s" % [page + 1, max_page + 1]
++	if listed_mapsets.is_empty():
++		$Paginator/Label.text = "No maps found"
++	else:
++		$Paginator/Label.text = "Page %s of %s" % [page + 1, max_page + 1]
++	$Paginator/First.disabled = page == 0
++	$Paginator/Previous.disabled = page == 0
++	$Paginator/Next.disabled = page == max_page
++	$Paginator/Last.disabled = page == max_page
+ func _first_paginator():
+ 	page = 0
+ 	_update_buttons()
+--- /dev/null
++++ b/web/shell.html
+@@ -0,0 +1,108 @@
++<!doctype html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>Rhythia · Web</title>
++<style>
++:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101217; color: #eff5ff; }
++* { box-sizing: border-box; }
++body { margin: 0; overflow: hidden; }
++#canvas { display: block; width: 100vw; height: 100dvh; outline: none; }
++#loading { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 20%, #233d55, #101217 65%); }
++.panel { max-width: 520px; padding: 32px; text-align: center; }
++h1 { font-size: clamp(40px, 8vw, 64px); letter-spacing: -.05em; margin: 8px 0; }
++.tag { color: #83cfff; letter-spacing: .2em; font-size: 12px; }
++p { line-height: 1.6; color: #b5c4d5; }
++button { border: 0; border-radius: 10px; padding: 14px 28px; font: inherit; font-weight: 650; background: #84d2ff; color: #102334; cursor: pointer; }
++button:disabled { opacity: .5; cursor: wait; }
++progress { display: block; width: 100%; height: 10px; margin: 24px 0; accent-color: #84d2ff; }
++#detail { font-size: 13px; min-height: 42px; overflow-wrap: anywhere; }
++a { color: #b6ddff; }
++footer { margin-top: 30px; font-size: 12px; color: #8595a6; }
++[hidden] { display: none !important; }
++</style>
++$GODOT_HEAD_INCLUDE
++</head>
++<body>
++<canvas id="canvas" tabindex="0" aria-label="Rhythia game"></canvas>
++<div id="loading">
++<main class="panel">
++<span class="tag">BROWSER EDITION</span>
++<h1>Rhythia</h1>
++<p>An aim-based rhythm game. Move your mouse to follow the notes.</p>
++<button id="start" type="button">Launch game</button>
++<progress id="progress" hidden></progress>
++<p id="detail" role="status" aria-live="polite">The first load downloads the game assets. A keyboard and mouse are recommended.</p>
++<button id="retry" type="button" hidden>Reload</button>
++<footer>Based on <a href="https://github.com/kermeow/RhythiaRewrite">RhythiaRewrite</a> · <a href="https://github.com/Evaxle/Web-Rhythia">Source &amp; licence</a></footer>
++</main>
++</div>
++<noscript>Enable JavaScript to play Rhythia.</noscript>
++<script src="$GODOT_URL"></script>
++<script>
++const config = $GODOT_CONFIG;
++const engine = new Engine(config);
++const loading = document.getElementById('loading');
++const start = document.getElementById('start');
++const progress = document.getElementById('progress');
++const detail = document.getElementById('detail');
++const retry = document.getElementById('retry');
++let ready = false;
++let failed = false;
++
++function fail(error) {
++  if (ready || failed) return;
++  failed = true;
++  detail.textContent = 'Could not load the game: ' + (error.message || String(error));
++  progress.hidden = true;
++  start.hidden = true;
++  retry.hidden = false;
++  console.error(error);
++}
++
++retry.addEventListener('click', () => location.reload());
++window.addEventListener('rhythia-ready', () => {
++  ready = true;
++  document.body.dataset.gameState = 'ready';
++  loading.hidden = true;
++  document.getElementById('canvas').focus();
++});
++window.addEventListener('error', event => fail(event.error || event.message));
++window.addEventListener('unhandledrejection', event => fail(event.reason));
++start.addEventListener('click', async () => {
++  start.disabled = true;
++  try {
++    const missing = Engine.getMissingFeatures({ threads: $GODOT_THREADS_ENABLED });
++    if (missing.length) throw new Error(missing.join(', ') + '. Enable hardware acceleration or try a browser with WebGL 2 support.');
++    progress.hidden = false;
++    start.hidden = true;
++    detail.textContent = 'Downloading game…';
++    await engine.startGame({
++      onProgress(current, total) {
++        if (total > 0) {
++          progress.max = total;
++          progress.value = current;
++          detail.textContent = current < total ? `Downloading game… ${Math.round(current / total * 100)}%` : 'Starting Rhythia…';
++        }
++      },
++      onPrintError(...args) {
++        const message = args.join(' ');
++        console.error(message);
++        if (/SCRIPT ERROR|Parse Error|Failed to instantiate|Failed to load script/.test(message)) fail(message);
++      },
++      onExit(code) {
++        ready = false;
++        loading.hidden = false;
++        detail.textContent = code === 0 ? 'The game has closed.' : `The game exited with code ${code}.`;
++        retry.hidden = false;
++      }
++    });
++    if (!ready && !failed) detail.textContent = 'Loading the main menu…';
++  } catch (error) {
++    fail(error);
++  }
++});
++</script>
++</body>
++</html>

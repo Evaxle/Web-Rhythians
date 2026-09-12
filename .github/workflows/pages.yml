@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   build:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +38,11 @@ jobs:
         run: |
           godot --headless --editor --path source --import
           mkdir -p source/build/web
-          godot --headless --path source --export-release Web build/web/index.html
+          godot --headless --path source --export-release Web build/web/index.html 2>&1 | tee /tmp/export.log
+          if grep -Eq "SCRIPT ERROR|Failed to load script|Parse Error" /tmp/export.log; then exit 1; fi
+          test -s source/build/web/index.html
+          test -s source/build/web/index.wasm
+          test -s source/build/web/index.pck
           touch source/build/web/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
