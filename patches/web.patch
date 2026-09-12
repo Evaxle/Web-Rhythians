@@ -839,7 +839,7 @@
 +	show_page("Maps")
 --- /dev/null
 +++ b/web/Bridge.gd
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,81 @@
 +extends Node
 +
 +var callback
@@ -869,6 +869,12 @@
 +			Rhythia.cam_unlock = bool(data.get("enabled", false))
 +			Rhythia.save_settings()
 +		"save": Rhythia.save_settings()
++		"portal":
++			Rhythia.save_settings()
++			active_map.clear()
++			menu_loaded = false
++			get_tree().paused = false
++			get_tree().change_scene("res://scenes/loaders/menuload.tscn")
 +		"play":
 +			if not menu_loaded: return
 +			var path = str(data.get("path", ""))
@@ -965,7 +971,7 @@
 +let account = await storage('account','get','current');
 +let offset = 0, hasMore = false, generation = 0, downloadBusy = false, loginGeneration = 0;
 +let profileCache;
-+let engineReady, engineStarted = false, activeAccount;
++let engineReady, engineStarted = false, activeAccount, menuWait, resolveMenu;
 +let spin = Boolean(await storage('settings','get','spin'));
 +$('spin').checked = spin;
 +function notice(message) { $('status').textContent = message; }
@@ -998,7 +1004,7 @@
 +};
 +$('cancel-login').onclick=()=>{$('login').close();};$('login').onclose=()=>{loginGeneration++;};
 +$('spin').onchange=async()=>{spin=$('spin').checked;await storage('settings','put','spin',spin);if(window.rhythiansCommand)window.rhythiansCommand(JSON.stringify({action:'spin',enabled:spin}));};
-+window.rhythiansReady=text=>{const state=JSON.parse(text);if(!state.persistent)notice('Game settings storage is unavailable in this browser.');engineReady?.resolve();};
++window.rhythiansReady=text=>{const state=JSON.parse(text);if(!state.persistent)notice('Game settings storage is unavailable in this browser.');engineReady?.resolve();resolveMenu?.();resolveMenu=undefined;};
 +window.rhythiansMode=async enabled=>{spin=Boolean(enabled);$('spin').checked=spin;await storage('settings','put','spin',spin);};
 +window.rhythiansError=message=>{$('game-status').textContent=message;};
 +window.rhythiansSelected=()=>{$('game-status').textContent='Choose modifiers and press Play in the game.';};
@@ -1017,8 +1023,8 @@
 +  window.gameEngine.startGame({onProgress:(a,b)=>{$('game-status').textContent=b?`Loading game ${Math.round(a/b*100)}%`:'Loading game…';},onPrintError:message=>{console.error(message);if(/SCRIPT ERROR|Parse Error/.test(message))reject(new Error(message));}}).catch(reject);
 +  try{await promise;}finally{clearTimeout(timer);}
 +}
-+async function play(map){try{$('game').hidden=false;await startEngine();const saved=await storage('maps','get',map.id);if(!saved)throw new Error('Download this map first.');const path='/tmp/rhythians-'+map.id.replace(/[^a-zA-Z0-9_-]/g,'')+'.sspm';window.gameEngine.copyToFS(path,await saved.blob.arrayBuffer());activeAccount=account && !map.id.startsWith('local-') ? {...account}:null;window.rhythiansCommand(JSON.stringify({action:'play',path,map,spin}));$('canvas').focus();}catch(error){$('game-status').textContent=error.message;}}
-+$('back').onclick=()=>{$('game').hidden=true;window.rhythiansCommand?.(JSON.stringify({action:'save'}));render();};
++async function play(map){try{$('game').hidden=false;await startEngine();if(menuWait)await menuWait;const saved=await storage('maps','get',map.id);if(!saved)throw new Error('Download this map first.');const path='/tmp/rhythians-'+map.id.replace(/[^a-zA-Z0-9_-]/g,'')+'.sspm';window.gameEngine.copyToFS(path,await saved.blob.arrayBuffer());activeAccount=account && !map.id.startsWith('local-') ? {...account}:null;window.rhythiansCommand(JSON.stringify({action:'play',path,map,spin}));$('canvas').focus();}catch(error){$('game-status').textContent=error.message;}}
++$('back').onclick=()=>{$('game').hidden=true;if(window.rhythiansCommand){menuWait=new Promise(resolve=>{resolveMenu=resolve;});window.rhythiansCommand(JSON.stringify({action:'portal'}));}render();};
 +async function download(map,button,progress,label){if(downloadBusy)return;downloadBusy=true;button.disabled=true;progress.hidden=false;try{
 +  const response=await fetch(BASE+`/api/rhythkit/maps/${encodeURIComponent(map.id)}/download`,{headers:{Authorization:'Bearer '+account.token},credentials:'omit',signal:AbortSignal.timeout(180000)});
 +  if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||`Download failed (${response.status}).`);}

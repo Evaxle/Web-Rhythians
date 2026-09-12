@@ -22,6 +22,7 @@ mkdir -p source/bundled_maps source/build/web
 find maps -maxdepth 1 -type f -iname '*.sspm' -exec cp {} source/bundled_maps/ \;
 python3 source/web/tests/make_fixtures.py
 node source/web/tests/sspm.mjs
+"$GODOT_BIN" --path source --export-pack Web /tmp/rhythians-import.pck > /tmp/rhythians-import.log 2>&1
 "$GODOT_BIN" --path source --export Web build/web/index.html 2>&1 | tee /tmp/rhythians-export.log
 if grep -Eq 'SCRIPT ERROR|Parse Error|Failed loading resource' /tmp/rhythians-export.log; then exit 1; fi
 test_data=$(mktemp -d)
