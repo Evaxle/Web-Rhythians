@@ -10,6 +10,8 @@ elif ! git -C source apply --reverse --check ../patches/web.patch; then
   echo 'The source contains changes that conflict with the web patch.' >&2
   exit 1
 fi
+mkdir -p source/bundled_maps
+find maps -maxdepth 1 -type f -iname "*.sspm" -exec cp {} source/bundled_maps/ \;
 "$GODOT_BIN" --headless --editor --path source --import
 python3 source/tests/make_fixtures.py
 test_data=$(mktemp -d)

@@ -1,10 +1,12 @@
 --- a/export_presets.cfg
 +++ b/export_presets.cfg
-@@ -316,7 +316,7 @@
+@@ -315,8 +315,8 @@
+ dedicated_server=false
  custom_features=""
  export_filter="all_resources"
- include_filter=""
+-include_filter=""
 -exclude_filter=""
++include_filter="bundled_maps/*"
 +exclude_filter="tests/*"
  export_path="build/web/index.html"
  encryption_include_filters=""
@@ -59,20 +61,26 @@
  environment/defaults/default_clear_color=Color(0.0705882, 0.0705882, 0.0705882, 1)
 --- a/scripts/Globals.gd
 +++ b/scripts/Globals.gd
-@@ -40,6 +40,9 @@
+@@ -39,7 +39,14 @@
+ 	settings = [RootPath.USER, "preferences.json"]
  }
  
++var web_root:String = "user://WebRhythia"
++var web_profiles_enabled:bool = OS.has_feature("web")
++var active_profile:String = "default"
++
  func update_paths():
-+	if OS.has_feature("web"):
-+		Paths.user = "user://WebRhythia"
++	if web_profiles_enabled:
++		Paths.user = web_root if active_profile == "default" else web_root.path_join("profiles").path_join(active_profile)
 +		DirAccess.make_dir_recursive_absolute(Paths.user)
  	Paths.executable = OS.get_executable_path()
  	if FileAccess.file_exists(Paths.executable.path_join(".sc")):
  		Paths.user = Paths.executable.path_join("data")
-@@ -52,6 +55,8 @@
+@@ -52,6 +59,9 @@
  			RootPath.RES: Paths[key] = Paths.res.path_join(value[1])
  			RootPath.EXECUTABLE: Paths[key] = Paths.executable.path_join(value[1])
  			RootPath.SKIN: Paths[key] = Paths.skin.path_join(value[1])
++	if web_profiles_enabled: Paths.maps = web_root.path_join("maps")
 +	for key in ["maps", "playlists", "replays"]:
 +		DirAccess.make_dir_recursive_absolute(Paths[key])
  
@@ -80,7 +88,15 @@
  	UNKNOWN,
 --- a/scripts/Rhythia.gd
 +++ b/scripts/Rhythia.gd
-@@ -27,6 +27,7 @@
+@@ -6,6 +6,7 @@
+ @onready var worlds:Registry = preload("res://assets/content/Worlds.tres")
+ 
+ var settings:GameSettings
++var settings_callbacks:RefCounted
+ var first_time:bool = false
+ 
+ func _ready():
+@@ -27,18 +28,40 @@
  		var platform_default = "res://assets/settings/%s.json" % Globals.platform
  		if FileAccess.file_exists(platform_default):
  			settings = GameSettings.load_from_file(platform_default)
@@ -88,9 +104,32 @@
  	first_time = settings.first_time
  
  	var callbacks = GameSettings.Callbacks.new()
-@@ -36,9 +37,10 @@
- 	callbacks.reference()
+ 	callbacks.tree = get_tree()
+ 	callbacks.window = get_window()
+ 	callbacks.bind_to(settings)
+-	callbacks.reference()
++	settings_callbacks = callbacks
++	callbacks.volume(settings.volume.master, "Master")
++	callbacks.volume(settings.volume.music, "Music")
++	callbacks.volume(settings.volume.sfx, "SFX")
++	callbacks.set_fps(settings.fps_limit)
++	callbacks.gui_scale(settings.gui_scale)
++	_watch_settings(settings.settings)
++
++func _watch_settings(items:Dictionary):
++	for setting in items.values():
++		if setting.type == GameSettings.Setting.Type.CATEGORY: _watch_settings(setting.value)
++		else: setting.changed.connect(func(_value): schedule_save())
++var save_pending:bool = false
++
++func schedule_save():
++	if save_pending: return
++	save_pending = true
++	await get_tree().create_timer(0.25, true).timeout
++	if save_pending: save_settings()
++
  func save_settings():
++	save_pending = false
  	var exec_settings = OS.get_executable_path().get_base_dir().path_join("preferences.json")
 -	if FileAccess.file_exists(exec_settings): Globals.Paths.settings = exec_settings
 +	if not OS.has_feature("web") and FileAccess.file_exists(exec_settings): Globals.Paths.settings = exec_settings
@@ -100,7 +139,7 @@
  
  # Init
  var _initialised:bool = false
-@@ -62,6 +64,10 @@
+@@ -62,6 +85,10 @@
  		return
  	_thread = _exec_initialiser("_reload")
  func _exec_initialiser(initialiser:String):
@@ -111,6 +150,18 @@
  	var thread = Thread.new()
  	var err = thread.start(Callable(self,initialiser),Thread.PRIORITY_HIGH)
  	assert(err == OK) #,"Thread failed")
+@@ -74,8 +101,11 @@
+ 		DirAccess.make_dir_recursive_absolute(Globals.Paths.get("maps"))
+ 	var loader = MapsetLoader.new(mapsets)
+ 	loader.load_from_folder(Globals.Paths.get("maps"))
++	if DirAccess.dir_exists_absolute("res://bundled_maps"):
++		loader.load_from_folder("res://bundled_maps")
+ 	for folder in settings.paths.maps:
+ 		if DirAccess.dir_exists_absolute(folder): loader.load_from_folder(ProjectSettings.globalize_path(folder))
++	loader.call_deferred("free")
+ func _load_playlists(reset:bool=false):
+ 	if reset: playlists.clear()
+ 	var list_reader = PlaylistReader.new()
 --- a/scripts/content/Registry.gd
 +++ b/scripts/content/Registry.gd
 @@ -20,7 +20,7 @@
@@ -192,8 +243,12 @@
  		map.id = hash_ctx.finish().hex_encode()
  		if full and (!indexed or index == i):
  			_deserialise_data(data,map)
-@@ -182,7 +182,7 @@
- 	file.seek(file.get_position()+4) # skip last_ms
+@@ -179,10 +179,10 @@
+ 	song = name
+ 	creator = file.get_line()
+ 	map.creator = creator
+-	file.seek(file.get_position()+4) # skip last_ms
++	length = file.get_32() / 1000.0
  	var note_count = file.get_32()
  	var difficulty = file.get_8()
 -	map.name = Map.DifficultyNames[difficulty]
@@ -201,7 +256,7 @@
  	# Cover
  	var cover_type = file.get_8()
  	match cover_type:
-@@ -193,12 +193,12 @@
+@@ -193,17 +193,18 @@
  			var format = file.get_8()
  			var length = file.get_64()
  			var image = Image.create_from_data(width,height,mipmaps,format,file.get_buffer(length))
@@ -217,7 +272,18 @@
  		_:
  			cover = Map.LegacyCovers.get(difficulty)
  	if file.get_8() != 1: # No music
-@@ -230,10 +230,10 @@
+ 		broken = true
+ 		return
++	if not full: return
+ 	var music_length = file.get_64()
+ 	var music_buffer = file.get_buffer(music_length)
+ 	var music_format = _get_audio_format(music_buffer)
+@@ -227,13 +228,15 @@
+ func _sspmv2(file:FileAccess,full:bool): # Load a v2 map
+ 	var map = Map.new()
+ 	maps = [map]
++	file.seek(0x1e)
++	length = file.get_32() / 1000.0
  	file.seek(0x26)
  	var marker_count = file.get_32()
  	var difficulty = file.get_8()
@@ -230,7 +296,7 @@
  		return
  	var cover_exists = bool(file.get_8())
  	file.seek(0x40)
-@@ -267,8 +267,8 @@
+@@ -267,10 +270,11 @@
  	if cover_exists:
  		file.seek(cover_offset)
  		var image = Image.new()
@@ -240,8 +306,11 @@
 +			cover = ImageTexture.create_from_image(image)
  	else:
  		cover = Map.LegacyCovers.get(difficulty)
++	if not full: return
  	# Audio
-@@ -301,7 +301,7 @@
+ 	file.seek(audio_offset)
+ 	_audio(file.get_buffer(audio_length))
+@@ -301,7 +305,7 @@
  			marker.append_array([data_type,v])
  		markers[type[0]].append(marker)
  	if !markers.has("ssp_note"):
@@ -250,7 +319,7 @@
  		return
  	for note_data in markers.get("ssp_note"):
  		if note_data[1] != 7: continue
-@@ -322,7 +322,7 @@
+@@ -322,7 +326,7 @@
  		3: return file.get_32()
  		4: return file.get_64()
  		5: return file.get_float()
@@ -259,7 +328,7 @@
  		7:
  			var value:Vector2
  			var t = file.get_8()
-@@ -361,11 +361,9 @@
+@@ -361,11 +365,9 @@
  	var stream:AudioStream
  	match format:
  		Globals.AudioFormat.WAV:
@@ -273,7 +342,7 @@
  		Globals.AudioFormat.MP3:
  			stream = AudioStreamMP3.new()
  			stream.data = audio_buffer
-@@ -388,11 +386,9 @@
+@@ -388,11 +390,9 @@
  	var stream:AudioStream
  	match format:
  		Globals.AudioFormat.WAV:
@@ -299,13 +368,40 @@
  		cache_file.close()
  		if cache.get("v",0) != CACHE_VERSION:
  			if Globals.debug: print("Cache is outdated")
-@@ -60,6 +61,7 @@
+@@ -31,7 +32,7 @@
+ 	# Load maps
+ 	var maps = []
+ 	for file in dir.get_files():
+-		var extension = file.get_extension()
++		var extension = file.get_extension().to_lower()
+ 		if extension != "sspm" and extension != "rhym": continue
+ 		var _start = Time.get_ticks_usec()
+ 		var full_path = folder.path_join(file)
+@@ -59,7 +60,8 @@
+ 			if Globals.debug: print(file)
  			mapset = Mapset.read_from_file(full_path)
  			var _end = Time.get_ticks_usec()
- 			if Globals.debug: print("Loaded v%s map from file in %sms" % [mapset.format,(_end-_start)/1000.0])
+-			if Globals.debug: print("Loaded v%s map from file in %sms" % [mapset.format,(_end-_start)/1000.0])
++			if Globals.debug and mapset != null: print("Loaded v%s map from file in %sms" % [mapset.format,(_end-_start)/1000.0])
 +		if mapset == null or mapset.broken: continue
  		mapset.path = full_path
  		maps.append(mapset)
+ 
+@@ -81,10 +83,11 @@
+ 			file_offsets = mapset.file_offsets,
+ 			length = mapset.length
+ 		}
+-	if cache_exists: DirAccess.remove_absolute(folder.path_join(".cache"))
+-	var cache_file = FileAccess.open(folder.path_join(".cache"),FileAccess.WRITE)
+-	cache_file.store_string(JSON.stringify(new_cache,"",false))
+-	cache_file.close()
++	if not folder.begins_with("res://"):
++		if cache_exists: DirAccess.remove_absolute(folder.path_join(".cache"))
++		var cache_file = FileAccess.open(folder.path_join(".cache"),FileAccess.WRITE)
++		cache_file.store_string(JSON.stringify(new_cache,"",false))
++		cache_file.close()
+ 	var _cache_end = Time.get_ticks_usec()
+ 	if Globals.debug: print("Took %sms to save new cache" % [(_cache_end-_cache_start)/1000.0])
  
 --- a/scripts/content/replays/Replay.gd
 +++ b/scripts/content/replays/Replay.gd
@@ -556,6 +652,12 @@
  	set_setting(value)
  	$Container/Revert.visible = target_setting.value != target_setting.default
  
+@@ -85,4 +87,4 @@
+ 
+ func save_setting(value):
+ 	reset()
+-	Rhythia.call_deferred("save_settings")
++	Rhythia.schedule_save()
 --- a/scripts/settings/Setting.gd
 +++ b/scripts/settings/Setting.gd
 @@ -43,6 +43,7 @@
@@ -592,10 +694,11 @@
  		pre_fullscreen_mode = window.mode
 --- /dev/null
 +++ b/scripts/web/SspmCheck.gd
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,182 @@
 +extends RefCounted
 +
 +var bytes:PackedByteArray
++var audio:PackedByteArray
 +var pos:int = 0
 +var error:String = ""
 +
@@ -709,7 +812,7 @@
 +		return
 +	var audio_size = number(8)
 +	if audio_size < 12: error = "The map audio is missing."
-+	take(audio_size)
++	audio = take(audio_size)
 +	for i in count:
 +		if not error.is_empty(): return
 +		take(4)
@@ -745,7 +848,7 @@
 +		if not error.is_empty(): return
 +	jump(audio_offset)
 +	if audio_size < 12: error = "The map audio is missing."
-+	take(audio_size)
++	audio = take(audio_size)
 +	if has_cover:
 +		jump(cover_offset)
 +		take(cover_size)
@@ -776,7 +879,7 @@
 +	if notes == 0: error = "The map contains no notes."
 --- /dev/null
 +++ b/scripts/web/WebStorage.gd
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,222 @@
 +extends Node
 +
 +const SspmCheck = preload("res://scripts/web/SspmCheck.gd")
@@ -787,11 +890,17 @@
 +
 +func _ready():
 +	if not OS.has_feature("web"): return
++	load_profiles()
 +	get_window().files_dropped.connect(_files_dropped)
 +	browser_window = JavaScriptBridge.get_interface("window")
 +	import_callback = JavaScriptBridge.create_callback(_browser_import)
 +	browser_window.rhythiaImport = import_callback
 +	browser_window.rhythiaStoragePersistent = OS.is_userfs_persistent()
++	profile_callback = JavaScriptBridge.create_callback(_profile_command)
++	browser_window.rhythiaProfile = profile_callback
++	editor_callback = JavaScriptBridge.create_callback(_editor_command)
++	browser_window.rhythiaEditor = editor_callback
++	browser_window.rhythiaProfilesJSON = JSON.stringify(profiles)
 +
 +func _browser_import(args:Array):
 +	if args.size() != 2 or not JavaScriptBridge.is_js_buffer(args[1]): return
@@ -827,7 +936,8 @@
 +	hash.update(data)
 +	var target = Globals.Paths.maps.path_join(hash.finish().hex_encode() + ".sspm")
 +	if FileAccess.file_exists(target):
-+		return {"ok": true, "message": "This map is already imported."}
++		open_editor(target)
++		return {"ok": true, "message": "Opened imported map."}
 +	var staged = Globals.Paths.user.path_join("import.tmp")
 +	var file = FileAccess.open(staged, FileAccess.WRITE)
 +	if file == null: return {"ok": false, "message": "Browser storage could not save this map."}
@@ -839,18 +949,162 @@
 +		return {"ok": false, "message": "The map has no playable notes or its audio cannot be decoded."}
 +	if Rhythia.mapsets.get_by_id(mapset.id) != null:
 +		DirAccess.remove_absolute(staged)
-+		return {"ok": true, "message": "A map with this ID is already imported."}
++		open_editor(Rhythia.mapsets.get_by_id(mapset.id).path)
++		return {"ok": true, "message": "Opened existing map with this ID."}
 +	if DirAccess.rename_absolute(staged, target) != OK:
 +		DirAccess.remove_absolute(staged)
 +		return {"ok": false, "message": "Browser storage could not finish saving this map."}
 +	mapset.path = target
-+	Rhythia.mapsets.add_item(mapset)
++	Rhythia.mapsets.add_item(Mapset.read_from_file(target))
 +	maps_changed.emit()
++	open_editor(target, mapset)
 +	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
 +	return {"ok": true, "message": "Imported " + mapset.name + "."}
++
++var profiles:Dictionary = {"active": "default", "items": [{"id": "default", "name": "Default"}]}
++var profile_callback:JavaScriptObject
++var editor_callback:JavaScriptObject
++var editor_path:String = ""
++var editor_map:Mapset
++
++func load_profiles():
++	var path = Globals.web_root.path_join("profiles.json")
++	if FileAccess.file_exists(path):
++		var saved = JSON.parse_string(FileAccess.get_file_as_string(path))
++		if saved is Dictionary and saved.get("items") is Array and saved.get("active") is String:
++			var clean:Array = []
++			for item in saved.items:
++				if item is Dictionary and item.get("id") is String and item.get("name") is String:
++					if item.id == "default" or (item.id.length() == 32 and item.id.is_valid_hex_number()): clean.append(item)
++			if not clean.is_empty(): profiles = {"items": clean, "active": saved.active}
++	var found = false
++	for item in profiles.items:
++		if item.id == profiles.active: found = true
++	if not found: profiles.active = profiles.items[0].id
++	Globals.active_profile = profiles.active
++	Globals.update_paths()
++
++func save_profiles() -> bool:
++	var file = FileAccess.open(Globals.web_root.path_join("profiles.json"), FileAccess.WRITE)
++	if file == null: return false
++	file.store_string(JSON.stringify(profiles))
++	file.close()
++	if OS.has_feature("web"): JavaScriptBridge.force_fs_sync()
++	return true
++
++func create_profile(label:String) -> String:
++	label = label.strip_edges().left(40)
++	if label.is_empty() or profiles.items.size() >= 32: return ""
++	for item in profiles.items:
++		if item.name.to_lower() == label.to_lower(): return ""
++	var id = Crypto.new().generate_random_bytes(16).hex_encode()
++	profiles.items.append({"id": id, "name": label})
++	if not save_profiles():
++		profiles.items.pop_back()
++		return ""
++	return id
++
++func switch_profile(id:String) -> bool:
++	if Rhythia.loading or Rhythia.is_init: return false
++	if get_tree().current_scene and get_tree().current_scene.get_meta("is_game", false): return false
++	var found = false
++	for item in profiles.items:
++		if item.id == id: found = true
++	if not found: return false
++	Rhythia.save_settings()
++	var previous = profiles.active
++	profiles.active = id
++	if not save_profiles():
++		profiles.active = previous
++		return false
++	Globals.active_profile = id
++	Globals.update_paths()
++	Rhythia.load_settings()
++	Rhythia.playlists.clear()
++	Rhythia._load_playlists()
++	editor_map = null
++	editor_path = ""
++	return true
++
++func _profile_command(args:Array):
++	if args.size() < 1: return
++	var request = JSON.parse_string(str(args[0]))
++	if not request is Dictionary: return
++	if request.get("action") == "flush":
++		Rhythia.save_settings()
++		return
++	var id = str(request.get("id", ""))
++	if request.get("action") == "create": id = create_profile(str(request.get("name", "")))
++	var ok = switch_profile(id)
++	browser_window.rhythiaProfileResult(JSON.stringify({"ok": ok, "profiles": profiles}))
++	if ok: get_tree().change_scene_to_file("res://scenes/Menu.tscn")
++
++func open_editor(path:String, loaded:Mapset = null):
++	if not browser_window: return
++	editor_path = path
++	editor_map = loaded if loaded != null else Mapset.read_from_file(path, true)
++	send_editor_page(0)
++
++func send_editor_page(page:int):
++	if editor_map == null: return
++	var notes = editor_map.maps[0].notes
++	page = clampi(page, 0, maxi(0, (notes.size() - 1) / 100))
++	var rows:Array = []
++	for i in range(page * 100, mini(notes.size(), (page + 1) * 100)):
++		var note = notes[i]
++		rows.append({"index": i, "time": note.time, "x": note.x, "y": note.y})
++	browser_window.rhythiaEditorPage(JSON.stringify({"name": editor_map.name, "count": notes.size(), "page": page, "rows": rows}))
++
++func save_editor_copy(edits:Dictionary) -> Dictionary:
++	if editor_map == null or edits.size() > 10000: return {"ok": false, "message": "Open a map first; save at most 10,000 edits at a time."}
++	var validator = SspmCheck.new()
++	if not validator.validate(FileAccess.get_file_as_bytes(editor_path)).is_empty(): return {"ok": false, "message": "The source map is unavailable."}
++	var notes = editor_map.maps[0].notes
++	for key in edits:
++		var i = str(key).to_int()
++		var edit = edits[key]
++		if str(i) != str(key) or i < 0 or i >= notes.size() or not edit is Dictionary: return {"ok": false, "message": "Invalid note index."}
++		for field in ["time", "x", "y"]:
++			if not (edit.get(field) is float or edit.get(field) is int) or not is_finite(float(edit[field])): return {"ok": false, "message": "Note values must be finite numbers."}
++		if edit.time < 0 or edit.time > 4294967 or absf(edit.x) > 1000 or absf(edit.y) > 1000: return {"ok": false, "message": "Note values are outside supported limits."}
++	var buffer = StreamPeerBuffer.new()
++	buffer.big_endian = false
++	buffer.put_data("SS+m".to_ascii_buffer())
++	buffer.put_u16(1)
++	buffer.put_u16(0)
++	var id = editor_map.id + "-edit-" + Crypto.new().generate_random_bytes(8).hex_encode()
++	for label in [id, editor_map.name + " (edited)", editor_map.creator]:
++		buffer.put_data((str(label).replace("\n", " ").replace("\r", " ") + "\n").to_utf8_buffer())
++	buffer.put_u32(int(editor_map.length * 1000))
++	buffer.put_u32(notes.size())
++	buffer.put_u8(0)
++	buffer.put_u8(0)
++	buffer.put_u8(1)
++	buffer.put_u64(validator.audio.size())
++	buffer.put_data(validator.audio)
++	for i in notes.size():
++		var note = notes[i]
++		var edit = edits.get(str(i), {"time": note.time, "x": note.x, "y": note.y})
++		buffer.put_u32(roundi(edit.time * 1000))
++		buffer.put_u8(1)
++		buffer.put_float(edit.x)
++		buffer.put_float(edit.y)
++	return import_map(id + ".sspm", buffer.data_array)
++
++func _editor_command(args:Array):
++	if args.size() < 1: return
++	var request = JSON.parse_string(str(args[0]))
++	if not request is Dictionary: return
++	if request.get("action") == "page": send_editor_page(int(request.get("page", 0)))
++	elif request.get("action") == "close":
++		editor_map = null
++		editor_path = ""
++	elif request.get("action") == "save" and request.get("edits") is Dictionary:
++		var result = save_editor_copy(request.edits)
++		browser_window.rhythiaEditorSaved(JSON.stringify(result))
 --- /dev/null
 +++ b/tests/Integration.gd
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,106 @@
 +extends Node
 +
 +var failures:int = 0
@@ -874,6 +1128,12 @@
 +	get_tree().root.add_child(menu)
 +	get_tree().current_scene = menu
 +	await get_tree().process_frame
++	var bundled_registry = Registry.new()
++	var bundled_loader = MapsetLoader.new(bundled_registry)
++	bundled_loader.load_from_folder("res://tests/bundle")
++	check(bundled_registry.items.size() == 1, "bundled SSPM loads from read-only resource folder")
++	check(bundled_registry.items[0].audio == null and bundled_registry.items[0].length == 5.0, "library metadata skips audio decoding")
++	bundled_loader.free()
 +	var validator = load("res://scripts/web/SspmCheck.gd").new()
 +	for version in [1, 2]:
 +		var path = "res://tests/fixtures/browser-test-v%s.sspm" % version
@@ -884,6 +1144,7 @@
 +		check(Rhythia.mapsets.items.size() == before + 1, "dropped map v%s registered" % version)
 +		var mapset = Rhythia.mapsets.get_by_id("web-test-v%s" % version)
 +		check(mapset != null and FileAccess.file_exists(mapset.path), "map saved to user data")
++		mapset = Mapset.read_from_file(mapset.path, true)
 +		check(mapset.maps[0].notes.size() == 5, "notes decoded")
 +		check(absf(mapset.audio.get_length() - 6.0) < 0.01, "audio decoded at correct duration")
 +		var again = WebStorage.import_map(path, bytes)
@@ -920,6 +1181,34 @@
 +	check(not get_tree().paused, "resume completes without hanging")
 +	game.queue_free()
 +	await get_tree().process_frame
++	get_tree().current_scene = menu
++	WebStorage.editor_path = set.path
++	WebStorage.editor_map = Mapset.read_from_file(set.path, true)
++	var bad_edit = WebStorage.save_editor_copy({"0": {"time": -1, "x": 1, "y": 1}})
++	check(not bad_edit.ok, "editor rejects invalid timing")
++	var edited = WebStorage.save_editor_copy({"0": {"time": 0.5, "x": 1.25, "y": 0.75}})
++	check(edited.ok, "editor saves playable copy")
++	var copy = Mapset.read_from_file(Rhythia.mapsets.items.back().path, true)
++	check(copy.id != set.id and copy.maps[0].notes[0].time == 0.5 and copy.maps[0].notes[0].x == 1.25, "edited note round trip and original preserved")
++	check(absf(copy.audio.get_length() - 6.0) < 0.01, "editor preserves embedded audio")
++	Globals.web_root = "user://test-profiles"
++	Globals.web_profiles_enabled = true
++	WebStorage.load_profiles()
++	Rhythia.load_settings()
++	Rhythia.settings.volume.master = 0.23
++	Rhythia.schedule_save()
++	await get_tree().create_timer(0.35).timeout
++	check(absf(GameSettings.load_from_file(Globals.Paths.settings).volume.master - 0.23) < 0.001, "settings autosave after debounce")
++	var shared_maps = Globals.Paths.maps
++	var default_replays = Globals.Paths.replays
++	var profile = WebStorage.create_profile("Practice")
++	check(not profile.is_empty() and WebStorage.switch_profile(profile), "create and switch local profile")
++	check(Globals.Paths.maps == shared_maps and Globals.Paths.replays != default_replays, "maps shared and replay paths isolated")
++	Rhythia.settings.volume.master = 0.61
++	Rhythia.save_settings()
++	check(WebStorage.switch_profile("default") and absf(Rhythia.settings.volume.master - 0.23) < 0.001, "default profile settings restored")
++	check(WebStorage.switch_profile(profile) and absf(Rhythia.settings.volume.master - 0.61) < 0.001, "second profile settings restored")
++	check(WebStorage.create_profile("Practice").is_empty() and not WebStorage.switch_profile("../../invalid"), "invalid and duplicate profiles rejected")
 +	print("INTEGRATION_FAILURES=" + str(failures))
 +	get_tree().quit(1 if failures else 0)
 --- /dev/null
@@ -933,7 +1222,7 @@
 +script = ExtResource("1")
 --- /dev/null
 +++ b/tests/Restore.gd
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,21 @@
 +extends Node
 +
 +func _ready():
@@ -947,7 +1236,12 @@
 +	await Rhythia.on_init_complete
 +	var settings = GameSettings.load_from_file(Globals.Paths.settings)
 +	var replay = Replay.read_from_file(Globals.Paths.user.path_join("recent.rhyr"))
-+	var success = Rhythia.mapsets.items.size() == 2 and absf(settings.volume.master - 0.37) < 0.001 and replay != null and replay.mapset != null
++	var success = Rhythia.mapsets.items.size() >= 3 and absf(settings.volume.master - 0.37) < 0.001 and replay != null and replay.mapset != null
++	Globals.web_root = "user://test-profiles"
++	Globals.web_profiles_enabled = true
++	WebStorage.load_profiles()
++	Rhythia.load_settings()
++	success = success and WebStorage.profiles.active != "default" and absf(Rhythia.settings.volume.master - 0.61) < 0.001
 +	print("FRESH_PROCESS_RESTORE=" + str(success))
 +	get_tree().quit(0 if success else 1)
 --- /dev/null
@@ -961,7 +1255,7 @@
 +script = ExtResource("1")
 --- /dev/null
 +++ b/tests/make_fixtures.py
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,44 @@
 +from pathlib import Path
 +import io
 +import math
@@ -1002,9 +1296,13 @@
 +(root / 'browser-test-v2.sspm').write_bytes(v2)
 +(root / 'broken.sspm').write_bytes(b'SS+m\x02\x00' + bytes(16))
 +print(root)
++
++bundle = root.parent / "bundle"
++bundle.mkdir(exist_ok=True)
++(bundle / "test.SSPM").write_bytes(v2)
 --- /dev/null
 +++ b/web/shell.html
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,297 @@
 +<!doctype html>
 +<html lang="en">
 +<head>
@@ -1031,6 +1329,15 @@
 +#tools button { padding: 9px 14px; font-size: 13px; }
 +#storage { font-size: 12px; color: #d7eaff; background: #17222fe8; padding: 8px; border-radius: 6px; }
 +#message { position: fixed; bottom: 34px; right: 16px; max-width: min(480px, 90vw); background: #203344; padding: 14px; border-radius: 8px; z-index: 5; font-size: 14px; }
++#dropzone { position: fixed; inset: 8px; z-index: 30; border: 3px dashed #84d2ff; background: #101217df; display: grid; place-items: center; font-size: 28px; pointer-events: none; }
++dialog { color: #eff5ff; background: #17222f; border: 1px solid #476379; border-radius: 12px; width: min(860px, 94vw); max-height: 90dvh; }
++dialog::backdrop { background: #000a; }
++.editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; }
++#note-rows { overflow: auto; max-height: 50dvh; }
++table { width: 100%; border-collapse: collapse; } th, td { padding: 6px; text-align: left; }
++input, select { color: #eff5ff; background: #101217; border: 1px solid #476379; padding: 8px; border-radius: 6px; }
++td input { width: 100%; min-width: 65px; }
++@media (max-width: 720px) { #storage { display: none; } #tools { flex-wrap: wrap; } }
 +[hidden] { display: none !important; }
 +</style>
 +$GODOT_HEAD_INCLUDE
@@ -1049,8 +1356,16 @@
 +<footer>Based on <a href="https://github.com/kermeow/RhythiaRewrite">RhythiaRewrite</a> · <a href="https://github.com/Evaxle/Web-Rhythia">Source &amp; licence</a></footer>
 +</main>
 +</div>
-+<div id="tools" hidden><span id="storage"></span><button id="import" type="button">Import .sspm</button><input id="files" type="file" accept=".sspm" multiple hidden></div>
++<div id="tools" hidden><span id="storage"></span><select id="profiles" aria-label="Active profile"></select><button id="new-profile" type="button">New profile</button><button id="import" type="button">Import .sspm</button><input id="files" type="file" accept=".sspm" multiple hidden></div>
 +<p id="message" role="status" aria-live="polite" hidden></p>
++<div id="dropzone" hidden>Drop SSPM to open the note editor</div>
++<dialog id="editor" aria-labelledby="editor-title">
++<h2 id="editor-title">SSPM note editor</h2><p id="editor-map"></p>
++<p>Edit note times in seconds and X/Y positions. Save creates a separate playable copy; the original stays intact. Other SSPM metadata and artwork are not copied.</p>
++<div id="note-rows"><table><thead><tr><th>Note</th><th>Time (s)</th><th>X</th><th>Y</th></tr></thead><tbody id="notes"></tbody></table></div>
++<div class="editor-actions"><button id="previous-notes" type="button">Previous</button><span id="note-page"></span><button id="next-notes" type="button">Next</button><button id="save-notes" type="button">Save edited copy</button><button id="close-editor" type="button">Close</button></div>
++</dialog>
++<dialog id="profile-dialog" aria-labelledby="profile-title"><form id="profile-form"><h2 id="profile-title">New local profile</h2><label>Name <input id="profile-name" maxlength="40" required></label><div class="editor-actions"><button type="submit">Create</button><button id="cancel-profile" type="button">Cancel</button></div></form></dialog>
 +<noscript>Enable JavaScript to play Rhythia.</noscript>
 +<script src="$GODOT_URL"></script>
 +<script>
@@ -1086,7 +1401,8 @@
 +};
 +importButton.addEventListener('click', () => fileInput.click());
 +async function importFiles(files) {
-+  if (importBusy || !ready) return;
++  if (importBusy || !ready) { notify('Wait for the current import to finish.'); return; }
++  if (editor.open) editor.close();
 +  importBusy = true;
 +  importButton.disabled = true;
 +  try {
@@ -1108,12 +1424,116 @@
 +  }
 +}
 +fileInput.addEventListener('change', () => importFiles(Array.from(fileInput.files)));
-+window.addEventListener('dragover', event => event.preventDefault());
++let dragDepth = 0;
++let queuedFiles = [];
++const dropzone = document.getElementById('dropzone');
++window.addEventListener('dragenter', event => {
++  if (!Array.from(event.dataTransfer?.types || []).includes('Files')) return;
++  event.preventDefault();
++  dragDepth++;
++  dropzone.hidden = false;
++}, true);
++window.addEventListener('dragleave', event => {
++  event.preventDefault();
++  if (--dragDepth <= 0) { dragDepth = 0; dropzone.hidden = true; }
++}, true);
++window.addEventListener('dragover', event => {
++  event.preventDefault();
++  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
++}, true);
 +window.addEventListener('drop', event => {
 +  event.preventDefault();
-+  if (!ready) notify('Launch the game before dropping a map.');
-+  else if (event.target !== document.getElementById('canvas')) importFiles(Array.from(event.dataTransfer.files));
++  event.stopImmediatePropagation();
++  dragDepth = 0;
++  dropzone.hidden = true;
++  const files = Array.from(event.dataTransfer?.files || []).filter(file => /\.sspm$/i.test(file.name));
++  if (!files.length) { notify('Drop an .sspm map file.'); return; }
++  if (!ready) {
++    queuedFiles = files;
++    notify('Map selected. Launch the game to open it in the editor.');
++  } else importFiles(files);
++}, true);
++const profileSelect = document.getElementById('profiles');
++const profileDialog = document.getElementById('profile-dialog');
++function renderProfiles(data) {
++  profileSelect.replaceChildren(...data.items.map(item => {
++    const option = document.createElement('option');
++    option.value = item.id;
++    option.textContent = item.name;
++    option.selected = item.id === data.active;
++    return option;
++  }));
++}
++window.rhythiaProfileResult = text => {
++  const result = JSON.parse(text);
++  renderProfiles(result.profiles);
++  window.rhythiaProfilesJSON = JSON.stringify(result.profiles);
++  notify(result.ok ? 'Profile loaded.' : 'Could not switch profile. Use a unique name and return to the menu.');
++};
++profileSelect.addEventListener('change', () => window.rhythiaProfile(JSON.stringify({action:'switch', id:profileSelect.value})));
++document.getElementById('new-profile').addEventListener('click', () => profileDialog.showModal());
++document.getElementById('cancel-profile').addEventListener('click', () => profileDialog.close());
++document.getElementById('profile-form').addEventListener('submit', event => {
++  event.preventDefault();
++  window.rhythiaProfile(JSON.stringify({action:'create',name:document.getElementById('profile-name').value}));
++  profileDialog.close();
 +});
++document.addEventListener('visibilitychange', () => {
++  if (document.hidden && ready) window.rhythiaProfile(JSON.stringify({action:'flush'}));
++});
++window.addEventListener('pagehide', () => {
++  if (ready) window.rhythiaProfile(JSON.stringify({action:'flush'}));
++});
++const editor = document.getElementById('editor');
++let editorPage = 0;
++let edits = {};
++window.rhythiaEditorPage = text => {
++  const data = JSON.parse(text);
++  if (!editor.open) { edits = {}; editor.showModal(); }
++  editorPage = data.page;
++  document.getElementById('editor-map').textContent = data.name + ' · ' + data.count + ' notes';
++  document.getElementById('note-page').textContent = `Page ${data.page + 1} / ${Math.ceil(data.count / 100)}`;
++  document.getElementById('previous-notes').disabled = data.page === 0;
++  document.getElementById('next-notes').disabled = (data.page + 1) * 100 >= data.count;
++  const fragment = document.createDocumentFragment();
++  for (const row of data.rows) {
++    const values = edits[row.index] || row;
++    const tr = document.createElement('tr');
++    const label = document.createElement('td');
++    label.textContent = row.index + 1;
++    tr.append(label);
++    for (const field of ['time','x','y']) {
++      const td = document.createElement('td');
++      const input = document.createElement('input');
++      input.type = 'number'; input.step = '0.001'; input.value = values[field];
++      input.setAttribute('aria-label', `Note ${row.index + 1} ${field}`);
++      input.addEventListener('input', () => {
++        if (!edits[row.index]) edits[row.index] = {time:row.time,x:row.x,y:row.y};
++        edits[row.index][field] = input.value === '' ? null : Number(input.value);
++      });
++      td.append(input); tr.append(td);
++    }
++    fragment.append(tr);
++  }
++  document.getElementById('notes').replaceChildren(fragment);
++};
++for (const [button, offset] of [['previous-notes',-1],['next-notes',1]]) {
++  document.getElementById(button).addEventListener('click', () => window.rhythiaEditor(JSON.stringify({action:'page',page:editorPage + offset})));
++}
++document.getElementById('close-editor').addEventListener('click', () => editor.close());
++editor.addEventListener('close', () => {
++  edits = {};
++  window.rhythiaEditor(JSON.stringify({action:'close'}));
++  document.getElementById('canvas').focus();
++});
++document.getElementById('save-notes').addEventListener('click', () => {
++  window.rhythiaEditor(JSON.stringify({action:'save',edits}));
++});
++window.rhythiaEditorSaved = text => {
++  const result = JSON.parse(text);
++  notify(result.message);
++  if (result.ok) { edits = {}; window.rhythiaEditor(JSON.stringify({action:'page',page:0})); }
++};
 +
 +function fail(error) {
 +  if (ready || failed) return;
@@ -1131,6 +1551,8 @@
 +  if (failed) return;
 +  ready = true;
 +  document.getElementById('tools').hidden = false;
++  renderProfiles(JSON.parse(window.rhythiaProfilesJSON || '{"active":"default","items":[{"id":"default","name":"Default"}]}'));
++  if (queuedFiles.length) { const files = queuedFiles; queuedFiles = []; importFiles(files); }
 +  document.getElementById('storage').textContent = window.rhythiaStoragePersistent ? 'Maps and settings saved in this browser' : 'Storage unavailable — data will be lost on reload';
 +  document.body.dataset.gameState = 'ready';
 +  loading.hidden = true;
