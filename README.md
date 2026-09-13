@@ -1,6 +1,6 @@
 # Rhythians browser client
 
-Play at https://evaxle.github.io/Web-Rhythia/.
+Play at https://evaxle.github.io/Web-Rhythians/.
 
 This version is based on [Evaxle/Rhythian-client](https://github.com/Evaxle/Rhythian-client), pinned to `3d7f153d92aa9fa0922b9d474c5fead5d97ccb72`. It replaces the earlier RhythiaRewrite port. Source licences remain in the submodule. Browser changes are in `patches/web.patch`; GitHub Actions applies them, builds with Godot 3.6.1, runs smoke tests, and publishes Pages.
 
@@ -23,8 +23,8 @@ Local verification covers client initialization, both SSPM versions, embedded au
 Install Godot 3.6.1 headless and matching WebAssembly templates, then:
 
 ```sh
-git clone --recurse-submodules https://github.com/Evaxle/Web-Rhythia.git
-cd Web-Rhythia
+git clone --recurse-submodules https://github.com/Evaxle/Web-Rhythians.git
+cd Web-Rhythians
 bash scripts/build-web.sh
 python3 -m http.server 8080 --directory source/build/web
 ```
