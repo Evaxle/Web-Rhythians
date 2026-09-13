@@ -56,6 +56,7 @@ func _ready():
 	portal = load("res://scripts/ui/menu/RhythiansPortal.gd").new()
 	get_parent().add_child(portal)
 	portal.z_index = 50
+	if OS.has_feature("HTML5"): WebPortal.menu_ready()
 
 func _button(text:String,primary:bool) -> Button:
 	var b = Button.new()

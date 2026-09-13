@@ -173,7 +173,7 @@ func _api_page(page:String,extra:Dictionary={}) -> Dictionary:
 
 func _home():
 	title_label.text="Home"
-	var account=_panel("Account",Rhythian.logged_in ? "%s · %d RHP" % [Rhythian.username,int(Rhythian.profile.get("rhp",0))] : "Not signed in")
+	var account=_panel("Account","%s · %d RHP" % [Rhythian.username,int(Rhythian.profile.get("rhp",0))] if Rhythian.logged_in else "Not signed in")
 	var row=RhythianUI.hbox(10)
 	account.add_child(row)
 	if Rhythian.logged_in:
@@ -332,7 +332,7 @@ func _battle_match_view():
 	var match=data.get("match",{})
 	var mode=str(match.get("mode","1v1")).split(":")[0]
 	var panel=_panel("Battle %s" % mode,"Status: %s · %s" % [str(match.get("status","unknown")),str(match.get("matchType","casual"))])
-	for player in data.get("players",[]): panel.add_child(RhythianUI.label("Team %d · %s · %s" % [int(player.get("team",0)),str(player.get("displayName",player.get("username","Player"))),player.get("accuracy",null)==null ? "—" : "%.2f%%" % float(player.get("accuracy"))],14))
+	for player in data.get("players",[]): panel.add_child(RhythianUI.label("Team %d · %s · %s" % [int(player.get("team",0)),str(player.get("displayName",player.get("username","Player"))),"—" if player.get("accuracy",null)==null else "%.2f%%" % float(player.get("accuracy"))],14))
 	var map=data.get("map",null)
 	if map!=null: panel.add_child(RhythianUI.label("Map: %s" % str(map.get("title","Unknown")),16,RhythianUI.C_ACCENT,1))
 	var actions=RhythianUI.hbox(10)

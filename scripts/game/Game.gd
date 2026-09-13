@@ -276,6 +276,7 @@ func miss(col):
 
 
 func _ready():
+	WebPortal.begin_run()
 	Rhythia.song_end_pause_count = 0
 	Rhythia.song_end_misses = 0
 	get_tree().paused = true

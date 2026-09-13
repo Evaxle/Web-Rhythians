@@ -12,7 +12,7 @@ signal download_progress(map_id, received, total)
 signal map_downloaded(map_id, success, message)
 signal score_submitted(success, message)
 
-const DEFAULT_BASE_URL = "https://rhythians.vercel.app"
+const DEFAULT_BASE_URL = "https://www.rhythians.com"
 const MAP_DIR = "user://maps/rhythian maps"
 const REGISTRY_FILE = "user://maps/rhythian maps/rhythian_maps.json"
 const AUTH_FILE = "user://rhythian/auth.json"
@@ -79,7 +79,7 @@ func _ready():
 	_ensure_dirs()
 	_load_auth()
 	_load_registry()
-	if logged_in:
+	if logged_in and not OS.has_feature("HTML5"):
 		refresh_status()
 		_flush_score_queue()
 
@@ -138,7 +138,7 @@ func logout():
 func _api_request(method:int, path:String, body=null, use_auth:bool=true, timeout:float=25.0) -> Dictionary:
 	var hr = HTTPRequest.new()
 	add_child(hr)
-	hr.use_threads = true
+	hr.use_threads = false
 	hr.timeout = timeout
 	var headers = PoolStringArray([
 		"Content-Type: application/json",
@@ -739,7 +739,7 @@ func download_map(map:Dictionary):
 		idx += 1
 		dl_req = HTTPRequest.new()
 		add_child(dl_req)
-		dl_req.use_threads = true
+		dl_req.use_threads = false
 		dl_req.timeout = 120.0
 		var err = dl_req.request(dl_url, headers, true, HTTPClient.METHOD_GET)
 		if err != OK:
@@ -868,32 +868,9 @@ func _find_download_url(node) -> String:
 	return ""
 
 func on_song_ended(end_type:int):
-	if end_type != Globals.END_PASS: return
-	if not logged_in: return
-	if Rhythia.replaying: return
+	if end_type != Globals.END_PASS or Rhythia.replaying or Rhythia.mod_nofail: return
 	if Rhythia.replay != null and Rhythia.replay.autoplayer: return
-	var song = Rhythia.selected_song
-	if song == null: return
-	if not is_rhythian_map_path(str(song.filePath)): return
-	var entry = registry.get(str(song.filePath).get_file(), null)
-	if entry == null: return
-	if entry.has("isRanked") or entry.has("isLegacy"):
-		if not (bool(entry.get("isRanked", false)) or bool(entry.get("isLegacy", false))):
-			return
-	var total = max(Rhythia.song_end_total_notes, 1)
-	var accuracy = (float(Rhythia.song_end_hits) / float(total)) * 100.0
-	var payload = {
-		"challengeMapId": str(entry.get("id","")),
-		"accuracy": accuracy,
-		"misses": int(Rhythia.song_end_misses),
-		"speed": float(Globals.speed_multi[Rhythia.mod_speed_level]),
-		"clientScoreId": _uuid(),
-		"resultQualified": true,
-		"completedAt": _iso_now(),
-		"gameVersion": str(ProjectSettings.get_setting("application/config/version")),
-		"integrationVersion": INTEGRATION_VERSION
-	}
-	_submit_score(payload)
+	WebPortal.finished()
 
 func _submit_score(payload:Dictionary):
 	var res = yield(_api_request(HTTPClient.METHOD_POST, "/api/rhythkit/scores", payload, true, 45.0), "completed")

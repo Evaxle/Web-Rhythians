@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rhythians</title><link rel="icon" href="favicon.ico"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#080b12"><link rel="stylesheet" href="app.css">$GODOT_HEAD_INCLUDE<script>
+window.rhythiansPersistUserData=()=>new Promise((resolve,reject)=>{
+  const fs=globalThis.FS||(globalThis.Module&&globalThis.Module.FS);
+  if(!fs||typeof fs.syncfs!=="function"){resolve(false);return;}
+  fs.syncfs(false,error=>error?reject(error):resolve(true));
+});
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")window.rhythiansPersistUserData().catch(()=>{});});
+addEventListener("pagehide",()=>window.rhythiansPersistUserData().catch(()=>{}));
+setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
+</script></head><body>
+<header><a class="brand" href="#maps"><img src="logo.png" alt="Rhythians logo">Rhythians</a><nav aria-label="Main navigation"><a href="#maps">Maps</a><a href="#profile">Profile</a><a href="#leaderboards">Leaderboards</a><a href="#wiki">Wiki</a><a href="#clips">Clips</a><a href="#library">Downloaded</a></nav><button id="import-sspm" type="button">Import SSPM</button><input id="sspm-picker" type="file" accept=".sspm,application/octet-stream" multiple hidden><button id="account">Sign in</button></header>
+<main id="portal"><section class="banner"><div><p class="eyebrow">RHYTHIANS · BROWSER CLIENT</p><h1 id="title">Maps</h1><p id="subtitle">Find your next pass.</p></div><label class="mode"><input type="checkbox" id="spin"> Spin mode <span>RPS</span></label></section><section id="rank" hidden></section><p id="status" role="status" aria-live="polite"></p><div id="content"></div><div id="pagination" hidden><button id="prev">Previous</button><span id="page-number"></span><button id="next">Next</button></div></main>
+<section id="game" hidden><div class="game-tools"><button id="back">Back to Rhythians</button><button id="fullscreen" type="button">Fullscreen</button><span id="game-status"></span></div><canvas id="canvas" tabindex="0" aria-label="Rhythians game"></canvas></section>
+<dialog id="login"><h2>Link Rhythians</h2><p>Approve this browser from your Rhythians account.</p><strong id="code"></strong><p><a id="authorize" target="_blank" rel="noopener noreferrer">Open Rhythians to approve</a></p><p id="login-status" role="status"></p><button id="cancel-login">Cancel</button></dialog>
+<div id="drop" hidden>Drop an SSPM map to add it to your library</div>
+<script src="$GODOT_URL"></script><script>window.gameEngine = new Engine($GODOT_CONFIG);</script><script type="module" src="app.js"></script></body></html>

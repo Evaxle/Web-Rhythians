@@ -132,7 +132,7 @@ var load_target_frame_time:float = 1.0/40.0 # Length of time load loops run befo
 var rainbow_t:float = 0 # Keep rainbow effects in perfect sync
 var note_spin_t:float = 0 # Keep note spin settings in perfect sync
 var alert:String = "" # Used for startup
-var should_ask_about_replays:bool = true # Replay setting was not found, ask
+var should_ask_about_replays:bool = false # Replay setting was not found, ask
 var do_archive_convert:bool = false # Has "Convert SS Archive" been pressed?
 var conmgr_transit = null # Content manager transit data, can vary widely
 var errornum:int = 0 # Used by settings file errors
@@ -2255,6 +2255,7 @@ func do_init(_ud=null):
 		var li = 0
 
 		var map_search_folders = [user_map_dir]
+		if dir.dir_exists("res://bundled_maps"): map_search_folders.append("res://bundled_maps")
 		err = file.open(Globals.p("user://map_folders.txt"),File.READ)
 		if err == OK:
 			var txt = file.get_as_text()
@@ -2503,7 +2504,7 @@ func do_init(_ud=null):
 		emit_signal("init_stage_reached","Check VR status")
 		yield(get_tree(),"idle_frame")
 
-		var interface = ARVRServer.find_interface("OpenVR")
+		var interface = null
 		if interface:
 			vr_interface = interface
 			vr_available = true

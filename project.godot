@@ -260,7 +260,7 @@ _global_script_class_icons={
 
 [application]
 
-config/name="Rhythia"
+config/name="Rhythians"
 run/main_scene="res://scenes/init.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="SoundSpacePlus"
@@ -272,7 +272,7 @@ config/icon="res://assets/images/branding/icon.png"
 config/windows_native_icon="res://icon.ico"
 config/quit_on_go_back=false
 config/version="jun15-2026rc"
-config/autoload_map_registries="test maps|res://test_assets/test_maps.sspmr;built in|res://content/songs/built_in_maps.sspmr"
+config/autoload_map_registries="built in|res://content/songs/built_in_maps.sspmr"
 config/enable_new_content_mgr=true
 config/default_menu_target="res://scenes/menu/menu2.tscn"
 config/default_menu_target.mobile="res://scenes/menu/menu2.tscn"
@@ -280,7 +280,7 @@ config/default_menu_target.editor="res://scenes/menu/menu2.tscn"
 config/7zip_binary_path=""
 config/7zip_binary_path.Windows="install_dir/util/7z.exe"
 config/7zip_binary_path.X11="install_dir/util/7zz"
-config/auto_maximize=true
+config/auto_maximize=false
 config/auto_maximize.editor=false
 config/use_custom_user_dir.Android=false
 config/discord_rpc.OSX=false
@@ -293,18 +293,18 @@ config/replays=true
 config/replays.editor=true
 config/show_trail_debug=false
 config/project_settings_override.standalone="user://override.cfg"
-networking/enabled=true
+networking/enabled=false
 networking/mapdb_api="https://cdn.rhythia.net/index.json"
-networking/rhythians_url=""
+networking/rhythians_url="https://www.rhythians.com"
 networking/test_url="https://google.com"
 config/discord_rpc.HTML5=false
 config/enable_new_content_mgr.HTML5=false
-config/disable_native_file_dialogs=false
+config/disable_native_file_dialogs=true
 config/disable_native_file_dialogs.Android=true
 config/disable_native_file_dialogs.web=true
 config/disable_native_file_dialogs.OSX=true
 config/is_using_controller=true
-config/discord_rpc=true
+config/discord_rpc=false
 config/discord_rpc.editor=false
 networking/github_repo="Rhythia/sound-space-plus"
 
@@ -322,7 +322,8 @@ Rhythian="*res://scripts/Rhythian.gd"
 RQueue="*res://scripts/content/resources/ResourceQueue.gd"
 Dance="*res://scripts/cursordance/Dance.gd"
 SFXManager="*res://scripts/game/SFXManager.gd"
-Discord="*res://addons/discord_game_sdk/discord.gd"
+Discord="*res://web/DiscordDisabled.gd"
+WebPortal="*res://web/Bridge.gd"
 
 [debug]
 
@@ -339,14 +340,13 @@ settings/change_time_per_screen=true
 
 window/size/width=1280
 window/size/height=720
-window/vsync/use_vsync=false
 window/handheld/orientation="sensor_landscape"
 window/stretch/mode.mobile="2d"
 window/stretch/aspect.mobile="keep_height"
 
 [editor_plugins]
 
-enabled=PoolStringArray( "res://addons/discord_game_sdk/plugin.cfg", "res://addons/godot-openvr/plugin.cfg" )
+enabled=PoolStringArray(  )
 
 [gdnative]
 
@@ -535,7 +535,7 @@ menu_quickbar={
 
 [locale]
 
-translations=PoolStringArray( "res://localization/localization.csv", "res://localization/localization.en.translation", "res://localization/localization.fr.translation", "res://localization/localization.ja.translation", "res://localization/localization.pl.translation", "res://localization/localization.es.translation", "res://localization/localization.it.translation" )
+translations=PoolStringArray( "res://localization/localization.en.translation", "res://localization/localization.fr.translation", "res://localization/localization.ja.translation", "res://localization/localization.pl.translation", "res://localization/localization.es.translation", "res://localization/localization.it.translation" )
 locale_filter=[ 0, [ "en", "ja" ] ]
 
 [logging]
@@ -553,6 +553,7 @@ common/enable_pause_aware_picking=true
 
 [rendering]
 
+quality/driver/driver_name="GLES2"
 quality/driver/fallback_to_gles2=true
 threads/thread_model=2
 vram_compression/import_etc=true
@@ -564,7 +565,7 @@ quality/shadows/filter_mode=0
 quality/reflections/texture_array_reflections=false
 quality/filters/anisotropic_filter_level=2
 2d/options/use_software_skinning=false
-quality/lightmapping/use_bicubic_sampling=false
 environment/default_clear_color=Color( 0, 0, 0, 1 )
 quality/filters/msaa=1
 environment/default_environment="res://default_env.tres"
+quality/lightmapping/use_bicubic_sampling=false

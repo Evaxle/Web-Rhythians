@@ -49,7 +49,7 @@ func _ready():
 		stage("",true)
 		return
 	elif Rhythia.first_init_done:
-		thread.start(Rhythia,"do_init")
+		Rhythia.call_deferred("do_init")
 
 	Rhythia.is_init = false
 

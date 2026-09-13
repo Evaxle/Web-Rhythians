@@ -49,7 +49,7 @@ func report_errors(err, filepath):
 		print("Unknown error with file ", filepath, " error code: ", err)
 
 func get_format(bytes:PoolByteArray) -> String:
-	if bytes.size() < 10: return "unknown"
+	if bytes.size() < 12: return "unknown"
 	# Figure out file format from signatures
 	# https://en.wikipedia.org/wiki/List_of_file_signatures
 	
@@ -57,10 +57,7 @@ func get_format(bytes:PoolByteArray) -> String:
 	
 	# .ogg
 	if bytes.subarray(0,3) == PoolByteArray([0x4F,0x67,0x67,0x53]): return "ogg"
-	# .wav
-	# doesn't load correctly atm
-#	if (bytes.subarray(0,3) == PoolByteArray([0x52,0x49,0x46,0x46])
-#	and bytes.subarray(8,11) == PoolByteArray([0x57,0x41,0x56,0x45])): return "wav"
+	if bytes.subarray(0,3) == PoolByteArray([82,73,70,70]) and bytes.subarray(8,11) == PoolByteArray([87,65,86,69]): return "wav"
 	# .mp3
 	if (bytes.subarray(0,1) == PoolByteArray([0xFF,0xFB])
 	or bytes.subarray(0,1) == PoolByteArray([0xFF,0xF3])
@@ -75,94 +72,37 @@ func load_buffer(bytes:PoolByteArray,loop:bool=false):
 	
 	# if File is wav
 	if format == "wav":
-		var newstream = AudioStreamSample.new()
-
-		#---------------------------
-		#parrrrseeeeee!!! :D
-		
-		var bits_per_sample = 0
-		
-		for i in range(0, 100):
-			var those4bytes = str(char(bytes[i])+char(bytes[i+1])+char(bytes[i+2])+char(bytes[i+3]))
-			
-#			if those4bytes == "RIFF": 
-#				print ("RIFF OK at bytes " + str(i) + "-" + str(i+3))
-				#RIP bytes 4-7 integer for now
-#			if those4bytes == "WAVE": 
-#				print ("WAVE OK at bytes " + str(i) + "-" + str(i+3))
-
-			if those4bytes == "fmt ":
-#				print ("fmt OK at bytes " + str(i) + "-" + str(i+3))
-				
-				#get format subchunk size, 4 bytes next to "fmt " are an int32
-				var formatsubchunksize = bytes[i+4] + (bytes[i+5] << 8) + (bytes[i+6] << 16) + (bytes[i+7] << 24)
-#				print ("Format subchunk size: " + str(formatsubchunksize))
-				
-				#using formatsubchunk index so it's easier to understand what's going on
-				var fsc0 = i+8 #fsc0 is byte 8 after start of "fmt "
-
-				#get format code [Bytes 0-1]
-				var format_code = bytes[fsc0] + (bytes[fsc0+1] << 8)
-				var format_name
-				if format_code == 0: format_name = "8_BITS"
-				elif format_code == 1: format_name = "16_BITS"
-				elif format_code == 2: format_name = "IMA_ADPCM"
-				else: 
-					format_name = "UNKNOWN (trying to interpret as 16_BITS)"
-					format_code = 1
-#				print ("Format: " + str(format_code) + " " + format_name)
-				#assign format to our AudioStreamSample
-				newstream.format = format_code
-				
-				#get channel num [Bytes 2-3]
-				var channel_num = bytes[fsc0+2] + (bytes[fsc0+3] << 8)
-#				print ("Number of channels: " + str(channel_num))
-				#set our AudioStreamSample to stereo if needed
-				if channel_num == 2: newstream.stereo = true
-				
-				#get sample rate [Bytes 4-7]
-				var sample_rate = bytes[fsc0+4] + (bytes[fsc0+5] << 8) + (bytes[fsc0+6] << 16) + (bytes[fsc0+7] << 24)
-#				print ("Sample rate: " + str(sample_rate))
-				#set our AudioStreamSample mixrate
-				newstream.mix_rate = sample_rate
-				
-				#get byte_rate [Bytes 8-11] because we can
-				var byte_rate = bytes[fsc0+8] + (bytes[fsc0+9] << 8) + (bytes[fsc0+10] << 16) + (bytes[fsc0+11] << 24)
-#				print ("Byte rate: " + str(byte_rate))
-				
-				#same with bits*sample*channel [Bytes 12-13]
-				var bits_sample_channel = bytes[fsc0+12] + (bytes[fsc0+13] << 8)
-#				print ("BitsPerSample * Channel / 8: " + str(bits_sample_channel))
-				
-				#aaaand bits per sample/bitrate [Bytes 14-15]
-				bits_per_sample = bytes[fsc0+14] + (bytes[fsc0+15] << 8)
-#				print ("Bits per sample: " + str(bits_per_sample))
-				
-			if those4bytes == "data":
-				assert(bits_per_sample != 0)
-				
-				var audio_data_size = bytes[i+4] + (bytes[i+5] << 8) + (bytes[i+6] << 16) + (bytes[i+7] << 24)
-#				print ("Audio data/stream size is " + str(audio_data_size) + " bytes")
-
-				var data_entry_point = (i+8)
-#				print ("Audio data starts at byte " + str(data_entry_point))
-				
-				var data = bytes.subarray(data_entry_point, data_entry_point+audio_data_size-1)
-				
-				if bits_per_sample in [24, 32]:
-					newstream.data = convert_to_16bit(data, bits_per_sample)
-				else:
-					newstream.data = data
-			# end of parsing
-			#---------------------------
-
-		#get samples and set loop end
-		var samplenum = newstream.data.size() / 4
-		newstream.loop_end = samplenum
-		newstream.loop_mode = int(loop)
-		return newstream  #:D
-
-	#if file is ogg
+		var reader = StreamPeerBuffer.new()
+		reader.data_array = bytes
+		reader.big_endian = false
+		reader.seek(12)
+		var channels = 0
+		var rate = 0
+		var bits = 0
+		var pcm = PoolByteArray()
+		while reader.get_position() + 8 <= bytes.size():
+			var tag = reader.get_data(4)[1].get_string_from_ascii()
+			var size = reader.get_u32()
+			var start = reader.get_position()
+			if size > bytes.size() - start: return null
+			if tag == "fmt ":
+				if size < 16 or reader.get_u16() != 1: return null
+				channels = reader.get_u16()
+				rate = reader.get_u32()
+				reader.get_u32()
+				reader.get_u16()
+				bits = reader.get_u16()
+			elif tag == "data": pcm = reader.get_data(size)[1]
+			reader.seek(min(bytes.size(), start + size + size % 2))
+		if not channels in [1, 2] or not bits in [8, 16] or rate <= 0 or pcm.empty(): return null
+		if bits == 8:
+			for i in pcm.size(): pcm[i] = (int(pcm[i]) + 128) % 256
+		var stream = AudioStreamSample.new()
+		stream.format = AudioStreamSample.FORMAT_16_BITS if bits == 16 else AudioStreamSample.FORMAT_8_BITS
+		stream.mix_rate = rate
+		stream.stereo = channels == 2
+		stream.data = pcm
+		return stream
 	elif format == "ogg":
 		var newstream = AudioStreamOGGVorbis.new()
 		newstream.loop = loop #set to false or delete this line if you don't want to loop

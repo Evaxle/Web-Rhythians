@@ -654,9 +654,8 @@ func _process(delta):
 
 var cmdline:Dictionary = {}
 func _ready():
-	var thread = Thread.new()
 	Rhythia.is_init = true
-	thread.start(Rhythia,"do_init")
+	Rhythia.call_deferred("do_init")
 
 	var disable_intro = false
 	var file:File = File.new()
@@ -668,7 +667,7 @@ func _ready():
 		file.close()
 		if !decode.error:
 			disable_intro = decode.result.has("disable_intro") and decode.result.disable_intro
-	if !disable_intro: get_tree().call_deferred("change_scene","res://scenes/Intro.tscn")
+	if false: get_tree().call_deferred("change_scene","res://scenes/Intro.tscn")
 
 	url_regex.compile(
 		"((https?)://)[\\w\\-.]{2,256}(:\\d{1,5})?(/[\\w@:%._\\-+~&=]+)+/?"
@@ -703,4 +702,4 @@ func _ready():
 		rootg.call_deferred("add_child",fps_disp)
 		fps_visible = true
 	#wait for thread
-	thread.wait_to_finish()
+	pass

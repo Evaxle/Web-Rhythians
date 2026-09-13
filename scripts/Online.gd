@@ -354,12 +354,12 @@ func _on_update_request_completed(result:int,response_code:int,headers:PoolStrin
 
 func _ready():
 	add_child(netmaps_hr)
-	netmaps_hr.use_threads = true
+	netmaps_hr.use_threads = false
 	netmaps_hr.timeout = 80
 	netmaps_hr.connect("request_completed",self,"_on_netmaps_request_completed")
 	
 	add_child(ctest_hr)
-	ctest_hr.use_threads = true
+	ctest_hr.use_threads = false
 	ctest_hr.timeout = 5
 	ctest_hr.connect("request_completed",self,"_on_ctest_request_completed")
 	
@@ -369,12 +369,12 @@ func _ready():
 	mapdl_hr.connect("request_completed",self,"_on_mapdl_request_completed")
 	
 	add_child(version_hr)
-	version_hr.use_threads = true
+	version_hr.use_threads = false
 	version_hr.timeout = 5
 	version_hr.connect("request_completed",self,"_on_version_request_completed")
 	
 	add_child(update_hr)
-	update_hr.use_threads = true
+	update_hr.use_threads = false
 	update_hr.timeout = 0
 	update_hr.connect("request_completed",self,"_on_update_request_completed")
 	
