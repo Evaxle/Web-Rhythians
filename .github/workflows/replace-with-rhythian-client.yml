@@ -25,16 +25,7 @@ jobs:
       - name: Replace repository contents
         shell: bash
         run: |
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -a /tmp/rhythian-client/. .
-          rm -rf .git
-          git init
-          git remote add origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
-          git fetch origin main
-          git checkout -B main origin/main
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -a /tmp/rhythian-client/. .
-          rm -rf .git
+          rsync -a --delete --exclude='.git' /tmp/rhythian-client/ ./
           git add -A
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
