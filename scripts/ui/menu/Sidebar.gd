@@ -24,7 +24,10 @@ func _ready():
 	bar.add_constant_override("separation", 6)
 	add_child(bar)
 	var brand = Label.new()
-	brand.text = "Rhythia · " + str(ProjectSettings.get_setting("application/config/version", "nightly"))
+	var version = "nightly"
+	if ProjectSettings.has_setting("application/config/version"):
+		version = str(ProjectSettings.get_setting("application/config/version"))
+	brand.text = "Rhythia · " + version
 	brand.add_color_override("font_color",Color(0.72,0.75,0.82))
 	brand.add_font_override("font",RhythianUI.font(13))
 	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
