@@ -8,14 +8,13 @@ func _ready():
 	set_anchors_and_margins_preset(Control.PRESET_TOP_WIDE)
 	anchor_right = 1.0
 	rect_min_size.y = 78
-	z_index = 100
+	raise()
 	for child in get_children(): child.visible = false
 	var background = ColorRect.new()
 	background.color = Color(0.035,0.045,0.07,0.98)
 	background.set_anchors_and_margins_preset(Control.PRESET_WIDE)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
-	var scroll = HScrollBar.new()
 	var bar = HBoxContainer.new()
 	bar.set_anchors_and_margins_preset(Control.PRESET_WIDE)
 	bar.margin_left = 18
@@ -27,13 +26,13 @@ func _ready():
 	var brand = Label.new()
 	brand.text = "Rhythia · " + str(ProjectSettings.get_setting("application/config/version", "nightly"))
 	brand.add_color_override("font_color",Color(0.72,0.75,0.82))
-	brand.add_font_size_override("font_size",13)
+	brand.add_font_override("font",RhythianUI.font(13))
 	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bar.add_child(brand)
 	var center_scroll = ScrollContainer.new()
 	center_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	center_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	center_scroll.scroll_horizontal_enabled = true
+	center_scroll.scroll_vertical_enabled = false
 	bar.add_child(center_scroll)
 	var center = HBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -55,7 +54,7 @@ func _ready():
 	account.connect("pressed",self,"open_account")
 	portal = load("res://scripts/ui/menu/RhythiansPortal.gd").new()
 	get_parent().add_child(portal)
-	portal.z_index = 50
+	portal.raise()
 	if OS.has_feature("HTML5"): WebPortal.menu_ready()
 
 func _button(text:String,primary:bool) -> Button:
@@ -64,7 +63,7 @@ func _button(text:String,primary:bool) -> Button:
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_color_override("font_color",Color(1,1,1,1))
 	b.add_color_override("font_color_hover",Color(1,1,1,1))
-	b.add_font_size_override("font_size",16 if primary else 12)
+	b.add_font_override("font",RhythianUI.font(16 if primary else 12,1 if primary else 0))
 	return b
 
 func _process(_delta:float):
