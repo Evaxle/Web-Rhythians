@@ -68,17 +68,17 @@ async function startEngine() {
       readyReject = readyFail;
     });
     const timer = setTimeout(() => readyReject?.(new Error('The Rhythians client did not finish loading. Reload and try again.')), 120000);
+    window.gameEngine.startGame({
+      onProgress: (loaded, total) => {
+        const percent = total ? Math.round(loaded / total * 100) : 0;
+        setStatus(total ? `Loading client ${percent}%` : 'Loading client…');
+      },
+      onPrintError: message => {
+        console.error(message);
+        if (/SCRIPT ERROR|Parse Error/.test(message)) readyReject?.(new Error(message));
+      }
+    }).catch(error => readyReject?.(error));
     try {
-      await window.gameEngine.startGame({
-        onProgress: (loaded, total) => {
-          const percent = total ? Math.round(loaded / total * 100) : 0;
-          setStatus(total ? `Loading client ${percent}%` : 'Loading client…');
-        },
-        onPrintError: message => {
-          console.error(message);
-          if (/SCRIPT ERROR|Parse Error/.test(message)) readyReject?.(new Error(message));
-        }
-      });
       await ready;
       clearTimeout(timer);
       resolve();
