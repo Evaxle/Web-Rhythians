@@ -121,9 +121,13 @@ func _save_auth():
 	f.close()
 
 func apply_browser_auth(account:Dictionary):
+	var next_user_id = str(account.get("userId", ""))
+	var switching_user = user_id != "" and next_user_id != "" and user_id != next_user_id
+	if switching_user:
+		_clear_account_state()
 	token = str(account.get("token", ""))
 	installation_id = str(account.get("installationId", ""))
-	user_id = str(account.get("userId", ""))
+	user_id = next_user_id
 	username = str(account.get("username", ""))
 	logged_in = token != ""
 	if not logged_in:
@@ -143,15 +147,26 @@ func _refresh_browser_account():
 	fetch_completions()
 	_flush_score_queue()
 
+func _clear_account_state():
+	profile = {}
+	maps_cache = []
+	scores_cache = []
+	completions_cache = {}
+	rhythian_stats = {"completed": 0, "total": 0, "rhp": 0}
+	maps_error = ""
+	scores_error = ""
+	completions_error = ""
+	completions_embedded = false
+	profile_limited = false
+	last_rhp = -1
+
 func logout():
 	token = ""
 	installation_id = ""
 	user_id = ""
 	username = ""
 	logged_in = false
-	profile = {}
-	last_rhp = -1
-	scores_cache = []
+	_clear_account_state()
 	var f = File.new()
 	if f.file_exists(Globals.p(AUTH_FILE)):
 		var dir = Directory.new()
@@ -361,7 +376,7 @@ func fetch_profile():
 		profile_limited = false
 		emit_signal("profile_updated")
 		return
-	var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/profile", null, true), "completed")
+	var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/portal?page=profile", null, true), "completed")
 	if res.get("code", 0) == 401:
 		logout()
 		emit_signal("profile_updated")
