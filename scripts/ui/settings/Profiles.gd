@@ -8,6 +8,7 @@ var profiles:Array = []
 var overwrite_submenu:PopupMenu = PopupMenu.new()
 var delete_submenu:PopupMenu = PopupMenu.new()
 var initialized:bool = false
+var import_button:Button
 
 func _ready():
 	if not initialized:
@@ -21,6 +22,14 @@ func _ready():
 		delete_submenu.connect("id_pressed",self,"delete_profile")
 		if OS.has_feature("HTML5") and WebPortal.has_signal("settings_imported") and not WebPortal.is_connected("settings_imported",self,"_browser_import_finished"):
 			WebPortal.connect("settings_imported",self,"_browser_import_finished")
+		import_button=Button.new()
+		import_button.name="ImportSettings"
+		import_button.text="Import Settings"
+		import_button.rect_min_size=Vector2(120,33)
+		import_button.focus_mode=Control.FOCUS_NONE
+		get_parent().add_child(import_button)
+		get_parent().move_child(import_button,get_index()+1)
+		import_button.connect("pressed",self,"_import_profile")
 	_refresh_profiles()
 
 func _refresh_profiles():
