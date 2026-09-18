@@ -373,8 +373,39 @@ func _maps():
 		login.connect("pressed",self,"_login")
 		return
 	var rhp=int(Rhythian.profile.get("rhp",0))
-	var rank=Rhythian.get_rank_info(rhp)
-	var banner=_panel("Current rank","%s · %d RHP · the catalog below is synchronized from the current Rhythians Maps page." % [str(rank.name),rhp])
+	var totals=_mode_totals()
+	var tabs=_panel("Map views","Use the same ranked views as the Rhythians Maps page.")
+	var tab_grid=GridContainer.new()
+	tab_grid.columns=4
+	tab_grid.add_constant_override("hseparation",7)
+	tab_grid.add_constant_override("vseparation",7)
+	tabs.add_child(tab_grid)
+	var tab_data=[
+		["all","All Maps",rhp,"RHP"],
+		["lock","RPL / Lock",int(totals.get("rpl",0)),"RPL"],
+		["spin","RPS / Spin",int(totals.get("rps",0)),"RPS"],
+		["vr","RPV / VR",int(totals.get("rpv",0)),"RPV"]
+	]
+	for item in tab_data:
+		var tab_rank=Rhythian.get_rank_info(int(item[2]))
+		var label="%s\n%s · %d %s" % [item[1],_rank_label(tab_rank),int(item[2]),item[3]]
+		var button=RhythianUI.accent_button(label,true) if map_mode==item[0] else RhythianUI.ghost_button(label)
+		button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		button.rect_min_size=Vector2(150,58)
+		tab_grid.add_child(button)
+		button.connect("pressed",self,"_set_map_mode",[item[0]])
+	var active_points=_map_mode_points()
+	var active_rank=Rhythian.get_rank_info(active_points)
+	var point_name="RHP" if map_mode=="all" else ("RPL" if map_mode=="lock" else ("RPS" if map_mode=="spin" else "RPV"))
+	var banner=_panel("Current %s rank" % ("All Maps" if map_mode=="all" else point_name),"%s · %d %s" % [_rank_label(active_rank),active_points,point_name])
+	var rank_row=RhythianUI.hbox(10)
+	banner.add_child(rank_row)
+	rank_row.add_child(RhythianUI.rank_pill(active_rank,"lg"))
+	var next_text="Maximum rank" if bool(active_rank.get("isExpert",false)) else "%d %s to next tier" % [max(0,int(active_rank.get("nextTierStart",active_points))-active_points),point_name]
+	rank_row.add_child(RhythianUI.label(next_text,13,RhythianUI.C_MUTED))
+	var rank_bar=RhythianUI.progress_bar(active_rank.get("color",RhythianUI.C_ACCENT),10)
+	rank_bar.value=100.0 if bool(active_rank.get("isExpert",false)) else float(active_rank.get("progressToNextTier",0.0))*100.0
+	banner.add_child(rank_bar)
 	var controls=RhythianUI.hbox(8)
 	banner.add_child(controls)
 	var refresh=_button(controls,"Refresh maps",true)
@@ -402,6 +433,10 @@ func _maps():
 	var start=map_page*page_size
 	var finish=min(start+page_size,maps.size())
 	var summary="%d current maps synced" % Rhythian.maps_cache.size()
+	if map_mode!="all":
+		summary+=" · %d maps in your %s rank" % [maps.size(),point_name]
+	elif map_search=="":
+		summary+=" · your current-rank maps are pinned first"
 	if map_search!="":
 		summary+=" · %d matches" % maps.size()
 	if Rhythian.catalog_loading:
@@ -416,10 +451,11 @@ func _maps():
 	next.disabled=map_page>=max_page
 	next.connect("pressed",self,"_map_page_change",[1])
 	if maps.empty():
-		_panel("No maps found","Try a different search.")
+		_panel("No maps found","Try another search or map view.")
 		return
 	for i in range(start,finish):
 		var map=maps[i]
+		var id=str(map.get("id",""))
 		var rating=Rhythian.get_map_rating(map)
 		var difficulty=str(map.get("difficulty",map.get("rankName","Unranked")))
 		var rankability=Rhythian.get_rankability_label(map)
@@ -443,21 +479,210 @@ func _maps():
 		else:
 			details+=" · no rank points"
 		var row=_panel(str(map.get("title","Unknown map")),details)
+		_queue_map_thumbnail(row,map)
 		row.add_child(RhythianUI.label("%s · mapped by %s" % [str(map.get("artist","Unknown Artist")),str(map.get("mapper",map.get("mapperName","Unknown")))],13,RhythianUI.C_MUTED))
-		var action=_button(row,"Play" if Rhythian.is_map_playable(str(map.get("id",""))) else "Download",true)
-		action.connect("pressed",self,"_map_action",[map])
+		var downloaded=Rhythian.is_map_playable(id)
+		var state_row=RhythianUI.hbox(8)
+		row.add_child(state_row)
+		if downloaded:
+			state_row.add_child(RhythianUI.pill("Downloaded",RhythianUI.C_ACCENT2,true))
+		if bool(map.get("hasScore",false)) or (typeof(completion)==TYPE_DICTIONARY and bool(completion.get("passed",false))):
+			state_row.add_child(RhythianUI.pill("Scored",RhythianUI.C_ACCENT,true))
+		var progress=RhythianUI.progress_bar(RhythianUI.C_ACCENT,7)
+		progress.visible=Rhythian.downloading and Rhythian.dl_map_id==id
+		row.add_child(progress)
+		var progress_label=RhythianUI.label("",11,RhythianUI.C_MUTED)
+		progress_label.visible=progress.visible
+		row.add_child(progress_label)
+		map_progress_bars[id]=progress
+		map_progress_labels[id]=progress_label
+		if progress.visible and Rhythian.dl_req!=null and is_instance_valid(Rhythian.dl_req):
+			_update_download_progress_controls(id,Rhythian.dl_req.get_downloaded_bytes(),Rhythian.dl_req.get_body_size())
+		var actions=RhythianUI.hbox(7)
+		row.add_child(actions)
+		if downloaded:
+			var go=_button(actions,"Go to map",true)
+			go.connect("pressed",self,"_go_to_map",[map])
+			var again=_button(actions,"Download again")
+			again.connect("pressed",self,"_download_map",[map])
+		else:
+			var download=_button(actions,"Download",true)
+			download.connect("pressed",self,"_download_map",[map])
+		var details_button=_button(actions,"Map details")
+		details_button.connect("pressed",RhythianUI,"open_url",[BASE_URL+"/maps/"+id])
+
+func _rank_label(rank:Dictionary) -> String:
+	return "Expert" if bool(rank.get("isExpert",false)) else "%s %d" % [str(rank.get("name","Rank")),int(rank.get("tier",1))]
+
+func _map_mode_points() -> int:
+	if map_mode=="all":
+		return int(Rhythian.profile.get("rhp",0))
+	var totals=_mode_totals()
+	if map_mode=="lock":
+		return int(totals.get("rpl",0))
+	if map_mode=="spin":
+		return int(totals.get("rps",0))
+	return int(totals.get("rpv",0))
+
+func _set_map_mode(mode:String):
+	if not mode in ["all","lock","spin","vr"]:
+		return
+	map_mode=mode
+	map_page=0
+	show_page("maps",true)
+
+func _map_sort_before(a,b) -> bool:
+	var target_rank=int(Rhythian.get_rank_info(_map_mode_points()).get("index",0))
+	var a_rank=Rhythian.rank_index_for_rating(Rhythian.get_map_rating(a))
+	var b_rank=Rhythian.rank_index_for_rating(Rhythian.get_map_rating(b))
+	if map_mode=="all":
+		var a_current=bool(a.get("isRanked",false)) and a_rank==target_rank
+		var b_current=bool(b.get("isRanked",false)) and b_rank==target_rank
+		if a_current!=b_current:
+			return a_current
+	var ar=Rhythian.get_map_rating(a)
+	var br=Rhythian.get_map_rating(b)
+	if ar==br:
+		return str(a.get("title","")).to_lower()<str(b.get("title","")).to_lower()
+	return ar<br
+
 func _filtered_maps() -> Array:
-	if map_search=="":
-		return Rhythian.maps_cache
 	var q=map_search.to_lower()
+	var target_rank=int(Rhythian.get_rank_info(_map_mode_points()).get("index",0))
 	var filtered=[]
 	for map in Rhythian.maps_cache:
 		if typeof(map)!=TYPE_DICTIONARY:
 			continue
-		var text=(str(map.get("title",""))+" "+str(map.get("artist",""))+" "+str(map.get("mapper",map.get("mapperName","")))+" "+str(map.get("rankName",""))).to_lower()
-		if text.find(q)!=-1:
-			filtered.append(map)
+		var rating=Rhythian.get_map_rating(map)
+		if map_mode!="all":
+			if not bool(map.get("isRanked",false)):
+				continue
+			if Rhythian.rank_index_for_rating(rating)!=target_rank:
+				continue
+		if q!="":
+			var text=(str(map.get("title",""))+" "+str(map.get("artist",""))+" "+str(map.get("mapper",map.get("mapperName","")))+" "+str(map.get("rankName",""))).to_lower()
+			if text.find(q)==-1:
+				continue
+		filtered.append(map)
+	filtered.sort_custom(self,"_map_sort_before")
 	return filtered
+
+func _queue_map_thumbnail(parent:Container,map:Dictionary):
+	var id=str(map.get("id",""))
+	if id=="" or str(map.get("imageUrl",""))=="":
+		return
+	var image=TextureRect.new()
+	image.rect_min_size=Vector2(0,128)
+	image.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	image.expand=true
+	image.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	image.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	parent.add_child(image)
+	if thumbnail_cache.has(id):
+		image.texture=thumbnail_cache[id]
+		return
+	if not thumbnail_waiters.has(id):
+		thumbnail_waiters[id]=[]
+	thumbnail_waiters[id].append(image)
+	if thumbnail_pending.has(id):
+		return
+	thumbnail_pending[id]=true
+	thumbnail_queue.append({"id":id})
+	_pump_thumbnail_queue()
+
+func _pump_thumbnail_queue():
+	while thumbnail_active<THUMBNAIL_CONCURRENCY and thumbnail_queue.size()>0:
+		var item=thumbnail_queue.pop_front()
+		var id=str(item.get("id",""))
+		if id=="":
+			continue
+		var request=HTTPRequest.new()
+		add_child(request)
+		request.use_threads=false
+		request.timeout=15.0
+		request.connect("request_completed",self,"_thumbnail_loaded",[id,request])
+		var headers=PoolStringArray()
+		if Rhythian.token!="":
+			headers.append("Authorization: Bearer "+Rhythian.token)
+		thumbnail_active+=1
+		var err=request.request(BASE_URL+"/api/rhythkit/maps/"+id+"/image",headers,true,HTTPClient.METHOD_GET)
+		if err!=OK:
+			thumbnail_active=max(0,thumbnail_active-1)
+			thumbnail_pending.erase(id)
+			thumbnail_waiters.erase(id)
+			request.queue_free()
+
+func _thumbnail_loaded(_result:int,response_code:int,_headers:PoolStringArray,body:PoolByteArray,id:String,request:HTTPRequest):
+	thumbnail_active=max(0,thumbnail_active-1)
+	if response_code>=200 and response_code<300 and body.size()>0:
+		var image=Image.new()
+		var err=image.load_png_from_buffer(body)
+		if err!=OK:
+			err=image.load_jpg_from_buffer(body)
+		if err!=OK and image.has_method("load_webp_from_buffer"):
+			err=image.call("load_webp_from_buffer",body)
+		if err==OK:
+			var texture=ImageTexture.new()
+			texture.create_from_image(image,0)
+			thumbnail_cache[id]=texture
+			for rect in thumbnail_waiters.get(id,[]):
+				if is_instance_valid(rect):
+					rect.texture=texture
+	thumbnail_pending.erase(id)
+	thumbnail_waiters.erase(id)
+	if is_instance_valid(request):
+		request.queue_free()
+	call_deferred("_pump_thumbnail_queue")
+
+func _format_bytes(value:int) -> String:
+	var safe=max(0,value)
+	if safe<1024:
+		return "%d B" % safe
+	if safe<1024*1024:
+		return "%.1f KB" % (safe/1024.0)
+	return "%.1f MB" % (safe/1048576.0)
+
+func _update_download_progress_controls(id:String,received:int,total:int):
+	if map_progress_bars.has(id) and is_instance_valid(map_progress_bars[id]):
+		var progress=map_progress_bars[id]
+		progress.visible=true
+		progress.value=min(100.0,max(2.0,received/float(total)*100.0)) if total>0 else 15.0
+	if map_progress_labels.has(id) and is_instance_valid(map_progress_labels[id]):
+		var label=map_progress_labels[id]
+		label.visible=true
+		label.text="Downloading · %s%s" % [_format_bytes(received)," / "+_format_bytes(total) if total>0 else ""]
+
+func _map_download_progress(id:String,received:int,total:int):
+	_update_download_progress_controls(id,received,total)
+	if status!=null and visible and selected_page=="maps":
+		status.text="Downloading map · %s%s" % [_format_bytes(received)," / "+_format_bytes(total) if total>0 else ""]
+
+func _download_map(map:Dictionary):
+	var id=str(map.get("id",""))
+	if id=="":
+		status.text="This map has no Rhythians map id."
+		return
+	if Rhythian.downloading:
+		status.text="Another map download is already in progress."
+		return
+	status.text="Downloading %s…" % str(map.get("title","map"))
+	_update_download_progress_controls(id,0,0)
+	Rhythian.download_map(map)
+
+func _go_to_map(map:Dictionary):
+	var id=str(map.get("id",""))
+	if id=="" or not Rhythian.is_map_playable(id):
+		status.text="Download this map before opening it in Play."
+		return
+	var song=Rhythian.get_song_for_map_id(id)
+	if song==null:
+		status.text="The downloaded map could not be loaded."
+		return
+	Rhythia.select_song(song)
+	close_page()
+	var sidebar=get_tree().current_scene.get_node_or_null("Sidebar")
+	if sidebar!=null and sidebar.has_method("to_play"):
+		sidebar.to_play()
 
 func _set_map_search(field:LineEdit):
 	map_search=field.text.strip_edges()
