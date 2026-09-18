@@ -178,10 +178,9 @@ func _api_request(method:int, path:String, body=null, use_auth:bool=true, timeou
 	add_child(hr)
 	hr.use_threads = false
 	hr.timeout = timeout
-	var headers = PoolStringArray([
-		"Content-Type: application/json",
-		"User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version"))
-	])
+	var headers = PoolStringArray(["Content-Type: application/json"])
+	if not OS.has_feature("HTML5"):
+		headers.append("User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version")))
 	if use_auth and token != "":
 		headers.append("Authorization: Bearer " + token)
 	var data = ""
@@ -755,7 +754,9 @@ func download_map(map:Dictionary):
 				u = base_url + ("/" if not u.begins_with("/") else "") + u
 			candidates.append(u)
 	candidates.append(base_url + "/api/rhythkit/maps/" + id + "/download")
-	var headers = PoolStringArray(["User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version"))])
+	var headers = PoolStringArray()
+	if not OS.has_feature("HTML5"):
+		headers.append("User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version")))
 	if token != "":
 		headers.append("Authorization: Bearer " + token)
 	var watchdog = get_tree().create_timer(180.0)
