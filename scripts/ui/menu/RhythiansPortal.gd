@@ -348,12 +348,13 @@ func _home():
 	else:
 		var login=_button(row,"Sign in with Rhythians",true)
 		login.connect("pressed",self,"_login")
-	var score=_panel("Score pools","RPL is used when Spin is disabled. RPS is used when Spin is enabled. RPV is not supported in this client. RBP remains battle-only.")
+	var score=_panel("Score pools","RPL, RPS, and RPV use the same Rhythians mode ranks as the website. This browser client currently plays Lock and Spin; VR progression is still shown for your account. RBP remains battle-only.")
 	var totals=_mode_totals()
 	var points=RhythianUI.hbox(22)
 	score.add_child(points)
 	points.add_child(RhythianUI.label("RPL %d" % totals["rpl"],18,RhythianUI.C_WHITE,1))
 	points.add_child(RhythianUI.label("RPS %d" % totals["rps"],18,RhythianUI.C_WHITE,1))
+	points.add_child(RhythianUI.label("RPV %d" % totals["rpv"],18,RhythianUI.C_WHITE,1))
 	points.add_child(RhythianUI.label("RHP %d" % int(Rhythian.profile.get("rhp",0)),18,RhythianUI.C_WHITE,1))
 	var actions=_panel("Quick actions")
 	var ar=RhythianUI.hbox(10)
@@ -715,24 +716,16 @@ func _map_page_change(delta:int):
 	map_page=max(0,map_page+delta)
 	show_page("maps",true)
 func _map_action(map:Dictionary):
-	var id=str(map.get("id",""))
-	if id=="":
-		status.text="This map has no Rhythians map id."
-		return
-	if Rhythian.is_map_playable(id):
-		var song=Rhythian.get_song_for_map_id(id)
-		if song==null:
-			status.text="The downloaded map could not be loaded."
-			return
-		Rhythia.select_song(song)
-		close_page()
-		var sidebar=get_tree().current_scene.get_node_or_null("Sidebar")
-		if sidebar!=null and sidebar.has_method("to_play"): sidebar.to_play()
-		return
-	status.text="Downloading %s…" % str(map.get("title","map"))
-	Rhythian.download_map(map)
+	if Rhythian.is_map_playable(str(map.get("id",""))):
+		_go_to_map(map)
+	else:
+		_download_map(map)
 
-func _map_downloaded(_id:String,success:bool,message:String):
+func _map_downloaded(id:String,success:bool,message:String):
+	if map_progress_bars.has(id) and is_instance_valid(map_progress_bars[id]):
+		map_progress_bars[id].visible=false
+	if map_progress_labels.has(id) and is_instance_valid(map_progress_labels[id]):
+		map_progress_labels[id].visible=false
 	if status!=null:
 		status.text="Map downloaded into the Play library." if success else message
 	if visible and (selected_page=="maps" or selected_page=="challenge"):
@@ -872,8 +865,9 @@ func _leaderboards():
 		var open=_button(row,"Profile")
 		open.connect("pressed",self,"open_profile_handle",[str(user.get("profileHandle",""))])
 	var modes=data.get("modes",{})
-	for mode_name in ["lock","spin"]:
-		var mode_box=_panel(mode_name.to_upper(),"Top 15 mode leaderboard")
+	for mode_name in ["lock","spin","vr"]:
+		var mode_label="RPL / Lock" if mode_name=="lock" else ("RPS / Spin" if mode_name=="spin" else "RPV / VR")
+		var mode_box=_panel(mode_label,"Top 15 mode leaderboard")
 		var entries=modes.get(mode_name,[])
 		for i in range(min(15,entries.size())):
 			mode_box.add_child(RhythianUI.label("#%d %s" % [i+1,str(entries[i].get("username",entries[i].get("displayName","Player")))],13))
@@ -1054,7 +1048,7 @@ func _profile(handle:String):
 	var p=data.get("profile",{})
 	var main=_panel(str(p.get("displayName",p.get("username","User"))),"@%s · %s · %d RHP" % [str(p.get("profileHandle","")),str(p.get("title","Rhythian")),int(p.get("rhp",0))])
 	main.add_child(RhythianUI.label("Rank: %s %s · Global #%s · Challenge Level %s · %s" % [str(p.get("rank",{}).get("name","")),str(p.get("rank",{}).get("tier","")),str(p.get("globalRank","-")),str(p.get("challengeLevel",0)),"Online" if bool(p.get("online",false)) else "Offline"],14))
-	main.add_child(RhythianUI.label("RPL %d · RPS %d" % [int(p.get("modes",{}).get("rpl",0)),int(p.get("modes",{}).get("rps",0))],14))
+	main.add_child(RhythianUI.label("RPL %d · RPS %d · RPV %d" % [int(p.get("modes",{}).get("rpl",0)),int(p.get("modes",{}).get("rps",0)),int(p.get("modes",{}).get("rpv",0))],14))
 	if str(p.get("bio",""))!="":
 		main.add_child(RhythianUI.label(str(p.get("bio","")),14))
 	var actions=RhythianUI.hbox(8)
@@ -1198,7 +1192,7 @@ func _rules():
 		_panel(str(rule.get("title","Rule")),text)
 func _community():
 	title_label.text="Community Settings"
-	var mode=_panel("Score mode","RPL is used when Spin is not selected. RPS is used when Spin is selected. RPV is not supported by this client.")
+	var mode=_panel("Score mode","RPL is used when Spin is not selected. RPS is used when Spin is selected. Your RPV rank is synchronized and visible throughout the client even though VR gameplay is not available in the browser build.")
 	var spin=RhythianUI.check_button("Spin mode",spin_enabled)
 	spin.connect("toggled",self,"_spin_toggled")
 	mode.add_child(spin)
@@ -1212,7 +1206,7 @@ func _account():
 		return
 	var panel=_panel(Rhythian.username,"%d RHP · browser account connected" % int(Rhythian.profile.get("rhp",0)))
 	var modes=_mode_totals()
-	panel.add_child(RhythianUI.label("RPL %d · RPS %d" % [modes["rpl"],modes["rps"]],14,RhythianUI.C_MUTED))
+	panel.add_child(RhythianUI.label("RPL %d · RPS %d · RPV %d" % [modes["rpl"],modes["rps"],modes["rpv"]],14,RhythianUI.C_MUTED))
 	var row=RhythianUI.hbox(8)
 	panel.add_child(row)
 	var refresh=_button(row,"Refresh account")
@@ -1328,16 +1322,17 @@ func _return_battles():
 	show_page("battles",true)
 func _mode_totals():
 	var modes=Rhythian.profile.get("modes",{})
-	if typeof(modes)==TYPE_DICTIONARY and (modes.has("rpl") or modes.has("rps")):
-		return {"rpl":int(modes.get("rpl",0)),"rps":int(modes.get("rps",0))}
-	var totals={"rpl":0,"rps":0}
+	if typeof(modes)==TYPE_DICTIONARY and (modes.has("rpl") or modes.has("rps") or modes.has("rpv")):
+		return {"rpl":int(modes.get("rpl",0)),"rps":int(modes.get("rps",0)),"rpv":int(modes.get("rpv",0))}
+	var totals={"rpl":0,"rps":0,"rpv":0}
 	for score in Rhythian.scores_cache:
 		if typeof(score)!=TYPE_DICTIONARY: continue
 		if score.has("passed") and not bool(score.get("passed",false)): continue
 		var explicit=str(score.get("cameraMode",score.get("gameMode",score.get("mode","")))).to_lower()
-		if explicit=="vr" or bool(score.get("vr",false)) or bool(score.get("isVr",false)): continue
 		var points=max(0,int(score.get("points",0)))
-		if explicit=="spin" or bool(score.get("spin",false)):
+		if explicit=="vr" or bool(score.get("vr",false)) or bool(score.get("isVr",false)):
+			totals["rpv"]+=points
+		elif explicit=="spin" or bool(score.get("spin",false)):
 			totals["rps"]+=points
 		else:
 			totals["rpl"]+=points
