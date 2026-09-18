@@ -402,6 +402,24 @@ func make_song_button(id:int=-1):
 	if map == Rhythia.selected_song:
 		btn.get_node("Select").pressed = true
 	if Rhythian.is_rhythian_song(map):
+		var metadata=Rhythian.get_song_metadata(map)
+		if not metadata.empty():
+			var info=Label.new()
+			info.name="RhythianMeta"
+			info.text=Rhythian.get_map_summary(metadata)
+			info.anchor_left=0.0
+			info.anchor_right=1.0
+			info.anchor_top=1.0
+			info.anchor_bottom=1.0
+			info.margin_left=12
+			info.margin_right=-64
+			info.margin_top=-25
+			info.margin_bottom=-4
+			info.clip_text=true
+			info.mouse_filter=Control.MOUSE_FILTER_IGNORE
+			info.add_font_override("font",RhythianUI.font(11))
+			info.add_color_override("font_color",Color(0.88,0.91,0.98))
+			btn.add_child(info)
 		var ic = TextureRect.new()
 		ic.name = "RhythianIcon"
 		ic.texture = RHYTHIAN_ICON
