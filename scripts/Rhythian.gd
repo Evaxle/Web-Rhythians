@@ -55,6 +55,7 @@ var device_expiry:int = 0
 
 var dl_req:HTTPRequest = null
 var dl_map_id:String = ""
+var dl_pending_map:Dictionary = {}
 var downloading:bool = false
 var dl_progress_accum:float = 0.0
 
@@ -771,6 +772,10 @@ func download_map(map:Dictionary):
 		return
 	downloading = true
 	dl_map_id = id
+	dl_pending_map = map.duplicate(true)
+	if OS.has_feature("HTML5"):
+		WebPortal.request_map_download(map)
+		return
 	var dir = Directory.new()
 	dir.make_dir_recursive(Globals.p(MAP_DIR))
 	var file_name = "rhythians-" + id + "-" + _safe_filename(str(map.get("title","map"))) + ".sspm"
@@ -905,6 +910,7 @@ func _dl_cleanup():
 		dl_req.queue_free()
 	dl_req = null
 	dl_map_id = ""
+	dl_pending_map.clear()
 	downloading = false
 	dl_progress_accum = 0.0
 
@@ -919,6 +925,21 @@ func _dl_watchdog(map_id:String):
 	dl_map_id = ""
 	downloading = false
 	emit_signal("map_downloaded", map_id, false, "Download timed out - try again")
+
+func browser_download_progress(id:String,received:int,total:int):
+	if not downloading or dl_map_id!=id:
+		return
+	emit_signal("download_progress",id,received,total)
+
+func browser_download_complete(id:String,success:bool,file_name:String,message:String):
+	if not downloading or dl_map_id!=id:
+		return
+	var map=dl_pending_map.duplicate(true)
+	if success:
+		var safe_name=file_name if file_name!="" else "rhythians-"+id+".sspm"
+		_registry_add(safe_name,map)
+	_dl_cleanup()
+	emit_signal("map_downloaded",id,success,safe_name if success else (message if message!="" else "Download failed"))
 
 func _find_download_url(node) -> String:
 	if typeof(node) == TYPE_DICTIONARY:
@@ -940,6 +961,7 @@ func _find_download_url(node) -> String:
 	return ""
 
 func on_song_ended(end_type:int):
+	if OS.has_feature("HTML5"): return
 	if end_type != Globals.END_PASS or not logged_in or Rhythia.replaying or Rhythia.mod_nofail: return
 	if Rhythia.replay != null and Rhythia.replay.autoplayer: return
 	var song = Rhythia.selected_song
@@ -969,6 +991,16 @@ func on_song_ended(end_type:int):
 		"integrationVersion": INTEGRATION_VERSION
 	}
 	_submit_score(payload)
+
+func submit_web_score(payload:Dictionary):
+	if not logged_in or typeof(payload)!=TYPE_DICTIONARY:
+		return
+	var body=payload.duplicate(true)
+	body["cameraMode"]="spin" if str(body.get("cameraMode","lock"))=="spin" else "lock"
+	body["clientScoreId"]=_uuid()
+	body["completedAt"]=_iso_now()
+	body["resultQualified"]=true
+	_submit_score(body)
 
 func _submit_score(payload:Dictionary):
 	var res = yield(_api_request(HTTPClient.METHOD_POST, "/api/rhythkit/scores", payload, true, 45.0), "completed")
@@ -1064,6 +1096,8 @@ func _registry_add(file_name:String, map:Dictionary):
 	registry[file_name] = _map_registry_payload(map)
 	registry[file_name]["downloadedAt"] = _iso_now()
 	_save_registry()
+	if OS.has_feature("HTML5"):
+		WebPortal.persist_user_data()
 
 func _map_registry_payload(map:Dictionary) -> Dictionary:
 	return {
@@ -1094,6 +1128,8 @@ func is_map_downloaded(id:String) -> bool:
 
 func is_map_playable(id:String) -> bool:
 	if not is_map_downloaded(id): return false
+	if OS.has_feature("HTML5"):
+		return true
 	for fname in registry.keys():
 		if str(registry[fname].get("id","")) != str(id): continue
 		var path = get_map_file_path(str(fname))
@@ -1125,6 +1161,8 @@ func forget_downloaded_map(id:String):
 	if victim != "":
 		registry.erase(victim)
 		_save_registry()
+		if OS.has_feature("HTML5"):
+			WebPortal.persist_user_data()
 
 func _registered_song_by_file(fname:String):
 	if Rhythia.registry_song == null: return null
