@@ -82,7 +82,9 @@ func _ready():
 		if write_ok:
 			temp.store_buffer(bytes)
 			temp.close()
-			WebPortal._import_sspm({"path": tmp_path, "name": "smoke-browser-import.sspm"})
+			var import_state=WebPortal._import_sspm({"path": tmp_path, "name": "smoke-browser-import.sspm"})
+			if import_state is GDScriptFunctionState:
+				yield(import_state,"completed")
 			check(capture.import_ok, "browser SSPM import succeeds")
 			var imported_path = Globals.p("user://maps/browser imports/smoke-browser-import.sspm")
 			check(File.new().file_exists(imported_path), "browser SSPM persists in user maps")
