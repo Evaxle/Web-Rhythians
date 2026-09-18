@@ -2,7 +2,7 @@ extends Panel
 
 var portal:Control
 var account:Button
-var nav = [["home","Home"],["maps","Maps"],["daily","Daily"],["path","Path"],["challenge","Challenge"],["online","Online"],["leaderboards","Leaderboards"],["battles","Battles"],["clips","Clips"],["search","Search"],["messages","Messages"],["global-chat","Global Chat"],["wiki","Wiki"],["rules","Rules"],["community","Community"]]
+var nav = [["home","Home"],["maps","Progress"],["clips","Community"],["wiki","Learn"],["account","Profile"]]
 var native_nav = [["settings","Settings"],["content","Content"],["language","Language"],["credits","Credits"]]
 
 var pending_page:String = ""
@@ -33,7 +33,7 @@ func _ready():
 	var version = "nightly"
 	if ProjectSettings.has_setting("application/config/version"):
 		version = str(ProjectSettings.get_setting("application/config/version"))
-	brand.text = "Rhythia · " + version
+	brand.text = "Rhythians Web · " + version
 	brand.add_color_override("font_color",Color(0.72,0.75,0.82))
 	brand.add_font_override("font",RhythianUI.font(13))
 	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
