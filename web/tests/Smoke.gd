@@ -149,7 +149,8 @@ func _ready():
 			yield(get_tree(), "idle_frame")
 			yield(get_tree(), "idle_frame")
 			check(sidebar.portal.selected_page == "maps", "optimized Maps page renders")
-			check(sidebar.portal.content.get_child_count() <= 30, "Maps page renders only one lightweight catalog page")
+			check(sidebar.portal.content.get_child_count() <= 46, "Maps page renders only one 40-map catalog page")
+			check(sidebar.portal._safe_user_name({"displayName":null,"username":"FallbackPlayer"})=="FallbackPlayer", "online players fall back from null display names")
 			Rhythian.logged_in = old_logged_in
 			Rhythian.profile = old_profile
 			Rhythian.maps_cache = old_maps
@@ -192,9 +193,25 @@ func _ready():
 			yield(get_tree(), "idle_frame")
 			check(sidebar.active_page=="settings" and menu.get_node("Main/Settings").visible, "rapid mixed navigation resolves to Settings")
 
+			var meta_test={
+				"id":"metadata-smoke",
+				"title":"Metadata Smoke",
+				"rating":4.25,
+				"difficulty":"Gold",
+				"rankName":"Gold",
+				"isRanked":true,
+				"isLegacy":false,
+				"maxRewards":{"lock":120,"spin":140,"vr":160}
+			}
+			var persisted_meta=Rhythian._map_registry_payload(meta_test)
+			check(int(persisted_meta.get("maxRewards",{}).get("vr",0))==160, "downloaded map metadata preserves RPV")
+			check(Rhythian.get_map_summary(meta_test).find("RPL +120")!=-1 and Rhythian.get_map_summary(meta_test).find("RPV +160")!=-1, "Play metadata summary includes rating and all rank rewards")
+
 			sidebar.to_play()
 			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
 			check(not sidebar.portal.visible, "Play returns to the normal Godot client")
+			check(menu.get_node("Main/Maps").visible, "Play root is restored after leaving another tab")
 
 	print("SMOKE_FAILURES=" + str(failures))
 	get_tree().quit(1 if failures else 0)
