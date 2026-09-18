@@ -133,11 +133,16 @@ func _apply_pending_navigation():
 	pending_page = ""
 	if page == "":
 		return
-	if active_page == page and portal != null and portal.visible:
+	if portal == null or portal.get_parent() == null:
+		pending_page = page
+		navigation_scheduled = true
+		call_deferred("_apply_pending_navigation")
+		return
+	if active_page == page and portal.visible:
 		return
 	active_page = page
 	_hide_game_pages()
-	if portal != null and portal.has_method("open_page"):
+	if portal.has_method("open_page"):
 		portal.open_page(page)
 	call_deferred("_raise_nav")
 
