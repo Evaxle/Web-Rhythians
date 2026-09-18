@@ -2,7 +2,7 @@ extends Panel
 
 var portal:Control
 var account:Button
-var nav = [["home","Home"],["maps","Progress"],["clips","Community"],["wiki","Learn"],["account","Profile"]]
+var nav = [["home","Home"],["maps","Maps"],["clips","Community"],["wiki","Learn"],["account","Profile"]]
 var native_nav = [["settings","Settings"],["content","Content"],["language","Language"],["credits","Credits"]]
 
 var pending_page:String = ""
