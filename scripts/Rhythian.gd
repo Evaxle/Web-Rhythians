@@ -787,7 +787,7 @@ func download_map(map:Dictionary):
 			if not u.begins_with("http"):
 				u = base_url + ("/" if not u.begins_with("/") else "") + u
 			candidates.append(u)
-	candidates.append(base_url + "/api/rhythkit/maps/" + id + "/download")
+	candidates.append(base_url + "/api/rhythkit/maps/" + id + "/download?stream=1")
 	var base_headers = PoolStringArray()
 	if not OS.has_feature("HTML5"):
 		base_headers.append("User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version")))
