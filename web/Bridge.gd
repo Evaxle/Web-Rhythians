@@ -122,6 +122,15 @@ func _import_sspm(data:Dictionary):
 			safe_name += ch
 	if safe_name == "" or safe_name == ".sspm":
 		safe_name = "imported-" + str(OS.get_unix_time()) + ".sspm"
+	var source = File.new()
+	if source.open(path, File.READ) != OK:
+		if window: window.rhythiansImported(safe_name, false, "Could not read the imported SSPM.")
+		return
+	var header = source.get_buffer(4)
+	source.close()
+	if header.size() != 4 or header[0] != 0x53 or header[1] != 0x53 or header[2] != 0x2b or header[3] != 0x6d:
+		if window: window.rhythiansImported(safe_name, false, "The file is not a valid SSPM.")
+		return
 	var dir = Directory.new()
 	var target_dir = Globals.p("user://maps/browser imports")
 	dir.make_dir_recursive(target_dir)
@@ -130,27 +139,19 @@ func _import_sspm(data:Dictionary):
 	while File.new().file_exists(target):
 		target = target_dir.trim_suffix("/") + "/" + safe_name.get_basename() + "-" + str(suffix) + ".sspm"
 		suffix += 1
-	var source = File.new()
-	if source.open(path, File.READ) != OK:
-		if window: window.rhythiansImported(safe_name, false, "Could not read the imported SSPM.")
-		return
-	var bytes = source.get_buffer(source.get_len())
-	source.close()
-	if bytes.size() < 4 or bytes[0] != 0x53 or bytes[1] != 0x53 or bytes[2] != 0x2b or bytes[3] != 0x6d:
-		if window: window.rhythiansImported(safe_name, false, "The file is not a valid SSPM.")
-		return
-	var output = File.new()
-	if output.open(target, File.WRITE) != OK:
+	if dir.copy(path, target) != OK:
 		if window: window.rhythiansImported(safe_name, false, "Could not save the SSPM in browser storage.")
 		return
-	output.store_buffer(bytes)
-	output.close()
+	dir.remove(path)
 	var song = Rhythia.registry_song.add_sspm_map(target)
 	if song == null:
 		dir.remove(target)
 		if window: window.rhythiansImported(safe_name, false, "The client could not load this SSPM.")
 		return
-	if window: window.rhythiansImported(safe_name, true, "")
+	var map_list = get_tree().current_scene.get_node_or_null("Main/Maps/MapRegistry/S/VBoxContainer")
+	if map_list != null and map_list.has_method("refresh_visible_list"):
+		map_list.call_deferred("refresh_visible_list")
+	if window: window.rhythiansImported(target.get_file(), true, "")
 
 func _import_settings(data:Dictionary):
 	var path=str(data.get("path",""))
