@@ -1,5 +1,7 @@
 extends Node
 
+signal settings_imported(success,message,path)
+
 var callback
 var window
 var active_map = {}
@@ -33,6 +35,14 @@ func menu_ready():
 func request_signin():
 	if window:
 		window.rhythiansRequestSignin()
+
+func request_settings_import():
+	if window and window.rhythiansRequestSettingsImport:
+		window.rhythiansRequestSettingsImport()
+
+func persist_user_data():
+	if window and window.rhythiansPersistUserData:
+		window.rhythiansPersistUserData()
 
 func command(args):
 	if args.empty(): return
@@ -74,6 +84,8 @@ func command(args):
 			_play_web_map(data)
 		"import":
 			_import_sspm(data)
+		"import-settings":
+			_import_settings(data)
 
 func _play_web_map(data:Dictionary):
 	if not menu_loaded: return
@@ -139,6 +151,55 @@ func _import_sspm(data:Dictionary):
 		if window: window.rhythiansImported(safe_name, false, "The client could not load this SSPM.")
 		return
 	if window: window.rhythiansImported(safe_name, true, "")
+
+func _import_settings(data:Dictionary):
+	var path=str(data.get("path",""))
+	var original_name=str(data.get("name","imported-settings.json")).get_file()
+	if not path.begins_with("/tmp/rhythians-settings-") or not path.ends_with(".json"):
+		_finish_settings_import(false,"Invalid settings import path.","")
+		return
+	var source=File.new()
+	if source.open(path,File.READ)!=OK:
+		_finish_settings_import(false,"Could not read the settings file.","")
+		return
+	var text=source.get_as_text()
+	source.close()
+	var parsed=JSON.parse(text)
+	if parsed.error!=OK or typeof(parsed.result)!=TYPE_DICTIONARY:
+		_finish_settings_import(false,"That file is not a valid Rhythia settings JSON file.","")
+		return
+	var base=original_name
+	if base.ends_with(".settings.json"):
+		base=base.substr(0,base.length()-14)
+	elif base.ends_with(".json"):
+		base=base.substr(0,base.length()-5)
+	var safe=""
+	for i in range(base.length()):
+		var ch=base.substr(i,1)
+		if ch.is_valid_identifier() or ch in [" ","-","_","(",")","[","]"]:
+			safe+=ch
+	safe=safe.strip_edges()
+	if safe=="":
+		safe="Imported "+str(OS.get_unix_time())
+	var target_dir=Globals.p("user://")
+	var target=target_dir+safe+".settings.json"
+	var suffix=2
+	while File.new().file_exists(target):
+		target=target_dir+safe+" "+str(suffix)+".settings.json"
+		suffix+=1
+	var output=File.new()
+	if output.open(target,File.WRITE)!=OK:
+		_finish_settings_import(false,"Could not save the imported settings profile.","")
+		return
+	output.store_string(text)
+	output.close()
+	_finish_settings_import(true,"Imported "+target.get_file()+". Select it from the profile menu.",target)
+	persist_user_data()
+
+func _finish_settings_import(success:bool,message:String,path:String):
+	emit_signal("settings_imported",success,message,path)
+	if window and window.rhythiansSettingsImported:
+		window.rhythiansSettingsImported(success,message)
 
 func _selected_rhythian_map() -> Dictionary:
 	var song = Rhythia.selected_song
