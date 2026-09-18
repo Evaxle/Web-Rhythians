@@ -382,7 +382,7 @@ func fetch_profile():
 		profile_limited = false
 		emit_signal("profile_updated")
 		return
-	var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/profile", null, true), "completed")
+	var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/portal?page=profile", null, true), "completed")
 	if res.get("code", 0) == 401:
 		logout()
 		emit_signal("profile_updated")
