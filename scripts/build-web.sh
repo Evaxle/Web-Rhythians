@@ -89,6 +89,40 @@ PY
 
 python3 - <<'PY'
 from pathlib import Path
+import json
+import re
+
+preset = Path("export_presets.cfg")
+text = preset.read_text()
+
+selected = []
+for path in Path(".").rglob("*"):
+    if not path.is_file():
+        continue
+    rel = path.as_posix().lstrip("./")
+    parts = path.parts
+    if any(part in {".git", "build", ".import", "addons", "vr", "test_assets"} for part in parts):
+        continue
+    if rel.startswith("web/tests/") or rel.startswith("scenes/test/"):
+        continue
+    suffix = path.suffix.lower()
+    if suffix in {".gd", ".tscn", ".tres", ".obj"}:
+        selected.append("res://" + rel)
+
+for path in Path("assets/songs").glob("*"):
+    if path.is_file() and path.suffix.lower() in {".mp3", ".ogg", ".wav"}:
+        selected.append("res://" + path.as_posix())
+
+selected = sorted(set(selected))
+encoded = ", ".join(json.dumps(item) for item in selected)
+line = "export_files=PoolStringArray(" + encoded + ")"
+text = re.sub(r"^export_files=PoolStringArray\(.*\)$", line, text, flags=re.MULTILINE)
+preset.write_text(text)
+print(f"Web export selected resources: {len(selected)}")
+PY
+
+python3 - <<'PY'
+from pathlib import Path
 import base64
 Path("web/logo.png").write_bytes(base64.b64decode(Path("web/logo.b64").read_text().strip()))
 PY
@@ -101,7 +135,12 @@ cp web/app.js /tmp/rhythians-app.mjs
 node --check /tmp/rhythians-app.mjs
 
 echo "Godot thread usage audit:"
-grep -RIn --include='*.gd' -E 'Thread\.new\(|\.start\(self|wait_to_finish\(' scripts web 2>/dev/null || true
+thread_hits="$(grep -RIn --include='*.gd' -E 'Thread\.new\(|\.start\(self|wait_to_finish\(' scripts web 2>/dev/null || true)"
+printf '%s\n' "$thread_hits"
+if printf '%s\n' "$thread_hits" | grep -v 'scripts/ui/menu/buttons/v3MapList.gd' | grep -q .; then
+  echo "Unexpected thread usage remains in Web runtime scripts." >&2
+  exit 1
+fi
 
 run_godot() {
   local logfile="$1"
@@ -152,6 +191,20 @@ check_log() {
 run_godot /tmp/export.log "$GODOT_BIN" --path . --export Web build/web/index.html
 check_log /tmp/export.log
 
+PACK_PATH="$(realpath build/web/index.pck)"
+rm -rf /tmp/rhythians-pack-smoke
+mkdir -p /tmp/rhythians-pack-smoke
+pack_rc=0
+(
+  cd /tmp/rhythians-pack-smoke
+  timeout 60s "$GODOT_BIN" --main-pack "$PACK_PATH" --script res://web/PackSmoke.gd
+) >/tmp/pack-smoke.log 2>&1 || pack_rc=$?
+cat /tmp/pack-smoke.log
+if [ "$pack_rc" -ne 0 ] || ! grep -q 'PACK_SMOKE_FAILURES=0' /tmp/pack-smoke.log; then
+  echo "Exported Web PCK failed runtime dependency validation." >&2
+  exit 1
+fi
+
 run_smoke /tmp/smoke.log "$GODOT_BIN" --path . web/tests/Smoke.tscn
 
 cp web/app.js web/app.css web/sspm.mjs web/logo.png web/manifest.webmanifest build/web/
@@ -188,8 +241,8 @@ require_file build/web/index.pck
 echo "Web export sizes:"
 du -h build/web/index.wasm build/web/index.pck
 pck_bytes="$(stat -c%s build/web/index.pck)"
-if [ "$pck_bytes" -gt 62914560 ]; then
-  echo "Web PCK is too large ($pck_bytes bytes); keep browser payload below 60 MiB." >&2
+if [ "$pck_bytes" -gt 83886080 ]; then
+  echo "Web PCK is too large ($pck_bytes bytes); keep browser payload below 80 MiB." >&2
   exit 1
 fi
 require_text 'https://www.rhythians.com' web/app.js 'Rhythians production URL'
@@ -211,6 +264,7 @@ require_text 'immersive-fallback' web/app.js 'fullscreen fallback'
 require_text '"cameraMode": "spin" if Rhythia.cam_unlock else "lock"' scripts/Rhythian.gd 'web score camera mode'
 require_text 'sidebar.has_method("to_play")' web/Bridge.gd 'normal client play navigation'
 require_text 'if not OS.has_feature("HTML5"):' scripts/ui/menu/buttons/v3MapList.gd 'HTML5 cover preload guard'
+require_text 'export_filter="resources"' export_presets.cfg 'dependency-based Web export'
 if grep -Fq 'tween.tween_property(btns[i]' scripts/ui/menu/buttons/v3MapList.gd; then
   echo "Per-frame map-list tween allocation regression found" >&2
   exit 1

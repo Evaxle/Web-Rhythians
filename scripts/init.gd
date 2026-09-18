@@ -1,6 +1,5 @@
 extends Node
 
-var thread:Thread = Thread.new()
 var target:String = Rhythia.menu_target
 var leaving:bool = false
 
@@ -66,10 +65,6 @@ func _ready():
 		assets.set_large_image("icon-bg")
 
 		Discord.activity_manager.update_activity(activity)
-
-func _exit_tree():
-	if thread.is_active():
-		thread.wait_to_finish()
 
 var result
 
