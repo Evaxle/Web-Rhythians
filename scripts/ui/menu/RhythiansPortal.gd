@@ -455,6 +455,13 @@ func _maps():
 	if maps.empty():
 		_panel("No maps found","Try another search or map view.")
 		return
+	var catalog_grid=GridContainer.new()
+	catalog_grid.name="MapCatalogGrid"
+	catalog_grid.columns=4
+	catalog_grid.add_constant_override("hseparation",10)
+	catalog_grid.add_constant_override("vseparation",10)
+	catalog_grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	content.add_child(catalog_grid)
 	for i in range(start,finish):
 		var map=maps[i]
 		var id=str(map.get("id",""))
@@ -480,11 +487,24 @@ func _maps():
 			details+=" · RPL +%d / RPS +%d / RPV +%d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0)),int(rewards.get("vr",0))]
 		else:
 			details+=" · no rank points"
-		var row=_panel(str(map.get("title","Unknown map")),details)
+		var card=RhythianUI.make_panel(12,16,Color("0b101d"))
+		card.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		card.rect_min_size=Vector2(0,330)
+		var row=RhythianUI.vbox(6)
+		card.add_child(row)
+		catalog_grid.add_child(card)
+		var title=RhythianUI.label(str(map.get("title","Unknown map")),16,RhythianUI.C_WHITE,1)
+		title.autowrap=true
+		row.add_child(title)
 		_queue_map_thumbnail(row,map)
-		row.add_child(RhythianUI.label("%s · mapped by %s" % [str(map.get("artist","Unknown Artist")),str(map.get("mapper",map.get("mapperName","Unknown")))],13,RhythianUI.C_MUTED))
+		var detail_label=RhythianUI.label(details,12,RhythianUI.C_MUTED)
+		detail_label.autowrap=true
+		row.add_child(detail_label)
+		var byline=RhythianUI.label("%s · mapped by %s" % [str(map.get("artist","Unknown Artist")),str(map.get("mapper",map.get("mapperName","Unknown")))],12,RhythianUI.C_MUTED)
+		byline.autowrap=true
+		row.add_child(byline)
 		var downloaded=Rhythian.is_map_playable(id)
-		var state_row=RhythianUI.hbox(8)
+		var state_row=RhythianUI.hbox(6)
 		row.add_child(state_row)
 		if downloaded:
 			state_row.add_child(RhythianUI.pill("Downloaded",RhythianUI.C_ACCENT2,true))
@@ -500,17 +520,23 @@ func _maps():
 		map_progress_labels[id]=progress_label
 		if progress.visible and Rhythian.dl_req!=null and is_instance_valid(Rhythian.dl_req):
 			_update_download_progress_controls(id,Rhythian.dl_req.get_downloaded_bytes(),Rhythian.dl_req.get_body_size())
-		var actions=RhythianUI.hbox(7)
+		var actions=GridContainer.new()
+		actions.columns=1
+		actions.add_constant_override("vseparation",5)
 		row.add_child(actions)
 		if downloaded:
 			var go=_button(actions,"Go to map",true)
+			go.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 			go.connect("pressed",self,"_go_to_map",[map])
 			var again=_button(actions,"Download again")
+			again.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 			again.connect("pressed",self,"_download_map",[map])
 		else:
 			var download=_button(actions,"Download",true)
+			download.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 			download.connect("pressed",self,"_download_map",[map])
 		var details_button=_button(actions,"Map details")
+		details_button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 		details_button.connect("pressed",RhythianUI,"open_url",[BASE_URL+"/maps/"+id])
 
 func _rank_label(rank:Dictionary) -> String:
