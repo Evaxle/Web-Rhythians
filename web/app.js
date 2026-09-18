@@ -178,6 +178,31 @@ function showLauncher(stage="choice"){
 function accountLabel(){
   $("account-state").textContent=sessionAccount?sessionAccount.username:"Guest";
 }
+
+let toastTimer=null;
+function setToolsOpen(open){
+  const tools=$("game-tools");
+  tools.classList.toggle("is-open",Boolean(open));
+  $("tools-toggle").setAttribute("aria-expanded",open?"true":"false");
+}
+function showGameToast(message){
+  const toast=$("game-toast");
+  const value=String(message||"").trim();
+  if(!value)return;
+  toast.textContent=value;
+  toast.hidden=false;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{toast.hidden=true;},3600);
+}
+const gameStatusObserver=new MutationObserver(()=>{
+  showGameToast($("game-status").textContent);
+});
+gameStatusObserver.observe($("game-status"),{childList:true,characterData:true,subtree:true});
+$("tools-toggle").onclick=()=>setToolsOpen(!$("game-tools").classList.contains("is-open"));
+$("canvas").addEventListener("pointerdown",()=>setToolsOpen(false));
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape"&&$("game-tools").classList.contains("is-open"))setToolsOpen(false);
+});
 async function api(path,body,account=savedAccount){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),45000);
@@ -290,6 +315,7 @@ async function applySession(account){
     window.rhythiansCommand?.(JSON.stringify({action:"guest"}));
     $("game-status").textContent="Guest mode · account ranks and online map sync are unavailable.";
   }
+  setToolsOpen(false);
   $("canvas").focus();
 }
 async function beginSignin(force=false){
@@ -363,6 +389,7 @@ $("cancel-signin").onclick=()=>{
   status("");
 };
 $("change-account").onclick=()=>{
+  setToolsOpen(false);
   window.rhythiansCommand?.(JSON.stringify({action:"save"}));
   window.rhythiansPersistUserData?.().catch(()=>{});
   showLauncher("choice");
@@ -450,6 +477,7 @@ async function importFiles(files){
   if(imported)$("game-status").textContent=`Importing ${imported} SSPM map${imported===1?"":"s"}…`;
 }
 $("import-sspm").onclick=()=>{
+  showGameToast("Choose one or more SSPM files to import.");
   const picker=$("sspm-picker");
   picker.value="";
   try{
@@ -505,6 +533,7 @@ $("fullscreen").onclick=async()=>{
     $("game-status").textContent=game.classList.contains("immersive-fallback")?"Immersive browser mode enabled.":"Fullscreen unavailable: "+(error?.message||"browser restriction");
   }
   updateFullscreenButton();
+  setToolsOpen(false);
   $("canvas").focus();
 };
 document.addEventListener("fullscreenchange",updateFullscreenButton);
