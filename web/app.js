@@ -188,6 +188,21 @@ $("cancel-signin").onclick=()=>{
 $("change-account").onclick=()=>showLauncher("choice");
 
 window.rhythiansRequestSignin=()=>showLauncher("choice");
+window.rhythiansAuthChanged=async text=>{
+  try{
+    const state=JSON.parse(text);
+    if(state.loggedIn){
+      if(sessionAccount){
+        sessionAccount={...sessionAccount,username:state.username||sessionAccount.username,userId:state.userId||sessionAccount.userId,installationId:state.installationId||sessionAccount.installationId};
+      }
+    }else{
+      sessionAccount=null;
+      savedAccount=null;
+      await storage("account","delete","current").catch(()=>{});
+    }
+    accountLabel();
+  }catch{}
+};
 window.rhythiansAccountApplied=text=>{
   try{
     const state=JSON.parse(text);
