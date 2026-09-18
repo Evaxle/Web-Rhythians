@@ -531,6 +531,11 @@ func fetch_maps():
 			fresh += 1
 			if OS.has_feature("HTML5") and i > 0 and i % 75 == 0:
 				yield(get_tree(), "idle_frame")
+		if offset==0 and collected.size()>0 and maps_cache.empty():
+			maps_cache=collected.duplicate(true)
+			maps_error=""
+			emit_signal("maps_updated",true,"")
+			yield(get_tree(),"idle_frame")
 		var has_more:bool = bool(j.get("hasMore", arr.size() >= page_limit))
 		if not has_more:
 			break
