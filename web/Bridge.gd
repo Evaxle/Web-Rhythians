@@ -251,6 +251,14 @@ func begin_run():
 
 func finished():
 	if not window: return
+	if Rhythia.song_end_type!=Globals.END_PASS or Rhythia.replaying or Rhythia.mod_nofail:
+		active_map.clear()
+		active_map_path=""
+		return
+	if Rhythia.replay!=null and Rhythia.replay.autoplayer:
+		active_map.clear()
+		active_map_path=""
+		return
 	var selected = _selected_rhythian_map()
 	if not selected.empty():
 		active_map = selected
