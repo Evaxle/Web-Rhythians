@@ -22,6 +22,7 @@ var map_search=""
 var map_mode="all"
 var map_progress_bars:Dictionary={}
 var map_progress_labels:Dictionary={}
+var map_sort_target_rank:int=0
 var thumbnail_cache:Dictionary={}
 var thumbnail_pending:Dictionary={}
 var thumbnail_waiters:Dictionary={}
@@ -221,7 +222,7 @@ func _add_section_tabs(page:String):
 		return
 	var panel=RhythianUI.make_panel(10,14,Color("0b101d"))
 	var grid=GridContainer.new()
-	grid.columns=3
+	grid.columns=2 if get_viewport_rect().size.x<760 else 3
 	grid.add_constant_override("hseparation",6)
 	grid.add_constant_override("vseparation",6)
 	panel.add_child(grid)
@@ -377,7 +378,7 @@ func _maps():
 	var totals=_mode_totals()
 	var tabs=_panel("Map views","Use the same ranked views as the Rhythians Maps page.")
 	var tab_grid=GridContainer.new()
-	tab_grid.columns=4
+	tab_grid.columns=2 if get_viewport_rect().size.x<900 else 4
 	tab_grid.add_constant_override("hseparation",7)
 	tab_grid.add_constant_override("vseparation",7)
 	tabs.add_child(tab_grid)
@@ -526,14 +527,14 @@ func _map_mode_points() -> int:
 	return int(totals.get("rpv",0))
 
 func _set_map_mode(mode:String):
-	if not mode in ["all","lock","spin","vr"]:
+	if not (mode in ["all","lock","spin","vr"]):
 		return
 	map_mode=mode
 	map_page=0
 	show_page("maps",true)
 
 func _map_sort_before(a,b) -> bool:
-	var target_rank=int(Rhythian.get_rank_info(_map_mode_points()).get("index",0))
+	var target_rank=map_sort_target_rank
 	var a_rank=Rhythian.rank_index_for_rating(Rhythian.get_map_rating(a))
 	var b_rank=Rhythian.rank_index_for_rating(Rhythian.get_map_rating(b))
 	if map_mode=="all":
@@ -550,6 +551,7 @@ func _map_sort_before(a,b) -> bool:
 func _filtered_maps() -> Array:
 	var q=map_search.to_lower()
 	var target_rank=int(Rhythian.get_rank_info(_map_mode_points()).get("index",0))
+	map_sort_target_rank=target_rank
 	var filtered=[]
 	for map in Rhythian.maps_cache:
 		if typeof(map)!=TYPE_DICTIONARY:
@@ -651,12 +653,12 @@ func _update_download_progress_controls(id:String,received:int,total:int):
 	if map_progress_labels.has(id) and is_instance_valid(map_progress_labels[id]):
 		var label=map_progress_labels[id]
 		label.visible=true
-		label.text="Downloading · %s%s" % [_format_bytes(received)," / "+_format_bytes(total) if total>0 else ""]
+		label.text="Downloading · %s%s" % [_format_bytes(received),(" / "+_format_bytes(total)) if total>0 else ""]
 
 func _map_download_progress(id:String,received:int,total:int):
 	_update_download_progress_controls(id,received,total)
 	if status!=null and visible and selected_page=="maps":
-		status.text="Downloading map · %s%s" % [_format_bytes(received)," / "+_format_bytes(total) if total>0 else ""]
+		status.text="Downloading map · %s%s" % [_format_bytes(received),(" / "+_format_bytes(total)) if total>0 else ""]
 
 func _download_map(map:Dictionary):
 	var id=str(map.get("id",""))
