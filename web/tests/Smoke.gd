@@ -170,7 +170,7 @@ func _ready():
 			var settings_source=File.new()
 			var settings_temp="/tmp/rhythians-settings-smoke.json"
 			check(settings_source.open(settings_temp,File.WRITE)==OK, "settings import smoke file opens")
-			settings_source.store_string('{"sensitivity":1.25,"cam_unlock":true}')
+			settings_source.store_string("{\"sensitivity\":1.25,\"cam_unlock\":true}")
 			settings_source.close()
 			WebPortal._import_settings({"path":settings_temp,"name":"Smoke 2026.settings.json"})
 			var imported_settings=Globals.p("user://Smoke 2026.settings.json")
