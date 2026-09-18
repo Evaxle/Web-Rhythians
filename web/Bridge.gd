@@ -36,6 +36,16 @@ func request_signin():
 	if window:
 		window.rhythiansRequestSignin()
 
+func request_map_download(map:Dictionary):
+	if window and window.rhythiansDownloadMap:
+		var id=str(map.get("id",""))
+		var file_name="rhythians-"+id+".sspm"
+		window.rhythiansDownloadMap(JSON.print({"id":id,"fileName":file_name}))
+
+func open_downloaded_map(map:Dictionary):
+	if window and window.rhythiansOpenDownloadedMap:
+		window.rhythiansOpenDownloadedMap(JSON.print({"id":str(map.get("id","")),"map":map}))
+
 func request_settings_import():
 	if window and window.rhythiansRequestSettingsImport:
 		window.rhythiansRequestSettingsImport()
@@ -82,6 +92,16 @@ func command(args):
 			get_tree().change_scene("res://scenes/loaders/menuload.tscn")
 		"play":
 			_play_web_map(data)
+		"download-progress":
+			Rhythian.browser_download_progress(str(data.get("id","")),int(data.get("received",0)),int(data.get("total",0)))
+		"download-complete":
+			Rhythian.browser_download_complete(str(data.get("id","")),bool(data.get("success",false)),str(data.get("fileName","")),str(data.get("message","")))
+		"download-missing":
+			var missing_id=str(data.get("id",""))
+			Rhythian.forget_downloaded_map(missing_id)
+			Rhythian.emit_signal("map_downloaded",missing_id,false,"The cached map file is missing. Download it again.")
+		"materialize-progress":
+			pass
 		"import":
 			_import_sspm(data)
 		"import-settings":
@@ -97,9 +117,7 @@ func _play_web_map(data:Dictionary):
 		return
 	active_map = data.get("map", {})
 	active_map_path = path
-	Rhythia.cam_unlock = bool(data.get("spin", false))
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
-	Rhythia.save_settings()
 	mode_sync_enabled = true
 	last_spin = Rhythia.cam_unlock
 	Rhythia.select_song(song)
@@ -228,6 +246,8 @@ func begin_run():
 		active_map.clear()
 		active_map_path = ""
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
+	last_spin = Rhythia.cam_unlock
+
 func finished():
 	if not window: return
 	var selected = _selected_rhythian_map()
@@ -239,12 +259,11 @@ func finished():
 		active_map_path = ""
 		return
 	if active_map.empty(): return
-	active_mode = "spin" if Rhythia.cam_unlock else "lock"
 	var total = max(Rhythia.song_end_total_notes, 1)
 	var mods = []
 	for key in ["mod_mirror_x", "mod_mirror_y", "mod_extra_energy", "mod_no_regen", "mod_sudden_death", "mod_ghost", "mod_flashlight", "mod_nearsighted", "mod_hardrock", "mod_chaos"]:
 		if Rhythia.get(key): mods.append(key)
-	window.rhythiansScore(JSON.print({
+	Rhythian.submit_web_score({
 		"challengeMapId": str(active_map.get("id", "")),
 		"accuracy": float(Rhythia.song_end_hits) / total * 100.0,
 		"misses": int(Rhythia.song_end_misses),
@@ -252,9 +271,9 @@ func finished():
 		"cameraMode": active_mode,
 		"modifiers": PoolStringArray(mods).join(","),
 		"resultQualified": true,
-		"gameVersion": "rhythians-web-2",
-		"integrationVersion": "rhythians-web-2"
-	}))
+		"gameVersion": "rhythians-web-3",
+		"integrationVersion": "rhythians-web-3"
+	})
 	active_map.clear()
 	active_map_path = ""
 func _auth_changed():
@@ -268,7 +287,7 @@ func _auth_changed():
 
 func _maps_updated(success:bool, _message:String):
 	if window and success:
-		window.rhythiansCatalogReady(Rhythian.maps_cache.size())
+		window.rhythiansCatalogReady(Rhythian.maps_total)
 
 func _process(_delta):
 	if window and mode_sync_enabled and last_spin != Rhythia.cam_unlock:
