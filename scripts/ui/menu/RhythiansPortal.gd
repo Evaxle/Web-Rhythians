@@ -515,8 +515,10 @@ func _maps():
 		var downloaded=Rhythian.is_map_playable(id)
 		var state_row=RhythianUI.hbox(6)
 		row.add_child(state_row)
-		if downloaded:
-			state_row.add_child(RhythianUI.pill("Downloaded",RhythianUI.C_ACCENT2,true))
+		var downloaded_pill=RhythianUI.pill("Downloaded",RhythianUI.C_ACCENT2,true)
+		downloaded_pill.visible=downloaded
+		state_row.add_child(downloaded_pill)
+		map_download_pills[id]=downloaded_pill
 		if bool(map.get("hasScore",false)) or (typeof(completion)==TYPE_DICTIONARY and bool(completion.get("passed",false))):
 			state_row.add_child(RhythianUI.pill("Scored",RhythianUI.C_ACCENT,true))
 		var progress=RhythianUI.progress_bar(RhythianUI.C_ACCENT,7)
@@ -533,17 +535,15 @@ func _maps():
 		actions.columns=1
 		actions.add_constant_override("vseparation",5)
 		row.add_child(actions)
-		if downloaded:
-			var go=_button(actions,"Go to map",true)
-			go.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-			go.connect("pressed",self,"_go_to_map",[map])
-			var again=_button(actions,"Download again")
-			again.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-			again.connect("pressed",self,"_download_map",[map])
-		else:
-			var download=_button(actions,"Download",true)
-			download.size_flags_horizontal=Control.SIZE_EXPAND_FILL
-			download.connect("pressed",self,"_download_map",[map])
+		var go=_button(actions,"Go to map",true)
+		go.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		go.visible=downloaded
+		go.connect("pressed",self,"_go_to_map",[map])
+		map_go_buttons[id]=go
+		var download=_button(actions,"Download again" if downloaded else "Download",not downloaded)
+		download.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		download.connect("pressed",self,"_download_map",[map])
+		map_download_buttons[id]=download
 		var details_button=_button(actions,"Map details")
 		details_button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 		details_button.connect("pressed",RhythianUI,"open_url",[BASE_URL+"/maps/"+id])
