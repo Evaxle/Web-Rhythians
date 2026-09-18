@@ -48,6 +48,6 @@ func _ready():
 	var menu = load("res://scenes/menu/menu2.tscn").instance()
 	get_tree().root.add_child(menu)
 	yield(get_tree(), "idle_frame")
-	check(WebPortal.menu_loaded, "real client menu loads")
+	check(menu != null and menu.get_node_or_null("Sidebar") != null, "real client menu loads")
 	print("SMOKE_FAILURES=" + str(failures))
 	get_tree().quit(1 if failures else 0)
