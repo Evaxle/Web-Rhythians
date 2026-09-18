@@ -906,6 +906,7 @@ func _dl_cleanup():
 	dl_req = null
 	dl_map_id = ""
 	downloading = false
+	dl_progress_accum = 0.0
 
 func _dl_watchdog(map_id:String):
 	if not downloading or dl_map_id != map_id:
@@ -1281,8 +1282,6 @@ func _sync_registry_metadata():
 				changed=true
 	if changed:
 		_save_registry()
-		if OS.has_feature("HTML5"):
-			WebPortal.persist_user_data()
 
 func get_map_metadata(id:String) -> Dictionary:
 	if id=="":
