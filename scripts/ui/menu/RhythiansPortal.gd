@@ -19,6 +19,15 @@ var global_refresh_accum=0.0
 var direct_refresh_accum=0.0
 var map_page=0
 var map_search=""
+var map_mode="all"
+var map_progress_bars:Dictionary={}
+var map_progress_labels:Dictionary={}
+var thumbnail_cache:Dictionary={}
+var thumbnail_pending:Dictionary={}
+var thumbnail_waiters:Dictionary={}
+var thumbnail_queue:Array=[]
+var thumbnail_active:int=0
+const THUMBNAIL_CONCURRENCY=4
 var page_epoch:int=0
 var render_scheduled:bool=false
 var pending_page:String="home"
@@ -67,6 +76,7 @@ func _ready():
 	Rhythian.connect("auth_changed",self,"_auth_changed")
 	Rhythian.connect("profile_updated",self,"_profile_changed")
 	Rhythian.connect("maps_updated",self,"_maps_changed")
+	Rhythian.connect("download_progress",self,"_map_download_progress")
 	Rhythian.connect("map_downloaded",self,"_map_downloaded")
 	Rhythian.connect("connection_checked",self,"_connection_checked")
 	show_page("home",true)
@@ -107,6 +117,7 @@ func _auth_changed():
 	api_cache_time.clear()
 	map_page=0
 	map_search=""
+	map_mode="all"
 	profile_handle=""
 	chat_handle=""
 	search_query=""
@@ -158,6 +169,13 @@ func _save_settings():
 	file.close()
 
 func _clear():
+	map_progress_bars.clear()
+	map_progress_labels.clear()
+	for item in thumbnail_queue:
+		if typeof(item)==TYPE_DICTIONARY:
+			thumbnail_pending.erase(str(item.get("id","")))
+			thumbnail_waiters.erase(str(item.get("id","")))
+	thumbnail_queue.clear()
 	for child in content.get_children():
 		content.remove_child(child)
 		child.queue_free()
@@ -189,6 +207,32 @@ func _line(parent:Container,placeholder:String,initial:String="") -> LineEdit:
 	parent.add_child(field)
 	return field
 
+func _add_section_tabs(page:String):
+	var items=[]
+	if page in ["maps","daily","path","challenge","leaderboards","battles"]:
+		items=[["maps","Maps"],["daily","Daily"],["path","Path"],["challenge","Challenge"],["leaderboards","Ranks"],["battles","Battles"]]
+	elif page in ["online","clips","messages","global-chat","search"]:
+		items=[["clips","Clips"],["online","Players"],["messages","Messages"],["global-chat","Chat"],["search","Search"]]
+	elif page in ["wiki","rules"]:
+		items=[["wiki","Wiki"],["rules","Rules"]]
+	elif page in ["account","profile","community"]:
+		items=[["account","Account"],["profile","Profile"],["community","Player settings"]]
+	if items.empty():
+		return
+	var panel=RhythianUI.make_panel(10,14,Color("0b101d"))
+	var grid=GridContainer.new()
+	grid.columns=3
+	grid.add_constant_override("hseparation",6)
+	grid.add_constant_override("vseparation",6)
+	panel.add_child(grid)
+	content.add_child(panel)
+	for pair in items:
+		var button=RhythianUI.accent_button(pair[1],true) if pair[0]==page else RhythianUI.ghost_button(pair[1])
+		button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		button.rect_min_size.x=120
+		grid.add_child(button)
+		button.connect("pressed",self,"open_page",[pair[0]])
+
 func show_page(page:String,force:bool=true):
 	if page=="":
 		page="home"
@@ -214,6 +258,7 @@ func _render_pending_page():
 	if page!=selected_page:
 		return
 	_clear()
+	_add_section_tabs(page)
 	match page:
 		"home": _home()
 		"maps": _maps()
