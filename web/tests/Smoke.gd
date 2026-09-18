@@ -129,21 +129,29 @@ func _ready():
 			var old_logged_in = Rhythian.logged_in
 			var old_profile = Rhythian.profile.duplicate(true)
 			var old_maps = Rhythian.maps_cache.duplicate(true)
+			var old_maps_total = Rhythian.maps_total
+			var old_maps_offset = Rhythian.maps_loaded_offset
+			var old_maps_query = Rhythian.maps_loaded_query
+			var old_maps_rank = Rhythian.maps_loaded_rank_index
 			Rhythian.logged_in = true
 			Rhythian.profile = {"rhp":1000}
 			Rhythian.maps_cache = []
-			for i in range(100):
+			for i in range(40):
 				Rhythian.maps_cache.append({
 					"id":"smoke-map-"+str(i),
 					"title":"Smoke Map "+str(i),
 					"artist":"Artist",
 					"mapper":"Mapper",
 					"rating":1.5,
-					"rankName":"Silver",
+					"rankName":"Copper",
 					"noteCount":100,
 					"length":60,
 					"completion":{"passed":false}
 				})
+			Rhythian.maps_total = 100
+			Rhythian.maps_loaded_offset = 0
+			Rhythian.maps_loaded_query = ""
+			Rhythian.maps_loaded_rank_index = -1
 			Rhythian.catalog_loading = false
 			sidebar.open_page("maps")
 			yield(get_tree(), "idle_frame")
@@ -158,6 +166,10 @@ func _ready():
 			Rhythian.logged_in = old_logged_in
 			Rhythian.profile = old_profile
 			Rhythian.maps_cache = old_maps
+			Rhythian.maps_total = old_maps_total
+			Rhythian.maps_loaded_offset = old_maps_offset
+			Rhythian.maps_loaded_query = old_maps_query
+			Rhythian.maps_loaded_rank_index = old_maps_rank
 
 			sidebar.open_native_page("settings")
 			yield(get_tree(), "idle_frame")
