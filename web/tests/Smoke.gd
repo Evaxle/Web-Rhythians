@@ -154,6 +154,44 @@ func _ready():
 			Rhythian.profile = old_profile
 			Rhythian.maps_cache = old_maps
 
+			sidebar.open_native_page("settings")
+			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
+			var settings_page=menu.get_node_or_null("Main/Settings")
+			check(settings_page!=null and settings_page.visible, "normal Settings page is reachable from top navigation")
+			check(not sidebar.portal.visible, "Rhythians portal closes before native Settings opens")
+			check(sidebar.get_index()>sidebar.portal.get_index(), "top navigation remains above the Rhythians portal")
+			var settings_tabs=menu.get_node_or_null("Main/Settings/S/F/TabContainer")
+			check(settings_tabs!=null and settings_tabs.get_tab_count()>=3, "full normal Settings tab container is present")
+			var profiles=menu.get_node_or_null("Main/Settings/S/F/TopButtons/TopButtonsHBox/Presets")
+			check(profiles!=null, "settings profile selector is present")
+			check(profiles!=null and profiles.get_parent().get_node_or_null("ImportSettings")!=null, "Import Settings button is present")
+
+			var settings_source=File.new()
+			var settings_temp="/tmp/rhythians-settings-smoke.json"
+			check(settings_source.open(settings_temp,File.WRITE)==OK, "settings import smoke file opens")
+			settings_source.store_string('{"sensitivity":1.25,"cam_unlock":true}')
+			settings_source.close()
+			WebPortal._import_settings({"path":settings_temp,"name":"Smoke 2026.settings.json"})
+			var imported_settings=Globals.p("user://Smoke 2026.settings.json")
+			check(File.new().file_exists(imported_settings), "browser settings import persists a profile")
+
+			for native_page in ["credits","content","language","settings"]:
+				sidebar.open_native_page(native_page)
+				yield(get_tree(), "idle_frame")
+				yield(get_tree(), "idle_frame")
+				check(sidebar.active_page==native_page, "native nav opens "+native_page)
+
+			for i in range(30):
+				if i%2==0:
+					sidebar.open_page("community")
+				else:
+					sidebar.open_native_page("settings")
+			sidebar.open_native_page("settings")
+			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
+			check(sidebar.active_page=="settings" and menu.get_node("Main/Settings").visible, "rapid mixed navigation resolves to Settings")
+
 			sidebar.to_play()
 			yield(get_tree(), "idle_frame")
 			check(not sidebar.portal.visible, "Play returns to the normal Godot client")
