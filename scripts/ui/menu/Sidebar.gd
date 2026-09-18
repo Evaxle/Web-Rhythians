@@ -103,6 +103,7 @@ func _process(_delta:float):
 func open_page(page:String):
 	if page == "":
 		return
+	_save_settings_if_needed()
 	pending_native = ""
 	pending_page = page
 	_schedule_navigation()
@@ -110,6 +111,7 @@ func open_page(page:String):
 func open_native_page(page:String):
 	if page == "":
 		return
+	_save_settings_if_needed()
 	pending_page = ""
 	pending_native = page
 	_schedule_navigation()
@@ -169,6 +171,7 @@ func open_account():
 	open_page("account")
 
 func to_play():
+	_save_settings_if_needed()
 	pending_page = ""
 	pending_native = ""
 	navigation_scheduled = false
@@ -180,6 +183,12 @@ func to_play():
 	if results != null:
 		results.visible = true
 	call_deferred("_raise_nav")
+
+func _save_settings_if_needed():
+	if active_page=="settings":
+		Rhythia.save_settings()
+		if OS.has_feature("HTML5"):
+			WebPortal.persist_user_data()
 
 func _hide_game_pages():
 	for path in ["../Main/Results","../Main/Maps","../Main/Settings","../Main/Credits","../Main/Content","../Main/Language","../Main/Rhythian"]:
