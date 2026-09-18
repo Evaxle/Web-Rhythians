@@ -384,6 +384,12 @@ require_text 'if catalog_loading:' scripts/Rhythian.gd 'duplicate map catalog lo
 require_text 'page_epoch:int=0' scripts/ui/menu/RhythiansPortal.gd 'tab generation guard'
 require_text 'var page_size=24' scripts/ui/menu/RhythiansPortal.gd 'lightweight map UI paging'
 require_text 'if not is_visible_in_tree():' scripts/ui/menu/buttons/v3MapList.gd 'hidden Play map processing guard'
+require_text '["settings","Settings"]' scripts/ui/menu/Sidebar.gd 'native Settings nav entry'
+require_text 'func open_native_page(page:String):' scripts/ui/menu/Sidebar.gd 'native page navigation'
+require_text 'get_parent().get_node_or_null("ImportSettings")' web/tests/Smoke.gd 'settings import control smoke test'
+require_text 'func request_settings_import():' web/Bridge.gd 'browser settings import bridge'
+require_text 'id="settings-picker"' build/web/index.html 'browser settings picker'
+require_text 'window.rhythiansRequestSettingsImport' build/web/app.js 'browser settings import request handler'
 require_text 'request.use_threads=not OS.has_feature("HTML5")' scripts/network/ClipClient.gd 'Web-safe clip networking'
 if grep -Fq 'tween.tween_property(btns[i]' scripts/ui/menu/buttons/v3MapList.gd; then
   echo "Per-frame map-list tween allocation regression found" >&2
