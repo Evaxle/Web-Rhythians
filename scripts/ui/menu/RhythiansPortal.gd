@@ -729,6 +729,9 @@ func _go_to_map(map:Dictionary):
 		status.text="Download this map before opening it in Play."
 		return
 	status.text="Opening downloaded map…"
+	if OS.has_feature("HTML5"):
+		WebPortal.open_downloaded_map(map)
+		return
 	yield(get_tree(),"idle_frame")
 	var song=Rhythian.get_song_for_map_id(id)
 	if song==null:
