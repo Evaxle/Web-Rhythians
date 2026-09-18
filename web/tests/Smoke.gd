@@ -46,6 +46,7 @@ func _ready():
 
 	Rhythia.cam_unlock = true
 	WebPortal.begin_run()
+	Rhythia.song_end_type = Globals.END_PASS
 	Rhythia.song_end_total_notes = 5
 	Rhythia.song_end_hits = 4
 	Rhythia.song_end_misses = 1
