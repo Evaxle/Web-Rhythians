@@ -1,1 +1,1 @@
-Validated settings, profile import, profile switching, and reliable Godot navigation deployment trigger.
+Validated Play return, 40-map catalog paging, Rhythians difficulty/rewards metadata, IndexedDB persistence, and online-name fallback deployment trigger.
