@@ -385,6 +385,14 @@ require_text 'page_epoch:int=0' scripts/ui/menu/RhythiansPortal.gd 'tab generati
 require_text 'var page_size=40' scripts/ui/menu/RhythiansPortal.gd '40-map UI paging'
 require_text 'fetch_maps_page' scripts/ui/menu/RhythiansPortal.gd 'server paged Maps requests'
 require_text 'copyBrowserFileToFS' web/app.js 'chunked SSPM drag import'
+require_text 'MAP_CACHE_NAME="rhythians-map-files-v1"' web/app.js 'map files stored outside WebAssembly'
+require_text 'window.rhythiansDownloadMap' web/app.js 'browser cache map download bridge'
+require_text 'window.rhythiansOpenDownloadedMap' web/app.js 'cached map materialization bridge'
+require_text 'Rhythian.submit_web_score' web/Bridge.gd 'single browser score submission path'
+if grep -Fq 'Rhythia.cam_unlock = bool(data.get("spin"' web/Bridge.gd; then
+  echo "Map opening must not override the Settings spin mode" >&2
+  exit 1
+fi
 require_text 'if not is_visible_in_tree():' scripts/ui/menu/buttons/v3MapList.gd 'hidden Play map processing guard'
 require_text '["settings","Settings"]' scripts/ui/menu/Sidebar.gd 'native Settings nav entry'
 require_text 'func open_native_page(page:String):' scripts/ui/menu/Sidebar.gd 'native page navigation'
