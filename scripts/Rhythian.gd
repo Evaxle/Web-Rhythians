@@ -36,6 +36,7 @@ var maps_total:int = 0
 var maps_loaded_offset:int = 0
 var maps_loaded_query:String = ""
 var maps_loaded_rank_index:int = -1
+var maps_page_loaded:bool = false
 var maps_page_limit:int = 40
 var scores_cache:Array = []
 var completions_cache:Dictionary = {}
@@ -156,6 +157,7 @@ func _clear_account_state():
 	maps_loaded_offset = 0
 	maps_loaded_query = ""
 	maps_loaded_rank_index = -1
+	maps_page_loaded = false
 	scores_cache = []
 	completions_cache = {}
 	rhythian_stats = {"completed": 0, "total": 0, "rhp": 0}
@@ -505,18 +507,31 @@ func fetch_maps_page(offset:int=0,query:String="",rank_index:int=-1):
 		path+="&q="+query.strip_edges().http_escape()
 	if safe_rank>=0:
 		path+="&rankIndex="+str(safe_rank)
+	maps_loaded_offset=safe_offset
+	maps_loaded_query=query.strip_edges()
+	maps_loaded_rank_index=safe_rank
+	maps_page_loaded=false
 	var res=yield(_api_request(HTTPClient.METHOD_GET,path,null,true,60.0),"completed")
 	catalog_loading=false
 	if _handle_auth_failure(res):
+		maps_cache=[]
+		maps_total=0
+		maps_page_loaded=true
 		maps_error="Your Rhythians session expired - sign in again."
 		emit_signal("maps_updated",false,maps_error)
 		return
 	if not res.get("ok",false):
+		maps_cache=[]
+		maps_total=0
+		maps_page_loaded=true
 		maps_error=_http_error_message(res,"the map list")
 		emit_signal("maps_updated",false,maps_error)
 		return
 	var j=res.get("json",{})
 	if typeof(j)!=TYPE_DICTIONARY or (j.has("ok") and not bool(j.get("ok",false))):
+		maps_cache=[]
+		maps_total=0
+		maps_page_loaded=true
 		maps_error=str(j.get("error","The Rhythians map API returned an invalid response.")) if typeof(j)==TYPE_DICTIONARY else "The Rhythians map API returned an invalid response."
 		emit_signal("maps_updated",false,maps_error)
 		return
@@ -526,6 +541,7 @@ func fetch_maps_page(offset:int=0,query:String="",rank_index:int=-1):
 	maps_loaded_offset=int(j.get("offset",safe_offset))
 	maps_loaded_query=query.strip_edges()
 	maps_loaded_rank_index=safe_rank
+	maps_page_loaded=true
 	completions_embedded=_maps_have_embedded_completions(arr)
 	maps_error=""
 	_sync_registry_metadata()
