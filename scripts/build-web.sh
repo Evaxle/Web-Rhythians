@@ -84,8 +84,12 @@ run_godot() {
   local logfile="$1"
   shift
   local rc=0
-  "$@" >"$logfile" 2>&1 || rc=$?
+  echo "Running: $*"
+  timeout 300s "$@" >"$logfile" 2>&1 || rc=$?
   sed -e '/VisualServer attempted to free a NULL RID/d' -e '/at: free (servers\/visual\/visual_server_raster.cpp:69)/d' "$logfile"
+  if [ "$rc" -eq 124 ]; then
+    echo "Godot command timed out after 300 seconds: $*" >&2
+  fi
   return "$rc"
 }
 
