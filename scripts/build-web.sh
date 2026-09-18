@@ -389,6 +389,8 @@ require_text 'MAP_CACHE_NAME="rhythians-map-files-v1"' web/app.js 'map files sto
 require_text 'window.rhythiansDownloadMap' web/app.js 'browser cache map download bridge'
 require_text 'window.rhythiansOpenDownloadedMap' web/app.js 'cached map materialization bridge'
 require_text 'Rhythian.submit_web_score' web/Bridge.gd 'single browser score submission path'
+require_text 'WebPortal.finished()' scripts/game/Game.gd 'real browser song-end score submission hook'
+require_text 'Rhythia.cam_unlock=value' scripts/ui/menu/RhythiansPortal.gd 'Spin setting controls gameplay and score mode'
 if grep -Fq 'Rhythia.cam_unlock = bool(data.get("spin"' web/Bridge.gd; then
   echo "Map opening must not override the Settings spin mode" >&2
   exit 1
