@@ -446,6 +446,7 @@ window.rhythiansScoreResult=(ok,message)=>{
 };
 
 const MAP_CACHE_NAME="rhythians-map-files-v1";
+let lastMaterializedMapPath="";
 const mapCacheKey=id=>new Request(`${location.origin}/__rhythians_map_cache__/${encodeURIComponent(String(id))}`);
 
 async function validateCachedSSPM(cache,key){
@@ -510,6 +511,9 @@ window.rhythiansDownloadMap=async text=>{
 async function writeResponseToFS(response,path,id){
   const fs=globalThis.FS||(globalThis.Module&&globalThis.Module.FS);
   if(!fs||typeof fs.open!=="function"||typeof fs.write!=="function")throw new Error("Browser filesystem is unavailable.");
+  if(lastMaterializedMapPath&&lastMaterializedMapPath!==path){
+    try{fs.unlink(lastMaterializedMapPath);}catch{}
+  }
   try{fs.unlink(path);}catch{}
   const stream=fs.open(path,"w+");
   const reader=response.body?.getReader();
@@ -529,6 +533,7 @@ async function writeResponseToFS(response,path,id){
     try{reader.releaseLock();}catch{}
     fs.close(stream);
   }
+  lastMaterializedMapPath=path;
   window.rhythiansCommand?.(JSON.stringify({action:"materialize-progress",id,received:offset}));
 }
 
