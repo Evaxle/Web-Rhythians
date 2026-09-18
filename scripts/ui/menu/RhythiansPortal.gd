@@ -64,7 +64,7 @@ func _ready():
 	clips=load("res://scripts/network/ClipClient.gd").new()
 	add_child(clips)
 	clips.connect("upload_finished",self,"_clip_upload_finished")
-	Rhythian.connect("auth_changed",self,"_refresh_page")
+	Rhythian.connect("auth_changed",self,"_auth_changed")
 	Rhythian.connect("profile_updated",self,"_refresh_page")
 	Rhythian.connect("maps_updated",self,"_refresh_page")
 	Rhythian.connect("map_downloaded",self,"_map_downloaded")
@@ -101,6 +101,16 @@ func _refresh_page(_a=null,_b=null):
 		page_dirty=true
 		return
 	show_page(selected_page,true)
+
+func _auth_changed():
+	api_cache.clear()
+	api_cache_time.clear()
+	map_page=0
+	map_search=""
+	profile_handle=""
+	chat_handle=""
+	search_query=""
+	_refresh_page()
 
 func _battle_state_changed(_data):
 	if visible and selected_page=="battles":
@@ -679,13 +689,18 @@ func _search_clips(field:LineEdit):
 	_invalidate_cache("clips")
 	show_page("clips",true)
 func _submit_clip_fields(title:LineEdit,song:LineEdit,path:LineEdit,mode:OptionButton):
+	var epoch=page_epoch
 	status.text="Uploading clip..."
 	var result=yield(clips.submit(path.text,title.text,song.text,"",mode.get_item_text(mode.selected)),"completed")
+	if not _page_is_current("clips",epoch):
+		return
 	status.text=str(result.get("message","Clip submission finished."))
-	if result.get("ok",false): show_page("clips")
-
-func _clip_upload_finished(_success:bool,message:String): status.text=message
-
+	if result.get("ok",false):
+		_invalidate_cache("clips")
+		show_page("clips",true)
+func _clip_upload_finished(_success:bool,message:String):
+	if visible and selected_page=="clips":
+		status.text=message
 func _search():
 	title_label.text="Search users"
 	var panel=_panel("User search","Search usernames, display names, or profile handles.")
@@ -698,8 +713,8 @@ func _search():
 
 func _run_user_search(field:LineEdit):
 	search_query=field.text.strip_edges()
-	show_page("search")
-
+	_invalidate_cache("search")
+	show_page("search",true)
 func _render_user_search(query:String):
 	var epoch=page_epoch
 	var data=yield(_api_page("search",{"q":query}),"completed")
@@ -781,12 +796,18 @@ func _refresh_direct_silent():
 	_invalidate_cache("messages")
 	show_page("messages",true)
 func _send_direct(target:Dictionary,input:LineEdit):
-	if input.text.strip_edges()=="": return
+	if input.text.strip_edges()=="":
+		return
+	var epoch=page_epoch
 	var result=yield(Rhythian._api_request(HTTPClient.METHOD_POST,"/api/rhythkit/portal",{"action":"direct-send","userId":str(target.get("id","")),"content":input.text.strip_edges()},true,25.0),"completed")
-	if not result.get("ok",false): status.text=Rhythian._http_error_message(result,"message send"); return
+	if not _page_is_current("messages",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=Rhythian._http_error_message(result,"message send")
+		return
 	input.text=""
-	show_page("messages")
-
+	_invalidate_cache("messages")
+	show_page("messages",true)
 func _global_chat():
 	title_label.text="Global Chat"
 	var epoch=page_epoch
@@ -813,12 +834,18 @@ func _refresh_global_chat_silent():
 	_invalidate_cache("global-chat")
 	show_page("global-chat",true)
 func _send_global(input:LineEdit):
-	if input.text.strip_edges()=="": return
+	if input.text.strip_edges()=="":
+		return
+	var epoch=page_epoch
 	var result=yield(Rhythian._api_request(HTTPClient.METHOD_POST,"/api/rhythkit/portal",{"action":"global-send","content":input.text.strip_edges()},true,25.0),"completed")
-	if not result.get("ok",false): status.text=Rhythian._http_error_message(result,"global chat"); return
+	if not _page_is_current("global-chat",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=Rhythian._http_error_message(result,"global chat")
+		return
 	input.text=""
-	show_page("global-chat")
-
+	_invalidate_cache("global-chat")
+	show_page("global-chat",true)
 func _wiki():
 	title_label.text="Wiki"
 	var epoch=page_epoch
@@ -864,14 +891,23 @@ func _community():
 	mode.add_child(spin)
 
 func _account():
+	title_label.text="Account"
 	if not Rhythian.logged_in:
-		title_label.text="Account"
-		var p=_panel("Not signed in","Use the same Rhythians account as the website.")
-		var login=_button(p,"Sign in",true)
+		var panel=_panel("Not signed in","Use the same Rhythians account as the website.")
+		var login=_button(panel,"Sign in",true)
 		login.connect("pressed",self,"_login")
 		return
-	_profile(Rhythian.username)
-
+	var panel=_panel(Rhythian.username,"%d RHP · browser account connected" % int(Rhythian.profile.get("rhp",0)))
+	var modes=_mode_totals()
+	panel.add_child(RhythianUI.label("RPL %d · RPS %d" % [modes["rpl"],modes["rps"]],14,RhythianUI.C_MUTED))
+	var row=RhythianUI.hbox(8)
+	panel.add_child(row)
+	var refresh=_button(row,"Refresh account")
+	refresh.connect("pressed",Rhythian,"fetch_profile")
+	var profile=_button(row,"Open profile",true)
+	profile.connect("pressed",self,"open_profile_handle",[Rhythian.username])
+	var logout=_button(row,"Log out")
+	logout.connect("pressed",Rhythian,"logout")
 func _login():
 	if OS.has_feature("HTML5"):
 		WebPortal.request_signin()
@@ -890,64 +926,93 @@ func _battle_mode(index:int): battle_mode=["1v1","2v2","3v3","15v15"][index]
 func _battle_type(index:int): battle_type="ranked" if index==0 else "casual"
 
 func _queue_battle():
-	if not Rhythian.logged_in: status.text="Sign in before entering battles."; return
+	if not Rhythian.logged_in:
+		status.text="Sign in before entering battles."
+		return
+	var epoch=page_epoch
 	var result=yield(battle.queue_match(battle_mode,battle_type),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Could not queue battle.")); return
+	if not _page_is_current("battles",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=str(result.get("message","Could not queue battle."))
+		return
 	battle.match_id=str(result.get("matchId",""))
 	status.text="Finding opponent..."
-	show_page("battles")
-
+	show_page("battles",true)
 func _create_lobby(name:LineEdit):
 	var lobby_name=name.text.strip_edges()
-	if lobby_name=="": status.text="Enter a lobby name."; return
+	if lobby_name=="":
+		status.text="Enter a lobby name."
+		return
+	var epoch=page_epoch
 	var result=yield(battle.create_lobby(lobby_name,battle_mode,battle_type,"regular"),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Could not create lobby.")); return
-	show_page("battles")
-
+	if not _page_is_current("battles",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=str(result.get("message","Could not create lobby."))
+		return
+	show_page("battles",true)
 func _refresh_lobbies():
+	var epoch=page_epoch
 	var result=yield(battle.list_lobbies(),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Could not load lobbies.")); return
+	if not _page_is_current("battles",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=str(result.get("message","Could not load lobbies."))
+		return
 	for lobby in result.get("lobbies",[]):
 		var row=_panel(str(lobby.get("name","Lobby")),"%s · %s · %d/%d · host %s" % [str(lobby.get("mode","1v1")),str(lobby.get("matchType","casual")),int(lobby.get("playerCount",0)),int(lobby.get("maxPlayers",0)),str(lobby.get("host",""))])
 		var join=_button(row,"Join")
 		join.connect("pressed",self,"_join_lobby",[str(lobby.get("id",""))])
-
 func _join_lobby(id:String):
 	battle.lobby_id=id
+	var epoch=page_epoch
 	var result=yield(battle.lobby_action("join"),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Could not join lobby."))
-	show_page("battles")
-
+	if not _page_is_current("battles",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=str(result.get("message","Could not join lobby."))
+	show_page("battles",true)
 func _lobby_action(action:String,extra:Dictionary,field=null):
-	if field!=null: extra["content"]=field.text.strip_edges()
+	if field!=null:
+		extra["content"]=field.text.strip_edges()
+	var epoch=page_epoch
 	var result=yield(battle.lobby_action(action,extra),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Lobby action failed."))
-	show_page("battles")
-
+	if not _page_is_current("battles",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=str(result.get("message","Lobby action failed."))
+	show_page("battles",true)
 func _leave_lobby(): _lobby_action("leave",{})
 
 func _vote_map(map_id:String):
+	var epoch=page_epoch
 	var result=yield(battle.battle_action("vote-map",{"mapId":map_id}),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Vote failed."))
-
+	if _page_is_current("battles",epoch) and not result.get("ok",false):
+		status.text=str(result.get("message","Vote failed."))
 func _check_battle_score():
+	var epoch=page_epoch
 	var result=yield(battle.battle_action("check-score"),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Score check failed."))
-
+	if _page_is_current("battles",epoch) and not result.get("ok",false):
+		status.text=str(result.get("message","Score check failed."))
 func _reconnect_battle():
+	var epoch=page_epoch
 	var result=yield(battle.battle_action("reconnect"),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Reconnect failed."))
-
+	if _page_is_current("battles",epoch) and not result.get("ok",false):
+		status.text=str(result.get("message","Reconnect failed."))
 func _forfeit_battle():
+	var epoch=page_epoch
 	var result=yield(battle.battle_action("forfeit"),"completed")
-	if not result.get("ok",false): status.text=str(result.get("message","Forfeit failed."))
-	else: _return_battles()
-
+	if not _page_is_current("battles",epoch):
+		return
+	if not result.get("ok",false):
+		status.text=str(result.get("message","Forfeit failed."))
+	else:
+		_return_battles()
 func _return_battles():
 	battle.match_id=""
 	battle.match_data={}
-	show_page("battles")
-
+	show_page("battles",true)
 func _mode_totals():
 	var modes=Rhythian.profile.get("modes",{})
 	if typeof(modes)==TYPE_DICTIONARY and (modes.has("rpl") or modes.has("rps")):
@@ -968,4 +1033,3 @@ func _mode_totals():
 func _spin_toggled(value:bool):
 	spin_enabled=value
 	_save_settings()
-	show_page(selected_page)
