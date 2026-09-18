@@ -50,12 +50,12 @@ func _ready():
 	Rhythia.song_end_hits = 4
 	Rhythia.song_end_misses = 1
 	WebPortal.finished()
-	check(capture.payload.cameraMode == "spin" and capture.payload.accuracy == 80, "spin score payload uses actual camera mode")
+	check(WebPortal.last_score_payload.cameraMode == "spin" and WebPortal.last_score_payload.accuracy == 80, "spin setting submits a spin score")
 
 	Rhythia.cam_unlock = false
 	WebPortal.begin_run()
 	WebPortal.finished()
-	check(capture.payload.cameraMode == "lock", "lock score payload")
+	check(WebPortal.last_score_payload.cameraMode == "lock", "lock setting submits a lock score")
 
 	var count = capture.count
 	Rhythia.mod_nofail = true
