@@ -145,18 +145,45 @@ check_log /tmp/export.log
 run_smoke /tmp/smoke.log "$GODOT_BIN" --path . web/tests/Smoke.tscn
 
 cp web/app.js web/app.css web/sspm.mjs web/logo.png web/manifest.webmanifest build/web/
-test -s build/web/index.html
-test -s build/web/index.wasm
-test -s build/web/index.pck
-grep -q 'https://www.rhythians.com' web/app.js
-grep -q 'id="launch-play"' build/web/index.html
-grep -q 'id="signin-rhythians"' build/web/index.html
-grep -q 'id="play-guest"' build/web/index.html
-grep -q 'type="module" src="app.js"' build/web/index.html
-grep -q 'href="logo.png" type="image/png"' build/web/index.html
-grep -q 'RhythiansBrowser' web/app.js
-grep -q 'rhythiansPersistUserData' web/shell.html
-grep -q 'NativeDialogDisabled.gd' scenes/menu/contentmgr.tscn
-grep -q 'rhythiansMobileInputMode' web/app.js
-grep -q 'id="mobile-mode-choice"' build/web/index.html
-! grep -Rqs 'rhythians-evans-projects-edff1a37.vercel.app' project.godot scripts web
+
+require_file() {
+  if [ ! -s "$1" ]; then
+    echo "Missing or empty build output: $1" >&2
+    return 1
+  fi
+}
+
+require_text() {
+  local pattern="$1"
+  local file="$2"
+  local label="$3"
+  if ! grep -Fq "$pattern" "$file"; then
+    echo "Missing expected build content: $label ($file)" >&2
+    return 1
+  fi
+}
+
+reject_text_tree() {
+  local pattern="$1"
+  shift
+  if grep -RqsF "$pattern" "$@"; then
+    echo "Forbidden stale build content found: $pattern" >&2
+    return 1
+  fi
+}
+
+require_file build/web/index.html
+require_file build/web/index.wasm
+require_file build/web/index.pck
+require_text 'https://www.rhythians.com' web/app.js 'Rhythians production URL'
+require_text 'id="launch-play"' build/web/index.html 'launcher play button'
+require_text 'id="signin-rhythians"' build/web/index.html 'Rhythians sign-in button'
+require_text 'id="play-guest"' build/web/index.html 'guest play button'
+require_text 'type="module" src="app.js"' build/web/index.html 'application module'
+require_text 'href="logo.png" type="image/png"' build/web/index.html 'web icon'
+require_text 'RhythiansBrowser' web/app.js 'browser storage bridge'
+require_text 'rhythiansPersistUserData' web/shell.html 'persistent user data bridge'
+require_text 'NativeDialogDisabled.gd' scenes/menu/contentmgr.tscn 'web-safe native dialog replacement'
+require_text 'rhythiansMobileInputMode' web/app.js 'mobile input mode'
+require_text 'id="mobile-mode-choice"' build/web/index.html 'mobile mode chooser'
+reject_text_tree 'rhythians-evans-projects-edff1a37.vercel.app' project.godot scripts web
