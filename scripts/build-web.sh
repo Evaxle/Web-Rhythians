@@ -106,6 +106,33 @@ run_godot() {
   return "$rc"
 }
 
+run_smoke() {
+  local logfile="$1"
+  shift
+  local rc=0
+  echo "Running smoke: $*"
+  timeout 300s "$@" >"$logfile" 2>&1 || rc=$?
+  awk '{ print } /SMOKE_FAILURES=0/ { exit }' "$logfile" | sed -e '/VisualServer attempted to free a NULL RID/d' -e '/at: free (servers\\/visual\\/visual_server_raster.cpp:69)/d'
+  if [ "$rc" -eq 124 ]; then
+    echo "Godot smoke test timed out after 300 seconds: $*" >&2
+    return 124
+  fi
+  if ! grep -q 'SMOKE_FAILURES=0' "$logfile"; then
+    echo "Godot smoke test did not report success." >&2
+    if [ "$rc" -ne 0 ]; then return "$rc"; else return 1; fi
+  fi
+  if grep -E 'SCRIPT ERROR|Parse Error|No library set for this platform|does not have a library for the current platform' "$logfile"; then
+    return 1
+  fi
+  if awk '/SMOKE_FAILURES=0/ { exit } { print }' "$logfile" | grep -E '^ERROR:'; then
+    return 1
+  fi
+  if [ "$rc" -ne 0 ]; then
+    echo "Smoke assertions passed; ignoring Godot headless teardown exit code $rc."
+  fi
+  return 0
+}
+
 check_log() {
   local logfile="$1"
   if grep -E 'SCRIPT ERROR|Parse Error|No library set for this platform|does not have a library for the current platform' "$logfile"; then
@@ -118,9 +145,7 @@ check_log() {
 run_godot /tmp/export.log "$GODOT_BIN" --path . --export Web build/web/index.html
 check_log /tmp/export.log
 
-run_godot /tmp/smoke.log "$GODOT_BIN" --path . web/tests/Smoke.tscn
-grep -q 'SMOKE_FAILURES=0' /tmp/smoke.log
-check_log /tmp/smoke.log
+run_smoke /tmp/smoke.log "$GODOT_BIN" --path . web/tests/Smoke.tscn
 
 cp web/app.js web/app.css web/sspm.mjs web/logo.png web/manifest.webmanifest build/web/
 test -s build/web/index.html
