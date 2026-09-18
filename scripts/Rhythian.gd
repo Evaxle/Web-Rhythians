@@ -155,6 +155,7 @@ func _clear_account_state():
 	scores_error = ""
 	completions_error = ""
 	completions_embedded = false
+	catalog_loading = false
 	profile_limited = false
 	last_rhp = -1
 
@@ -479,63 +480,78 @@ func fetch_scores():
 		emit_signal("scores_updated", false, scores_error)
 
 func fetch_maps():
+	if catalog_loading:
+		return
 	if not logged_in:
 		maps_error = "Not signed in"
 		emit_signal("maps_updated", false, maps_error)
 		return
+	catalog_loading = true
 	var collected:Array = []
 	var seen:Dictionary = {}
 	var offset:int = 0
 	var safety:int = 0
-	var page_limit:int = 200 if OS.has_feature("HTML5") else 1000
-	catalog_loading = true
+	var page_limit:int = 250 if OS.has_feature("HTML5") else 1000
+	var complete:bool = true
+	var error_message:String = ""
 	while safety < 100:
 		safety += 1
 		var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/maps?limit=" + str(page_limit) + "&offset=" + str(offset), null, true, 60.0), "completed")
-		var maps_auth_dead = _handle_auth_failure(res)
-		if maps_auth_dead:
-			catalog_loading = false
-			maps_error = "Your Rhythians session expired - sign in again."
-			emit_signal("maps_updated", false, maps_error)
-			return
-		if not res.get("ok", false):
-			if collected.size() == 0:
-				maps_error = _http_error_message(res, "the map list")
-				emit_signal("maps_updated", false, maps_error)
+		if _handle_auth_failure(res):
+			complete = false
+			error_message = "Your Rhythians session expired - sign in again."
 			break
-		var j = res["json"]
-		if typeof(j) == TYPE_DICTIONARY and j.has("ok") and not bool(j.get("ok", false)):
-			if collected.size() == 0:
-				maps_error = str(j.get("error", "Could not load the map list"))
-				emit_signal("maps_updated", false, maps_error)
+		if not res.get("ok", false):
+			complete = false
+			error_message = _http_error_message(res, "the map list")
+			break
+		var j = res.get("json", {})
+		if typeof(j) != TYPE_DICTIONARY:
+			complete = false
+			error_message = "The Rhythians map API returned an invalid response."
+			break
+		if j.has("ok") and not bool(j.get("ok", false)):
+			complete = false
+			error_message = str(j.get("error", "Could not load the map list"))
 			break
 		var arr:Array = _extract_array(j, ["maps", "data", "items", "results", "challengeMaps", "challenges"])
-		if arr.size() == 0 and typeof(j) == TYPE_DICTIONARY and j.has("maps") and typeof(j["maps"]) == TYPE_DICTIONARY:
+		if arr.size() == 0 and j.has("maps") and typeof(j["maps"]) == TYPE_DICTIONARY:
 			arr = _extract_array(j["maps"], ["data", "items", "results", "maps"])
 		var fresh:int = 0
 		for i in range(arr.size()):
-			var m = arr[i]
-			if typeof(m) != TYPE_DICTIONARY:
+			var map = arr[i]
+			if typeof(map) != TYPE_DICTIONARY:
 				continue
-			var mid = str(m.get("id", ""))
+			var mid = str(map.get("id", ""))
 			if mid == "" or seen.has(mid):
 				continue
 			seen[mid] = true
-			collected.append(m)
+			collected.append(map)
 			fresh += 1
-			if OS.has_feature("HTML5") and i > 0 and i % 50 == 0:
+			if OS.has_feature("HTML5") and i > 0 and i % 75 == 0:
 				yield(get_tree(), "idle_frame")
-		maps_cache = collected
-		completions_embedded = _maps_have_embedded_completions(collected)
-		maps_error = ""
-		recompute_rhythian_progress()
-		if safety == 1 or arr.size() < page_limit or fresh == 0:
-			emit_signal("maps_updated", true, "")
-		if arr.size() < page_limit or fresh == 0:
+		var has_more:bool = bool(j.get("hasMore", arr.size() >= page_limit))
+		if not has_more:
 			break
-		offset += page_limit
+		if arr.size() == 0 or fresh == 0:
+			complete = false
+			error_message = "The Rhythians map catalog stopped before all pages were received."
+			break
+		offset = int(j.get("offset", offset)) + arr.size()
+	if safety >= 100:
+		complete = false
+		error_message = "The Rhythians map catalog exceeded the safe pagination limit."
 	catalog_loading = false
-
+	if not complete:
+		maps_error = error_message
+		emit_signal("maps_updated", false, maps_error)
+		return
+	maps_cache = collected
+	completions_embedded = _maps_have_embedded_completions(collected)
+	completions_error = "" if completions_embedded else completions_error
+	maps_error = ""
+	recompute_rhythian_progress()
+	emit_signal("maps_updated", true, "")
 func _maps_have_embedded_completions(maps:Array) -> bool:
 	for m in maps:
 		if typeof(m) == TYPE_DICTIONARY and m.has("completion"):
