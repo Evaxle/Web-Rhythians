@@ -157,25 +157,10 @@ func _connection_checked(web_ok:bool,db_ok:bool):
 		status.text="Internet: %s · Rhythians API: %s · Database: %s" % ["connected" if web_ok else "offline","online" if web_ok else "unavailable","connected" if db_ok else "unavailable"]
 
 func _load_settings():
-	var file=File.new()
-	if not file.file_exists(Globals.p(SETTINGS_FILE)):
-		spin_enabled=Rhythia.cam_unlock
-		return
-	if file.open(Globals.p(SETTINGS_FILE),File.READ)!=OK:
-		spin_enabled=Rhythia.cam_unlock
-		return
-	var parsed=JSON.parse(file.get_as_text())
-	file.close()
-	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY:
-		spin_enabled=bool(parsed.result.get("spinEnabled",Rhythia.cam_unlock))
-		Rhythia.cam_unlock=spin_enabled
+	spin_enabled=Rhythia.cam_unlock
 
 func _save_settings():
-	var file=File.new()
-	if file.open(Globals.p(SETTINGS_FILE),File.WRITE)!=OK:
-		return
-	file.store_string(JSON.print({"spinEnabled":spin_enabled}))
-	file.close()
+	spin_enabled=Rhythia.cam_unlock
 
 func _clear():
 	map_progress_bars.clear()
