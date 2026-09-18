@@ -167,7 +167,7 @@ var vr:bool = false
 var fake_vr:bool = false
 var vr_available:bool = false
 var vr_interface:ARVRInterface
-var vr_player:VRPlayer
+var vr_player = null
 var vr_left_handed:bool = false
 var vr_controller_type:int = Globals.VR_GENERIC
 
@@ -213,6 +213,9 @@ var expand_hud_onhr:bool = false
 
 # VR startup
 func start_vr():
+	if OS.has_feature("HTML5"):
+		print("VR is unavailable in the browser client")
+		return
 	if vr:
 		print("VR already active")
 		return
@@ -283,7 +286,7 @@ func start_vr():
 		ev.axis = JOY_VR_ANALOG_TRIGGER
 		InputMap.action_add_event("vr_click",ev)
 
-	var vr_av:VRPlayer = load("res://vr/VRPlayer.tscn").instance()
+	var vr_av = load("res://vr/VRPlayer.tscn").instance()
 	rootg.add_child(vr_av)
 	vr_av.name = "VRPlayer"
 	vr_player = vr_av

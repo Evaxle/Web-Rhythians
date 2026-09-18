@@ -47,6 +47,7 @@ if start != -1 and end != -1:
         if '"language": "NativeScript"' not in entry
         and "res://addons/discord_game_sdk/" not in entry
         and "res://addons/godot-openvr/" not in entry
+        and "res://vr/" not in entry
     ]
     rebuilt = prefix + "}, {".join(entries) + "} ]"
     text = text[:start] + rebuilt + text[end + 3:]
@@ -94,31 +95,65 @@ import re
 
 preset = Path("export_presets.cfg")
 text = preset.read_text()
+blocked_prefixes = (
+    "addons/", "vr/", "test_assets/", "scenes/test/", "debug/", "web/tests/",
+)
+blocked_exact = {
+    "assets/images/ui/dya.webm",
+    "assets/worlds/event_horizon/starmap_4k.png",
+}
+resource_suffixes = {
+    ".gd", ".tscn", ".tres", ".res", ".obj", ".dae", ".glb", ".gltf",
+    ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ttf", ".otf",
+    ".wav", ".mp3", ".ogg", ".webm", ".shader",
+}
 
-selected = []
-for path in Path(".").rglob("*"):
-    if not path.is_file():
+def allowed(rel):
+    return rel not in blocked_exact and not rel.startswith(blocked_prefixes)
+
+selected = set()
+scan_files = []
+
+for base in (Path("scripts"), Path("web")):
+    if not base.exists():
         continue
-    rel = path.as_posix().lstrip("./")
-    parts = path.parts
-    if any(part in {".git", "build", ".import", "addons", "vr", "test_assets"} for part in parts):
+    for path in base.rglob("*.gd"):
+        rel = path.as_posix()
+        if allowed(rel) and not rel.startswith("web/tests/"):
+            selected.add("res://" + rel)
+            scan_files.append(path)
+
+pack_smoke = Path("web/PackSmoke.gd")
+if pack_smoke.exists():
+    selected.add("res://web/PackSmoke.gd")
+
+scan_files.append(Path("project.godot"))
+path_pattern = re.compile(r'res://[^"\']+')
+for path in scan_files:
+    try:
+        body = path.read_text(errors="ignore")
+    except OSError:
         continue
-    if rel.startswith("web/tests/") or rel.startswith("scenes/test/"):
-        continue
-    suffix = path.suffix.lower()
-    if suffix in {".gd", ".tscn", ".tres", ".obj"}:
-        selected.append("res://" + rel)
+    for match in path_pattern.findall(body):
+        rel = match[len("res://"):].strip()
+        candidate = Path(rel)
+        if not allowed(rel) or not candidate.is_file():
+            continue
+        if candidate.suffix.lower() in resource_suffixes:
+            selected.add("res://" + rel)
 
 for path in Path("assets/songs").glob("*"):
     if path.is_file() and path.suffix.lower() in {".mp3", ".ogg", ".wav"}:
-        selected.append("res://" + path.as_posix())
+        selected.add("res://" + path.as_posix())
 
-selected = sorted(set(selected))
+selected = sorted(selected)
 encoded = ", ".join(json.dumps(item) for item in selected)
 line = "export_files=PoolStringArray(" + encoded + ")"
 text = re.sub(r"^export_files=PoolStringArray\(.*\)$", line, text, flags=re.MULTILINE)
 preset.write_text(text)
 print(f"Web export selected resources: {len(selected)}")
+for item in selected:
+    print("WEB_RESOURCE", item)
 PY
 
 python3 - <<'PY'
@@ -127,7 +162,21 @@ import base64
 Path("web/logo.png").write_bytes(base64.b64decode(Path("web/logo.b64").read_text().strip()))
 PY
 
-rm -f localization/localization.csv.import
+python3 - <<'PY'
+from pathlib import Path
+
+for name in [
+    "assets/worlds/baseplate/skybox.png.import",
+    "assets/worlds/event_horizon/starmap.png.import",
+]:
+    path = Path(name)
+    if not path.exists():
+        continue
+    text = path.read_text()
+    text = text.replace("compress/mode=0", "compress/mode=1")
+    text = text.replace("size_limit=0", "size_limit=2048")
+    path.write_text(text)
+PY
 
 python3 web/tests/make_fixtures.py
 node web/tests/sspm.mjs
@@ -200,7 +249,7 @@ pack_rc=0
   timeout 60s "$GODOT_BIN" --main-pack "$PACK_PATH" --script res://web/PackSmoke.gd
 ) >/tmp/pack-smoke.log 2>&1 || pack_rc=$?
 cat /tmp/pack-smoke.log
-if [ "$pack_rc" -ne 0 ] || ! grep -q 'PACK_SMOKE_FAILURES=0' /tmp/pack-smoke.log; then
+if [ "$pack_rc" -ne 0 ] || ! grep -q 'PACK_SMOKE_FAILURES=0' /tmp/pack-smoke.log || grep -E 'SCRIPT ERROR|Parse Error|Cannot load source code|Can.t autoload' /tmp/pack-smoke.log; then
   echo "Exported Web PCK failed runtime dependency validation." >&2
   exit 1
 fi
@@ -238,6 +287,8 @@ reject_text_tree() {
 require_file build/web/index.html
 require_file build/web/index.wasm
 require_file build/web/index.pck
+echo "Largest imported browser resources:"
+find .import -type f -printf '%s %p\n' 2>/dev/null | sort -nr | head -25 || true
 echo "Web export sizes:"
 du -h build/web/index.wasm build/web/index.pck
 pck_bytes="$(stat -c%s build/web/index.pck)"
