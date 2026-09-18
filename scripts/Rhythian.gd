@@ -384,7 +384,7 @@ func fetch_profile():
 		profile_limited = false
 		emit_signal("profile_updated")
 		return
-	var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/portal?page=profile", null, true), "completed")
+	var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/profile", null, true), "completed")
 	if res.get("code", 0) == 401:
 		logout()
 		emit_signal("profile_updated")
@@ -917,9 +917,35 @@ func _find_download_url(node) -> String:
 	return ""
 
 func on_song_ended(end_type:int):
-	if end_type != Globals.END_PASS or Rhythia.replaying or Rhythia.mod_nofail: return
+	if end_type != Globals.END_PASS or not logged_in or Rhythia.replaying or Rhythia.mod_nofail: return
 	if Rhythia.replay != null and Rhythia.replay.autoplayer: return
-	WebPortal.finished()
+	var song = Rhythia.selected_song
+	if song == null: return
+	if not is_rhythian_map_path(str(song.filePath)): return
+	var entry = registry.get(str(song.filePath).get_file(), null)
+	if entry == null: return
+	if entry.has("isRanked") or entry.has("isLegacy"):
+		if not (bool(entry.get("isRanked", false)) or bool(entry.get("isLegacy", false))):
+			return
+	var total = max(Rhythia.song_end_total_notes, 1)
+	var accuracy = (float(Rhythia.song_end_hits) / float(total)) * 100.0
+	var mods = []
+	for key in ["mod_mirror_x", "mod_mirror_y", "mod_extra_energy", "mod_no_regen", "mod_sudden_death", "mod_ghost", "mod_flashlight", "mod_nearsighted", "mod_hardrock", "mod_chaos"]:
+		if Rhythia.get(key): mods.append(key)
+	var payload = {
+		"challengeMapId": str(entry.get("id","")),
+		"accuracy": accuracy,
+		"misses": int(Rhythia.song_end_misses),
+		"speed": float(Globals.speed_multi[Rhythia.mod_speed_level]),
+		"cameraMode": "spin" if Rhythia.cam_unlock else "lock",
+		"modifiers": PoolStringArray(mods).join(","),
+		"clientScoreId": _uuid(),
+		"resultQualified": true,
+		"completedAt": _iso_now(),
+		"gameVersion": str(ProjectSettings.get_setting("application/config/version")),
+		"integrationVersion": INTEGRATION_VERSION
+	}
+	_submit_score(payload)
 
 func _submit_score(payload:Dictionary):
 	var res = yield(_api_request(HTTPClient.METHOD_POST, "/api/rhythkit/scores", payload, true, 45.0), "completed")

@@ -12,6 +12,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#070910">
 <link rel="stylesheet" href="app.css">
+<link rel="preload" href="index.wasm" as="fetch" crossorigin>
+<link rel="preload" href="index.pck" as="fetch" crossorigin>
 $GODOT_HEAD_INCLUDE
 <script>
 window.rhythiansPersistUserData=()=>new Promise((resolve,reject)=>{
@@ -80,10 +82,10 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
     <div class="game-brand"><img src="logo.png" alt="">Rhythians</div>
     <span id="account-state">Guest</span>
     <span id="game-status" role="status" aria-live="polite"></span>
-    <button id="import-sspm" type="button">Import SSPM</button>
+    <button id="import-sspm" type="button" title="Import one or more SSPM maps into the normal Play library">Import SSPM</button>
     <input id="sspm-picker" type="file" accept=".sspm,application/octet-stream" multiple hidden>
-    <button id="fullscreen" type="button">Fullscreen</button>
-    <button id="change-account" type="button">Account</button>
+    <button id="fullscreen" type="button" title="Toggle fullscreen or immersive browser mode">Fullscreen</button>
+    <button id="change-account" type="button" title="Sign in, switch account, or use guest mode">Account</button>
   </div>
   <canvas id="canvas" tabindex="0" aria-label="Rhythians game"></canvas>
 </section>

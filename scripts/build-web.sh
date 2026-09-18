@@ -92,6 +92,8 @@ rm -f localization/localization.csv.import
 
 python3 web/tests/make_fixtures.py
 node web/tests/sspm.mjs
+cp web/app.js /tmp/rhythians-app.mjs
+node --check /tmp/rhythians-app.mjs
 
 run_godot() {
   local logfile="$1"
@@ -179,6 +181,9 @@ require_text 'https://www.rhythians.com' web/app.js 'Rhythians production URL'
 require_text 'id="launch-play"' build/web/index.html 'launcher play button'
 require_text 'id="signin-rhythians"' build/web/index.html 'Rhythians sign-in button'
 require_text 'id="play-guest"' build/web/index.html 'guest play button'
+require_text 'id="import-sspm"' build/web/index.html 'SSPM import button'
+require_text 'id="fullscreen"' build/web/index.html 'fullscreen button'
+require_text 'id="change-account"' build/web/index.html 'account button'
 require_text 'type="module" src="app.js"' build/web/index.html 'application module'
 require_text 'href="logo.png" type="image/png"' build/web/index.html 'web icon'
 require_text 'RhythiansBrowser' web/app.js 'browser storage bridge'
@@ -186,4 +191,12 @@ require_text 'rhythiansPersistUserData' web/shell.html 'persistent user data bri
 require_text 'NativeDialogDisabled.gd' scenes/menu/contentmgr.tscn 'web-safe native dialog replacement'
 require_text 'rhythiansMobileInputMode' web/app.js 'mobile input mode'
 require_text 'id="mobile-mode-choice"' build/web/index.html 'mobile mode chooser'
+require_text 'fallbackStorageKey' web/app.js 'resilient browser storage'
+require_text 'immersive-fallback' web/app.js 'fullscreen fallback'
+require_text '"cameraMode": "spin" if Rhythia.cam_unlock else "lock"' scripts/Rhythian.gd 'web score camera mode'
+require_text 'sidebar.has_method("to_play")' web/Bridge.gd 'normal client play navigation'
+if grep -Fq 'sidebar.press(' web/Bridge.gd; then
+  echo "Obsolete Sidebar.press call found in web bridge" >&2
+  exit 1
+fi
 reject_text_tree 'rhythians-evans-projects-edff1a37.vercel.app' project.godot scripts web

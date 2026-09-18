@@ -18,11 +18,13 @@ func _ready():
 		Rhythian.connect("maps_updated", self, "_maps_updated")
 	if not Rhythian.is_connected("auth_changed", self, "_auth_changed"):
 		Rhythian.connect("auth_changed", self, "_auth_changed")
+	if not Rhythian.is_connected("score_submitted", self, "_score_submitted"):
+		Rhythian.connect("score_submitted", self, "_score_submitted")
 
 func menu_ready():
 	menu_loaded = true
 	print("RHYTHIANS_MENU_READY")
-	if window:
+	if window and window.rhythiansReady:
 		window.rhythiansReady(JSON.print({
 			"persistent": OS.is_userfs_persistent(),
 			"spin": Rhythia.cam_unlock
@@ -58,6 +60,9 @@ func command(args):
 			Rhythia.save_settings()
 		"save":
 			Rhythia.save_settings()
+		"flush":
+			if Rhythian.logged_in:
+				Rhythian._flush_score_queue()
 		"portal":
 			Rhythia.save_settings()
 			active_map.clear()
@@ -87,7 +92,7 @@ func _play_web_map(data:Dictionary):
 	last_spin = Rhythia.cam_unlock
 	Rhythia.select_song(song)
 	var sidebar = get_tree().current_scene.get_node_or_null("Sidebar")
-	if sidebar: sidebar.press(0)
+	if sidebar != null and sidebar.has_method("to_play"): sidebar.to_play()
 	if window: window.rhythiansSelected()
 
 func _import_sspm(data:Dictionary):
@@ -203,3 +208,8 @@ func _process(_delta):
 	if window and mode_sync_enabled and last_spin != Rhythia.cam_unlock:
 		last_spin = Rhythia.cam_unlock
 		window.rhythiansMode(last_spin)
+
+
+func _score_submitted(success:bool, message:String):
+	if window and window.rhythiansScoreResult:
+		window.rhythiansScoreResult(success, message)
