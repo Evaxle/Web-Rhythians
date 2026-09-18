@@ -4,18 +4,21 @@ GODOT_BIN="${GODOT_BIN:-godot}"
 mkdir -p build/web
 
 PROJECT_BACKUP="$(mktemp)"
+CONTENTMGR_BACKUP="$(mktemp)"
 NATIVE_BACKUP="$(mktemp -d)"
 cp project.godot "$PROJECT_BACKUP"
+cp scenes/menu/contentmgr.tscn "$CONTENTMGR_BACKUP"
 
 restore_project() {
   cp "$PROJECT_BACKUP" project.godot
+  cp "$CONTENTMGR_BACKUP" scenes/menu/contentmgr.tscn
   for addon in discord_game_sdk godot-openvr native_dialogs; do
     if [ -d "$NATIVE_BACKUP/$addon" ]; then
       rm -rf "addons/$addon"
       mv "$NATIVE_BACKUP/$addon" "addons/$addon"
     fi
   done
-  rm -f "$PROJECT_BACKUP"
+  rm -f "$PROJECT_BACKUP" "$CONTENTMGR_BACKUP"
   rmdir "$NATIVE_BACKUP" 2>/dev/null || true
 }
 trap restore_project EXIT
@@ -71,6 +74,16 @@ PY
 
 python3 - <<'PY'
 from pathlib import Path
+
+path = Path("scenes/menu/contentmgr.tscn")
+text = path.read_text()
+text = text.replace("res://addons/native_dialogs/bin/native_dialog_open_file.gdns", "res://web/NativeDialogDisabled.gd")
+text = text.replace("res://addons/native_dialogs/bin/native_dialog_select_folder.gdns", "res://web/NativeDialogDisabled.gd")
+path.write_text(text)
+PY
+
+python3 - <<'PY'
+from pathlib import Path
 import base64
 Path("web/logo.png").write_bytes(base64.b64decode(Path("web/logo.b64").read_text().strip()))
 PY
@@ -121,4 +134,7 @@ grep -q 'type="module" src="app.js"' build/web/index.html
 grep -q 'href="logo.png" type="image/png"' build/web/index.html
 grep -q 'RhythiansBrowser' web/app.js
 grep -q 'rhythiansPersistUserData' web/shell.html
+grep -q 'NativeDialogDisabled.gd' scenes/menu/contentmgr.tscn
+grep -q 'rhythiansMobileInputMode' web/app.js
+grep -q 'id="mobile-mode-choice"' build/web/index.html
 ! grep -Rqs 'rhythians-evans-projects-edff1a37.vercel.app' project.godot scripts web

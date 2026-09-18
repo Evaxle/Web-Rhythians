@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n<meta name="apple-mobile-web-app-title" content="Rhythians">
 <title>Rhythians</title>
-<link rel="icon" href="logo.png" type="image/png">
+<link rel="icon" href="logo.png" type="image/png">\n<link rel="apple-touch-icon" href="logo.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#070910">
 <link rel="stylesheet" href="app.css">
@@ -22,6 +22,29 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
 </script>
 </head>
 <body>
+
+<section id="mobile-setup" class="launcher mobile-setup" hidden>
+  <div class="launch-card mobile-card">
+    <img src="logo.png" alt="Rhythians" class="launch-logo">
+    <p class="eyebrow">RHYTHIANS MOBILE</p>
+    <div id="ios-install" hidden>
+      <h1>Add to Home Screen</h1>
+      <p>Rhythians detected iOS. For the web client to run as a mobile app, add this site to your Home Screen, then launch Rhythians from the new Home Screen icon.</p>
+      <div class="install-steps"><strong>1.</strong> Tap the Share button in your browser.<br><strong>2.</strong> Choose <b>Add to Home Screen</b>.<br><strong>3.</strong> Tap <b>Add</b>, then open Rhythians from your Home Screen.</div>
+    </div>
+    <div id="android-unsupported" hidden>
+      <h1>Android detected</h1>
+      <p>The mobile WebAssembly client currently supports iOS only. Android support is not enabled yet.</p>
+    </div>
+    <div id="mobile-mode-choice" hidden>
+      <h1>Mobile detected</h1>
+      <p>Choose how you want to control Rhythians on this device.</p>
+      <button id="mobile-mouse" class="secondary choice-button" type="button">Mouse <span>Use a connected mouse or trackpad with normal desktop input.</span></button>
+      <button id="mobile-touch" class="primary choice-button" type="button">Touchscreen <span>Touches are translated into Rhythians mouse movement and clicks.</span></button>
+    </div>
+  </div>
+</section>
+
 <section id="launcher" class="launcher">
   <div class="launch-card">
     <img src="logo.png" alt="Rhythians" class="launch-logo">

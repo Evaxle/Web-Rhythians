@@ -1,6 +1,105 @@
 const BASE="https://www.rhythians.com";
 const $=id=>document.getElementById(id);
 
+const deviceInfo=(()=>{
+  const ua=navigator.userAgent||"";
+  const ios=/iPad|iPhone|iPod/i.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  const android=/Android/i.test(ua);
+  return {ios,android,mobile:ios||android};
+})();
+let mobileInputMode="mouse";
+let activeTouchId=null;
+
+function isStandalone(){
+  return navigator.standalone===true||window.matchMedia("(display-mode: standalone)").matches;
+}
+function showMobileSetup(view){
+  $("launcher").hidden=true;
+  $("game").hidden=true;
+  $("mobile-setup").hidden=false;
+  $("ios-install").hidden=view!=="install";
+  $("android-unsupported").hidden=view!=="android";
+  $("mobile-mode-choice").hidden=view!=="mode";
+}
+function dispatchTouchAsMouse(type,touch,buttons){
+  const canvas=$("canvas");
+  canvas.dispatchEvent(new MouseEvent(type,{
+    bubbles:true,
+    cancelable:true,
+    view:window,
+    clientX:touch.clientX,
+    clientY:touch.clientY,
+    screenX:touch.screenX,
+    screenY:touch.screenY,
+    button:0,
+    buttons
+  }));
+}
+function trackedTouch(list){
+  return Array.from(list||[]).find(touch=>touch.identifier===activeTouchId)||null;
+}
+function enableTouchMouseBridge(){
+  const canvas=$("canvas");
+  if(canvas.dataset.touchMouseBridge==="1")return;
+  canvas.dataset.touchMouseBridge="1";
+  canvas.classList.add("touchscreen-mode");
+  canvas.addEventListener("touchstart",event=>{
+    if(mobileInputMode!=="touchscreen"||activeTouchId!==null)return;
+    const touch=event.changedTouches[0];
+    if(!touch)return;
+    activeTouchId=touch.identifier;
+    canvas.focus();
+    dispatchTouchAsMouse("mousemove",touch,0);
+    dispatchTouchAsMouse("mousedown",touch,1);
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },{passive:false});
+  canvas.addEventListener("touchmove",event=>{
+    if(mobileInputMode!=="touchscreen"||activeTouchId===null)return;
+    const touch=trackedTouch(event.touches)||trackedTouch(event.changedTouches);
+    if(!touch)return;
+    dispatchTouchAsMouse("mousemove",touch,1);
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },{passive:false});
+  const endTouch=event=>{
+    if(mobileInputMode!=="touchscreen"||activeTouchId===null)return;
+    const touch=trackedTouch(event.changedTouches);
+    if(!touch)return;
+    dispatchTouchAsMouse("mousemove",touch,1);
+    dispatchTouchAsMouse("mouseup",touch,0);
+    activeTouchId=null;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  canvas.addEventListener("touchend",endTouch,{passive:false});
+  canvas.addEventListener("touchcancel",endTouch,{passive:false});
+}
+function enterClient(mode="mouse"){
+  mobileInputMode=mode;
+  window.rhythiansMobileInputMode=mode;
+  document.documentElement.dataset.inputMode=mode;
+  $("mobile-setup").hidden=true;
+  $("launcher").hidden=false;
+  if(mode==="touchscreen")enableTouchMouseBridge();
+  setStage("home");
+}
+function initDeviceGate(){
+  if(deviceInfo.android){
+    showMobileSetup("android");
+    return;
+  }
+  if(deviceInfo.ios&&!isStandalone()){
+    showMobileSetup("install");
+    return;
+  }
+  if(deviceInfo.ios&&isStandalone()){
+    showMobileSetup("mode");
+    return;
+  }
+  enterClient("mouse");
+}
+
 const db=await new Promise((resolve,reject)=>{
   const request=indexedDB.open("RhythiansBrowser",3);
   request.onupgradeneeded=()=>{
@@ -291,5 +390,7 @@ document.addEventListener("visibilitychange",()=>{
   if(document.hidden&&engineStarted)window.rhythiansCommand?.(JSON.stringify({action:"save"}));
 });
 window.addEventListener("beforeunload",()=>{if(engineStarted)window.rhythiansCommand?.(JSON.stringify({action:"save"}));});
+$("mobile-mouse").onclick=()=>enterClient("mouse");
+$("mobile-touch").onclick=()=>enterClient("touchscreen");
 accountLabel();
-setStage("home");
+initDeviceGate();
