@@ -359,6 +359,9 @@ require_text 'https://www.rhythians.com' web/app.js 'Rhythians production URL'
 require_text 'id="launch-play"' build/web/index.html 'launcher play button'
 require_text 'id="signin-rhythians"' build/web/index.html 'Rhythians sign-in button'
 require_text 'id="play-guest"' build/web/index.html 'guest play button'
+require_text 'id="tools-toggle"' build/web/index.html 'floating browser tools toggle'
+require_text 'id="tools-panel"' build/web/index.html 'floating browser tools panel'
+require_text 'id="game-toast"' build/web/index.html 'nonblocking game status toast'
 require_text 'id="import-sspm"' build/web/index.html 'SSPM import button'
 require_text 'id="fullscreen"' build/web/index.html 'fullscreen button'
 require_text 'id="change-account"' build/web/index.html 'account button'
@@ -384,6 +387,10 @@ if grep -Fq 'tween.tween_property(btns[i]' scripts/ui/menu/buttons/v3MapList.gd;
 fi
 if grep -Fq 'sidebar.press(' web/Bridge.gd; then
   echo "Obsolete Sidebar.press call found in web bridge" >&2
+  exit 1
+fi
+if grep -Eq 'calc\(100(d)?vh - 52px\)' web/app.css; then
+  echo "Old fixed browser toolbar layout regression found" >&2
   exit 1
 fi
 reject_text_tree 'rhythians-evans-projects-edff1a37.vercel.app' project.godot scripts web
