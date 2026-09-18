@@ -433,10 +433,13 @@ func _maps():
 	var requested_rank=-1 if map_mode=="all" else int(active_rank.get("index",0))
 	var requested_offset=map_page*page_size
 	var page_mismatch=Rhythian.maps_loaded_offset!=requested_offset or Rhythian.maps_loaded_query!=map_search or Rhythian.maps_loaded_rank_index!=requested_rank
-	if Rhythian.maps_cache.empty() or page_mismatch:
+	if not Rhythian.maps_page_loaded or page_mismatch:
 		if not Rhythian.catalog_loading:
 			Rhythian.call_deferred("fetch_maps_page",requested_offset,map_search,requested_rank)
 		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading maps for this catalog page…")
+		return
+	if Rhythian.maps_error!="" and Rhythian.maps_cache.empty():
+		_panel("Map catalog unavailable",Rhythian.maps_error)
 		return
 	var maps=Rhythian.maps_cache
 	var max_page=max(0,int(ceil(Rhythian.maps_total/float(page_size)))-1)
