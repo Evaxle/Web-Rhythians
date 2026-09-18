@@ -3,6 +3,12 @@ extends SceneTree
 const REQUIRED_RESOURCES = [
 	"res://default_bus_layout.tres",
 	"res://default_env.tres",
+	"res://localization/localization.en.translation",
+	"res://localization/localization.fr.translation",
+	"res://localization/localization.ja.translation",
+	"res://localization/localization.pl.translation",
+	"res://localization/localization.es.translation",
+	"res://localization/localization.it.translation",
 	"res://scenes/init.tscn",
 	"res://scenes/loaders/menuload.tscn",
 	"res://scenes/loaders/songload.tscn",
@@ -32,7 +38,6 @@ const REQUIRED_RESOURCES = [
 ]
 
 const REQUIRED_FILES = [
-	"res://localization/localization.csv",
 	"res://assets/songs/built_in_maps.sspmr",
 	"res://assets/songs/MeteoricImpact.txt",
 	"res://assets/songs/meganeko - Feral.txt",

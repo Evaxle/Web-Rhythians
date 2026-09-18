@@ -136,6 +136,9 @@ for core in [
     if Path(core).exists():
         selected.add("res://" + core)
 
+for locale in ["en", "fr", "ja", "pl", "es", "it"]:
+    selected.add(f"res://localization/localization.{locale}.translation")
+
 scan_files.append(Path("project.godot"))
 path_pattern = re.compile(r'res://[^"\']+')
 for path in scan_files:
@@ -258,6 +261,9 @@ check_log() {
 }
 
 
+
+run_godot /tmp/preimport.log "$GODOT_BIN" --path . --editor --quit
+check_log /tmp/preimport.log
 
 run_godot /tmp/export.log "$GODOT_BIN" --path . --export Web build/web/index.html
 check_log /tmp/export.log
