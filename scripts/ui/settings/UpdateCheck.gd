@@ -1,6 +1,13 @@
 extends Button
 
+func _ready():
+	if OS.has_feature("HTML5"):
+		disabled = true
+		text = "Web client updates automatically"
+
 func _pressed():
+	if OS.has_feature("HTML5"):
+		return
 	if (OS.has_feature("Windows") or OS.has_feature("X11")) and !OS.has_feature("editor"):
 		Online.check_latest_version()
 		var latest_version = yield(Online,"latest_version")
