@@ -48,6 +48,12 @@ if start != -1 and end != -1:
     rebuilt = prefix + "}, {".join(entries) + "} ]"
     text = text[:start] + rebuilt + text[end + 3:]
 
+icons_start = text.find("_global_script_class_icons={")
+if icons_start != -1:
+    icons_end = text.find("\n}\n\n[application]", icons_start)
+    if icons_end != -1:
+        text = text[:icons_start] + text[icons_end + 3:]
+
 lines = text.splitlines()
 out = []
 skipping = False
@@ -69,6 +75,8 @@ import base64
 Path("web/logo.png").write_bytes(base64.b64decode(Path("web/logo.b64").read_text().strip()))
 PY
 
+rm -f localization/localization.csv.import
+
 python3 web/tests/make_fixtures.py
 node web/tests/sspm.mjs
 
@@ -87,6 +95,9 @@ check_log() {
     return 1
   fi
 }
+
+run_godot /tmp/import.log "$GODOT_BIN" --path . --editor --quit
+check_log /tmp/import.log
 
 run_godot /tmp/export-pack.log "$GODOT_BIN" --path . --export-pack Web /tmp/rhythians-web-check.pck
 check_log /tmp/export-pack.log
