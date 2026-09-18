@@ -150,7 +150,7 @@ func _safe_import_name(original_name:String) -> String:
 	var safe=""
 	for i in range(name.length()):
 		var ch=name.substr(i,1)
-		if ch.is_valid_identifier() or ch in [" ","-","_","(",")","[","]"]:
+		if ch.is_valid_identifier() or ch in ["0","1","2","3","4","5","6","7","8","9"," ","-","_","(",")","[","]"]:
 			safe+=ch
 	safe=safe.strip_edges()
 	if safe=="":
