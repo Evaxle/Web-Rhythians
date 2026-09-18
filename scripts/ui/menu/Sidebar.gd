@@ -3,8 +3,10 @@ extends Panel
 var portal:Control
 var account:Button
 var nav = [["home","Home"],["maps","Maps"],["daily","Daily"],["path","Path"],["challenge","Challenge"],["online","Online"],["leaderboards","Leaderboards"],["battles","Battles"],["clips","Clips"],["search","Search"],["messages","Messages"],["global-chat","Global Chat"],["wiki","Wiki"],["rules","Rules"],["community","Community"]]
+var native_nav = [["settings","Settings"],["content","Content"],["language","Language"],["credits","Credits"]]
 
 var pending_page:String = ""
+var pending_native:String = ""
 var active_page:String = "play"
 var navigation_scheduled:bool = false
 
@@ -12,8 +14,8 @@ func _ready():
 	set_anchors_and_margins_preset(Control.PRESET_TOP_WIDE)
 	anchor_right = 1.0
 	rect_min_size.y = 78
-	call_deferred("raise")
-	for child in get_children(): child.visible = false
+	for child in get_children():
+		child.visible = false
 	var background = ColorRect.new()
 	background.color = Color(0.035,0.045,0.07,0.98)
 	background.set_anchors_and_margins_preset(Control.PRESET_WIDE)
@@ -40,6 +42,7 @@ func _ready():
 	center_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_scroll.scroll_horizontal_enabled = true
 	center_scroll.scroll_vertical_enabled = false
+	center_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
 	bar.add_child(center_scroll)
 	var center = HBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -50,34 +53,48 @@ func _ready():
 	play.rect_min_size = Vector2(88,52)
 	center.add_child(play)
 	play.connect("pressed",self,"to_play")
+	for item in native_nav:
+		var native_button = _button(item[1],false)
+		native_button.rect_min_size.x = 76 if item[1].length() <= 8 else 94
+		center.add_child(native_button)
+		native_button.connect("pressed",self,"open_native_page",[item[0]])
 	for item in nav:
-		var b = _button(item[1],false)
-		b.rect_min_size.x = 70 if item[1].length() <= 8 else 88
-		center.add_child(b)
-		b.connect("pressed",self,"open_page",[item[0]])
+		var button = _button(item[1],false)
+		button.rect_min_size.x = 70 if item[1].length() <= 8 else 88
+		center.add_child(button)
+		button.connect("pressed",self,"open_page",[item[0]])
 	account = _button(Rhythian.username if Rhythian.logged_in else "Sign in",false)
 	account.rect_min_size = Vector2(112,44)
 	bar.add_child(account)
 	account.connect("pressed",self,"open_account")
 	portal = load("res://scripts/ui/menu/RhythiansPortal.gd").new()
 	call_deferred("_attach_portal")
+	call_deferred("_raise_nav")
 
 func _attach_portal():
-	if portal == null: return
+	if portal == null:
+		return
 	var parent = get_parent()
 	if parent != null and portal.get_parent() == null:
 		parent.add_child(portal)
+		portal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		portal.raise()
-	if OS.has_feature("HTML5"): WebPortal.menu_ready()
+	call_deferred("_raise_nav")
+	if OS.has_feature("HTML5"):
+		WebPortal.menu_ready()
+
+func _raise_nav():
+	raise()
 
 func _button(text:String,primary:bool) -> Button:
-	var b = Button.new()
-	b.text = text
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_color_override("font_color",Color(1,1,1,1))
-	b.add_color_override("font_color_hover",Color(1,1,1,1))
-	b.add_font_override("font",RhythianUI.font(16 if primary else 12,1 if primary else 0))
-	return b
+	var button = Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_color_override("font_color",Color(1,1,1,1))
+	button.add_color_override("font_color_hover",Color(1,1,1,1))
+	button.add_font_override("font",RhythianUI.font(16 if primary else 12,1 if primary else 0))
+	return button
 
 func _process(_delta:float):
 	if account != null:
@@ -86,14 +103,30 @@ func _process(_delta:float):
 func open_page(page:String):
 	if page == "":
 		return
+	pending_native = ""
 	pending_page = page
+	_schedule_navigation()
+
+func open_native_page(page:String):
+	if page == "":
+		return
+	pending_page = ""
+	pending_native = page
+	_schedule_navigation()
+
+func _schedule_navigation():
 	if navigation_scheduled:
 		return
 	navigation_scheduled = true
-	call_deferred("_apply_pending_page")
+	call_deferred("_apply_pending_navigation")
 
-func _apply_pending_page():
+func _apply_pending_navigation():
 	navigation_scheduled = false
+	if pending_native != "":
+		var native_page = pending_native
+		pending_native = ""
+		_show_native_page(native_page)
+		return
 	var page = pending_page
 	pending_page = ""
 	if page == "":
@@ -104,12 +137,40 @@ func _apply_pending_page():
 	_hide_game_pages()
 	if portal != null and portal.has_method("open_page"):
 		portal.open_page(page)
+	call_deferred("_raise_nav")
+
+func _show_native_page(page:String):
+	var paths = {
+		"settings":"../Main/Settings",
+		"credits":"../Main/Credits",
+		"content":"../Main/Content",
+		"language":"../Main/Language"
+	}
+	if not paths.has(page):
+		return
+	active_page = page
+	if portal != null and portal.has_method("close_page"):
+		portal.close_page()
+	_hide_game_pages()
+	var node = get_node_or_null(paths[page])
+	if node != null:
+		if page == "settings":
+			node.margin_top = 78
+		node.margin_left = 0
+		node.margin_right = 0
+		node.margin_bottom = 0
+		node.raise()
+		node.visible = true
+		call_deferred("_raise_nav")
+	else:
+		to_play()
 
 func open_account():
 	open_page("account")
 
 func to_play():
 	pending_page = ""
+	pending_native = ""
 	navigation_scheduled = false
 	active_page = "play"
 	if portal != null and portal.has_method("close_page"):
@@ -118,6 +179,7 @@ func to_play():
 	var results = get_node_or_null("../Main/Results")
 	if results != null:
 		results.visible = true
+	call_deferred("_raise_nav")
 
 func _hide_game_pages():
 	for path in ["../Main/Results","../Main/Maps","../Main/Settings","../Main/Credits","../Main/Content","../Main/Language","../Main/Rhythian"]:
