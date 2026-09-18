@@ -80,7 +80,10 @@ func end(end_type:int):
 	Rhythia.song_end_type = end_type
 	Rhythia.song_end_combo = max_combo
 	print("song max combo: ", max_combo)
-	Rhythian.on_song_ended(end_type)
+	if OS.has_feature("HTML5"):
+		WebPortal.finished()
+	else:
+		Rhythian.on_song_ended(end_type)
 	
 	if Rhythia.record_replays and !Rhythia.replaying:
 		Rhythia.replay.end_recording()
