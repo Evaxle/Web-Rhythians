@@ -145,7 +145,9 @@ func _selected_rhythian_map() -> Dictionary:
 	return saved.duplicate()
 
 func begin_run():
-	active_map = _selected_rhythian_map()
+	var selected = _selected_rhythian_map()
+	if not selected.empty():
+		active_map = selected
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
 
 func finished():
