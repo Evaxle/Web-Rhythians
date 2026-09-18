@@ -1116,7 +1116,7 @@ func _map_registry_payload(map:Dictionary) -> Dictionary:
 		"title": str(map.get("title","")),
 		"artist": str(map.get("artist","Unknown Artist")),
 		"mapper": str(map.get("mapper",map.get("mapperName","Unknown"))),
-		"rating": float(map.get("rating",0.0)),
+		"rating": get_map_rating(map),
 		"difficulty": str(map.get("difficulty",map.get("rankName","Unranked"))),
 		"rankName": str(map.get("rankName","Unranked")),
 		"rankColor": str(map.get("rankColor","#ffffff")),
