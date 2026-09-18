@@ -25,6 +25,7 @@ var pending_page:String="home"
 var page_dirty:bool=true
 var api_cache:Dictionary={}
 var api_cache_time:Dictionary={}
+var last_connection_check_msec:int=0
 
 func _ready():
 	Rhythian.base_url=BASE_URL
@@ -292,8 +293,10 @@ func _home():
 	for pair in [["Maps","maps"],["Daily","daily"],["Path","path"],["Challenge","challenge"],["Battles","battles"],["Clips","clips"],["Global Chat","global-chat"],["Search","search"]]:
 		var b=_button(ar,pair[0],pair[1]=="battles")
 		b.connect("pressed",self,"open_page",[pair[1]])
-	Rhythian.check_connection()
-
+	var now=OS.get_ticks_msec()
+	if now-last_connection_check_msec>30000:
+		last_connection_check_msec=now
+		Rhythian.check_connection()
 func _maps():
 	title_label.text="Maps"
 	if not Rhythian.logged_in:
@@ -303,24 +306,39 @@ func _maps():
 		return
 	var rhp=int(Rhythian.profile.get("rhp",0))
 	var rank=Rhythian.get_rank_info(rhp)
-	var banner=_panel("Current rank","%s · %d RHP · downloaded maps also appear in the normal Play library." % [str(rank.name),rhp])
+	var banner=_panel("Current rank","%s · %d RHP · the catalog below is synchronized from the current Rhythians Maps page." % [str(rank.name),rhp])
 	var controls=RhythianUI.hbox(8)
 	banner.add_child(controls)
 	var refresh=_button(controls,"Refresh maps",true)
-	refresh.connect("pressed",Rhythian,"fetch_maps")
+	refresh.disabled=Rhythian.catalog_loading
+	refresh.connect("pressed",self,"_refresh_maps")
 	var check=_button(controls,"Check scores")
 	check.connect("pressed",self,"_check_all_maps")
+	var search_row=RhythianUI.hbox(8)
+	banner.add_child(search_row)
+	var search=_line(search_row,"Search title, artist, mapper, or rank",map_search)
+	var search_button=_button(search_row,"Search")
+	search_button.connect("pressed",self,"_set_map_search",[search])
+	if map_search!="":
+		var clear=_button(search_row,"Clear")
+		clear.connect("pressed",self,"_clear_map_search")
 	if Rhythian.maps_cache.empty():
 		if not Rhythian.catalog_loading:
 			Rhythian.call_deferred("fetch_maps")
-		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading maps from Rhythians…")
+		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading the current Rhythians map catalog…")
 		return
-	var page_size=40
-	var max_page=max(0,int(ceil(Rhythian.maps_cache.size()/float(page_size)))-1)
+	var maps=_filtered_maps()
+	var page_size=24 if OS.has_feature("HTML5") else 32
+	var max_page=max(0,int(ceil(maps.size()/float(page_size)))-1)
 	map_page=int(clamp(map_page,0,max_page))
 	var start=map_page*page_size
-	var finish=min(start+page_size,Rhythian.maps_cache.size())
-	var pager=_panel("Map catalog","%d maps · page %d of %d" % [Rhythian.maps_cache.size(),map_page+1,max_page+1])
+	var finish=min(start+page_size,maps.size())
+	var summary="%d current maps synced" % Rhythian.maps_cache.size()
+	if map_search!="":
+		summary+=" · %d matches" % maps.size()
+	if Rhythian.catalog_loading:
+		summary+=" · refreshing in background"
+	var pager=_panel("Map catalog",summary+" · page %d of %d" % [map_page+1,max_page+1])
 	var page_row=RhythianUI.hbox(8)
 	pager.add_child(page_row)
 	var prev=_button(page_row,"Previous")
@@ -329,8 +347,11 @@ func _maps():
 	var next=_button(page_row,"Next")
 	next.disabled=map_page>=max_page
 	next.connect("pressed",self,"_map_page_change",[1])
+	if maps.empty():
+		_panel("No maps found","Try a different search.")
+		return
 	for i in range(start,finish):
-		var map=Rhythian.maps_cache[i]
+		var map=maps[i]
 		var rating=Rhythian.get_map_rating(map)
 		var rank_name=str(map.get("rankName","Unranked"))
 		var details="%.2f rating · %s" % [rating,rank_name]
@@ -347,10 +368,42 @@ func _maps():
 		var completion=map.get("completion",{})
 		if typeof(completion)==TYPE_DICTIONARY and bool(completion.get("passed",false)):
 			details+=" · Passed"
+		var rewards=map.get("maxRewards",null)
+		if typeof(rewards)==TYPE_DICTIONARY:
+			details+=" · max RPL %d / RPS %d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0))]
 		var row=_panel(str(map.get("title","Unknown map")),details)
-		row.add_child(RhythianUI.label("%s · mapped by %s" % [str(map.get("artist","Unknown Artist")),str(map.get("mapper","Unknown"))],13,RhythianUI.C_MUTED))
+		row.add_child(RhythianUI.label("%s · mapped by %s" % [str(map.get("artist","Unknown Artist")),str(map.get("mapper",map.get("mapperName","Unknown")))],13,RhythianUI.C_MUTED))
 		var action=_button(row,"Play" if Rhythian.is_map_playable(str(map.get("id",""))) else "Download",true)
 		action.connect("pressed",self,"_map_action",[map])
+func _filtered_maps() -> Array:
+	if map_search=="":
+		return Rhythian.maps_cache
+	var q=map_search.to_lower()
+	var filtered=[]
+	for map in Rhythian.maps_cache:
+		if typeof(map)!=TYPE_DICTIONARY:
+			continue
+		var text=(str(map.get("title",""))+" "+str(map.get("artist",""))+" "+str(map.get("mapper",map.get("mapperName","")))+" "+str(map.get("rankName",""))).to_lower()
+		if text.find(q)!=-1:
+			filtered.append(map)
+	return filtered
+
+func _set_map_search(field:LineEdit):
+	map_search=field.text.strip_edges()
+	map_page=0
+	show_page("maps",true)
+
+func _clear_map_search():
+	map_search=""
+	map_page=0
+	show_page("maps",true)
+
+func _refresh_maps():
+	if Rhythian.catalog_loading:
+		status.text="The current map catalog is already refreshing."
+		return
+	status.text="Refreshing the current Rhythians map catalog…"
+	Rhythian.fetch_maps()
 
 func _challenge_name(value:String) -> String:
 	match value:
@@ -364,8 +417,7 @@ func _challenge_name(value:String) -> String:
 
 func _map_page_change(delta:int):
 	map_page=max(0,map_page+delta)
-	show_page("maps")
-
+	show_page("maps",true)
 func _map_action(map:Dictionary):
 	var id=str(map.get("id",""))
 	if id=="":
@@ -385,10 +437,10 @@ func _map_action(map:Dictionary):
 	Rhythian.download_map(map)
 
 func _map_downloaded(_id:String,success:bool,message:String):
-	status.text="Map downloaded into the Play library." if success else message
-	if selected_page=="maps" or selected_page=="challenge":
-		call_deferred("show_page",selected_page)
-
+	if status!=null:
+		status.text="Map downloaded into the Play library." if success else message
+	if visible and (selected_page=="maps" or selected_page=="challenge"):
+		show_page(selected_page,true)
 func _check_all_maps():
 	status.text="Checking your Rhythians scores…"
 	var state=Rhythian.check_all_maps()
@@ -404,7 +456,10 @@ func _check_all_maps_done(result):
 		status.text="Score check complete."
 func _daily():
 	title_label.text="Daily"
+	var epoch=page_epoch
 	var data=yield(_api_page("daily"),"completed")
+	if not _page_is_current("daily",epoch):
+		return
 	if not data.get("ok",false):
 		_panel("Daily unavailable",data.get("message","Could not load daily."))
 		return
@@ -413,16 +468,22 @@ func _daily():
 	card.add_child(RhythianUI.label("%s · %s" % [str(daily.get("artist","")),str(daily.get("mapperName",""))],14))
 	card.add_child(RhythianUI.label("Reward: %d RHP at 100%% · streak %d" % [int(daily.get("reward",0)),int(data.get("streak",0))],14,RhythianUI.C_ACCENT2,1))
 	var beat=data.get("beat",null)
-	if beat!=null: card.add_child(RhythianUI.label("Completed · %s%% · %d points · %d misses" % [str(beat.get("accuracy",0)),int(beat.get("points",0)),int(beat.get("misses",0))],14))
-	else: card.add_child(RhythianUI.label("Not completed yet",14))
+	if beat!=null:
+		card.add_child(RhythianUI.label("Completed · %s%% · %d points · %d misses" % [str(beat.get("accuracy",0)),int(beat.get("points",0)),int(beat.get("misses",0))],14))
+	else:
+		card.add_child(RhythianUI.label("Not completed yet",14))
 	if str(daily.get("downloadUrl",""))!="":
 		var play=_button(card,"Download / Play daily map",true)
 		play.connect("pressed",RhythianUI,"open_url",[str(daily.get("downloadUrl"))])
-
 func _path():
 	title_label.text="Path"
+	var epoch=page_epoch
 	var data=yield(_api_page("path"),"completed")
-	if not data.get("ok",false): _panel("Path unavailable",data.get("message","Could not load path.")); return
+	if not _page_is_current("path",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Path unavailable",data.get("message","Could not load path."))
+		return
 	var path=data.get("path",{})
 	_panel("Seasonal Rhythian Path","Season %s · ends %s" % [str(path.get("season",{}).get("seasonNumber","")),str(path.get("season",{}).get("endsAt",""))])
 	for rank in path.get("ranks",[]):
@@ -431,15 +492,20 @@ func _path():
 		if map!=null:
 			box.add_child(RhythianUI.label("%s · %.2f rating" % [str(map.get("title","Map")),float(map.get("rating",0))],14))
 			box.add_child(RhythianUI.label("%s" % ("Completed" if bool(map.get("completed",false)) else "Not completed"),14,RhythianUI.C_ACCENT2 if bool(map.get("completed",false)) else RhythianUI.C_MUTED,1))
-
 func _challenge():
 	title_label.text="Challenge"
+	var epoch=page_epoch
 	var data=yield(_api_page("challenge"),"completed")
+	if not _page_is_current("challenge",epoch):
+		return
 	if not data.get("ok",false):
 		_panel("Challenge unavailable",data.get("message","Could not load challenge."))
 		return
 	_panel("Challenge progression","Current level %d" % int(data.get("level",0)))
-	for map in data.get("maps",[]):
+	var maps=data.get("maps",[])
+	var limit=min(60,maps.size())
+	for i in range(limit):
+		var map=maps[i]
 		var level=map.get("level",map.get("challengeLevel","?"))
 		var complete=bool(map.get("completed",map.get("passed",false)))
 		var box=_panel(str(map.get("title","Challenge map")),"Level %s · %s" % [str(level),"Passed" if complete else "Available"])
@@ -450,33 +516,44 @@ func _challenge():
 			action.connect("pressed",self,"_map_action",[map])
 func _online():
 	title_label.text="Online"
+	var epoch=page_epoch
 	var data=yield(_api_page("online"),"completed")
-	if not data.get("ok",false): _panel("Online unavailable",data.get("message","Could not load online users.")); return
+	if not _page_is_current("online",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Online unavailable",data.get("message","Could not load online users."))
+		return
 	var users=data.get("users",[])
-	_panel("Who's online","%d users currently online" % users.size())
-	for user in users:
+	_panel("Who's online","%d users currently online · showing up to 40" % users.size())
+	for i in range(min(40,users.size())):
+		var user=users[i]
 		var row=_panel(str(user.get("displayName",user.get("username","User"))),"%d RHP · #%s global · Level %s" % [int(user.get("rhp",0)),str(user.get("globalPosition","-")),str(user.get("challengeLevel",0))])
 		var open=_button(row,"View profile")
 		open.connect("pressed",self,"open_profile_handle",[str(user.get("profileHandle",""))])
 		var message=_button(row,"Message")
 		message.connect("pressed",self,"open_message_handle",[str(user.get("profileHandle",""))])
-
 func _leaderboards():
 	title_label.text="Leaderboards"
+	var epoch=page_epoch
 	var data=yield(_api_page("leaderboards"),"completed")
-	if not data.get("ok",false): _panel("Leaderboards unavailable",data.get("message","Could not load leaderboards.")); return
+	if not _page_is_current("leaderboards",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Leaderboards unavailable",data.get("message","Could not load leaderboards."))
+		return
 	var rhp=data.get("rhp",[])
-	var board=_panel("RHP global","Top Rhythians")
-	for i in range(min(50,rhp.size())):
+	var board=_panel("RHP global","Top 30 Rhythians")
+	for i in range(min(30,rhp.size())):
 		var user=rhp[i]
 		var row=_panel("#%d · %s · %d RHP" % [int(user.get("position",i+1)),str(user.get("displayName",user.get("username",""))),int(user.get("rhp",0))])
 		var open=_button(row,"Profile")
 		open.connect("pressed",self,"open_profile_handle",[str(user.get("profileHandle",""))])
 	var modes=data.get("modes",{})
 	for mode_name in ["lock","spin"]:
-		var mode_box=_panel(mode_name.to_upper(),"Mode leaderboard")
-		for i in range(min(20,modes.get(mode_name,[]).size())): mode_box.add_child(RhythianUI.label("#%d %s" % [i+1,str(modes[mode_name][i].get("username",modes[mode_name][i].get("displayName","Player")))],13))
-
+		var mode_box=_panel(mode_name.to_upper(),"Top 15 mode leaderboard")
+		var entries=modes.get(mode_name,[])
+		for i in range(min(15,entries.size())):
+			mode_box.add_child(RhythianUI.label("#%d %s" % [i+1,str(entries[i].get("username",entries[i].get("displayName","Player")))],13))
 func _battles():
 	title_label.text="Battles"
 	if not Rhythian.logged_in:
@@ -564,15 +641,19 @@ func _clips():
 	go.connect("pressed",self,"_search_clips",[search])
 	var upload=_button(row,"Submit clip")
 	upload.connect("pressed",self,"_open_clip_submit")
+	var epoch=page_epoch
 	var data=yield(_api_page("clips",{"song":search_query}),"completed")
-	if not data.get("ok",false): _panel("Clips unavailable",data.get("message","Could not load clips.")); return
+	if not _page_is_current("clips",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Clips unavailable",data.get("message","Could not load clips."))
+		return
 	for clip in data.get("clips",[]):
 		var panel=_panel(str(clip.get("title","Clip")),"%s · %s · %s" % [str(clip.get("uploader",{}).get("displayName",clip.get("uploader",{}).get("username",""))),str(clip.get("songName","")),str(clip.get("cameraMode",""))])
 		var watch=_button(panel,"Watch clip",true)
 		watch.connect("pressed",self,"_watch_clip",[clip])
 		var open_profile=_button(panel,"Creator profile")
 		open_profile.connect("pressed",self,"open_profile_handle",[str(clip.get("uploader",{}).get("profileHandle",""))])
-
 func _watch_clip(clip:Dictionary):
 	var url=str(clip.get("videoUrl",""))
 	if url=="":
@@ -595,8 +676,8 @@ func _open_clip_submit():
 
 func _search_clips(field:LineEdit):
 	search_query=field.text.strip_edges()
-	show_page("clips")
-
+	_invalidate_cache("clips")
+	show_page("clips",true)
 func _submit_clip_fields(title:LineEdit,song:LineEdit,path:LineEdit,mode:OptionButton):
 	status.text="Uploading clip..."
 	var result=yield(clips.submit(path.text,title.text,song.text,"",mode.get_item_text(mode.selected)),"completed")
@@ -620,24 +701,34 @@ func _run_user_search(field:LineEdit):
 	show_page("search")
 
 func _render_user_search(query:String):
+	var epoch=page_epoch
 	var data=yield(_api_page("search",{"q":query}),"completed")
-	if not data.get("ok",false): _panel("Search failed",data.get("message","Could not search users.")); return
+	if not _page_is_current("search",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Search failed",data.get("message","Could not search users."))
+		return
 	for user in data.get("users",[]):
 		var row=_panel(str(user.get("displayName",user.get("username","User"))),"@%s · %d RHP · %s" % [str(user.get("profileHandle","")),int(user.get("rhp",0)),"Online" if bool(user.get("online",false)) else "Offline"])
 		var profile=_button(row,"Profile")
 		profile.connect("pressed",self,"open_profile_handle",[str(user.get("profileHandle",""))])
 		var msg=_button(row,"Message")
 		msg.connect("pressed",self,"open_message_handle",[str(user.get("profileHandle",""))])
-
 func _profile(handle:String):
 	title_label.text="Profile"
+	var epoch=page_epoch
 	var data=yield(_api_page("profile",{"handle":handle}),"completed")
-	if not data.get("ok",false): _panel("Profile unavailable",data.get("message","Could not load profile.")); return
+	if not _page_is_current("profile",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Profile unavailable",data.get("message","Could not load profile."))
+		return
 	var p=data.get("profile",{})
 	var main=_panel(str(p.get("displayName",p.get("username","User"))),"@%s · %s · %d RHP" % [str(p.get("profileHandle","")),str(p.get("title","Rhythian")),int(p.get("rhp",0))])
 	main.add_child(RhythianUI.label("Rank: %s %s · Global #%s · Challenge Level %s · %s" % [str(p.get("rank",{}).get("name","")),str(p.get("rank",{}).get("tier","")),str(p.get("globalRank","-")),str(p.get("challengeLevel",0)),"Online" if bool(p.get("online",false)) else "Offline"],14))
 	main.add_child(RhythianUI.label("RPL %d · RPS %d" % [int(p.get("modes",{}).get("rpl",0)),int(p.get("modes",{}).get("rps",0))],14))
-	if str(p.get("bio",""))!="": main.add_child(RhythianUI.label(str(p.get("bio","")),14))
+	if str(p.get("bio",""))!="":
+		main.add_child(RhythianUI.label(str(p.get("bio","")),14))
 	var actions=RhythianUI.hbox(8)
 	main.add_child(actions)
 	if not bool(p.get("isOwnProfile",false)):
@@ -649,43 +740,46 @@ func _profile(handle:String):
 	for clip in p.get("clips",[]):
 		var b=_button(clips_panel,str(clip.get("title","Clip")))
 		b.connect("pressed",self,"_watch_clip",[clip])
-
 func open_profile_handle(handle:String):
-	selected_page="profile"
-	_clear()
-	_profile(handle)
-
+	profile_handle=handle
+	show_page("profile",true)
 func open_message_handle(handle:String):
 	chat_handle=handle
 	show_page("messages")
 
 func _messages():
 	title_label.text="Messages"
-	if chat_handle==":": chat_handle=""
+	if chat_handle==":":
+		chat_handle=""
 	if chat_handle=="":
 		var panel=_panel("Direct messages","Choose a user from Search or Online to start a conversation.")
 		var search=_button(panel,"Find a user",true)
 		search.connect("pressed",self,"open_page",["search"])
 		return
+	var epoch=page_epoch
 	var data=yield(_api_page("messages",{"user":chat_handle}),"completed")
-	if not data.get("ok",false): _panel("Messages unavailable",data.get("message","Could not load conversation.")); return
+	if not _page_is_current("messages",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Messages unavailable",data.get("message","Could not load conversation."))
+		return
 	var target=data.get("target",{})
 	_panel("Chat with %s" % str(target.get("displayName",target.get("username","User"))))
-	for m in data.get("messages",[]): content.add_child(RhythianUI.label("%s: %s" % [str(m.get("sender",{}).get("displayName",m.get("sender",{}).get("username","User"))),str(m.get("content",""))],14))
+	var messages=data.get("messages",[])
+	var start=max(0,messages.size()-50)
+	for i in range(start,messages.size()):
+		var m=messages[i]
+		content.add_child(RhythianUI.label("%s: %s" % [str(m.get("sender",{}).get("displayName",m.get("sender",{}).get("username","User"))),str(m.get("content",""))],14))
 	var row=RhythianUI.hbox(8)
 	content.add_child(row)
 	var input=_line(row,"Message")
 	var send=_button(row,"Send",true)
 	send.connect("pressed",self,"_send_direct",[target,input])
-
 func _refresh_direct_silent():
-	if chat_handle=="": return
-	var data=yield(_api_page("messages",{"user":chat_handle}),"completed")
-	if data.get("ok",false):
-		var previous_focus=get_focus_owner()
-		show_page("messages")
-		if previous_focus!=null and previous_focus is LineEdit: previous_focus.grab_focus()
-
+	if chat_handle=="" or not visible or selected_page!="messages":
+		return
+	_invalidate_cache("messages")
+	show_page("messages",true)
 func _send_direct(target:Dictionary,input:LineEdit):
 	if input.text.strip_edges()=="": return
 	var result=yield(Rhythian._api_request(HTTPClient.METHOD_POST,"/api/rhythkit/portal",{"action":"direct-send","userId":str(target.get("id","")),"content":input.text.strip_edges()},true,25.0),"completed")
@@ -695,18 +789,29 @@ func _send_direct(target:Dictionary,input:LineEdit):
 
 func _global_chat():
 	title_label.text="Global Chat"
+	var epoch=page_epoch
 	var data=yield(_api_page("global-chat"),"completed")
-	if not data.get("ok",false): _panel("Global chat unavailable",data.get("message","Could not load global chat.")); return
+	if not _page_is_current("global-chat",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Global chat unavailable",data.get("message","Could not load global chat."))
+		return
 	_panel("Global Rhythian Chat","All logged-in Rhythians share this channel. %d users online." % int(data.get("onlineCount",0)))
-	for m in data.get("messages",[]): content.add_child(RhythianUI.label("%s: %s" % [str(m.get("sender",{}).get("displayName",m.get("sender",{}).get("username","User"))),str(m.get("content",""))],14))
+	var messages=data.get("messages",[])
+	var start=max(0,messages.size()-50)
+	for i in range(start,messages.size()):
+		var m=messages[i]
+		content.add_child(RhythianUI.label("%s: %s" % [str(m.get("sender",{}).get("displayName",m.get("sender",{}).get("username","User"))),str(m.get("content",""))],14))
 	var row=RhythianUI.hbox(8)
 	content.add_child(row)
 	var input=_line(row,"Talk to everyone online")
 	var send=_button(row,"Send",true)
 	send.connect("pressed",self,"_send_global",[input])
-
-func _refresh_global_chat_silent(): show_page("global-chat")
-
+func _refresh_global_chat_silent():
+	if not visible or selected_page!="global-chat":
+		return
+	_invalidate_cache("global-chat")
+	show_page("global-chat",true)
 func _send_global(input:LineEdit):
 	if input.text.strip_edges()=="": return
 	var result=yield(Rhythian._api_request(HTTPClient.METHOD_POST,"/api/rhythkit/portal",{"action":"global-send","content":input.text.strip_edges()},true,25.0),"completed")
@@ -716,32 +821,41 @@ func _send_global(input:LineEdit):
 
 func _wiki():
 	title_label.text="Wiki"
+	var epoch=page_epoch
 	var data=yield(_api_page("wiki"),"completed")
-	if not data.get("ok",false): _panel("Wiki unavailable",data.get("message","Could not load wiki.")); return
+	if not _page_is_current("wiki",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Wiki unavailable",data.get("message","Could not load wiki."))
+		return
 	var articles=data.get("articles",[])
-	_panel("Wiki","Published knowledge articles")
-	for article in articles:
+	_panel("Wiki","%d published knowledge articles · summaries are rendered in-client to keep tab switching fast." % articles.size())
+	for i in range(min(40,articles.size())):
+		var article=articles[i]
 		var box=_panel(str(article.get("title","Article")),str(article.get("description",article.get("slug",""))))
-		var body=RichTextLabel.new()
-		body.bbcode_enabled=true
-		body.fit_content_height=true
-		body.rect_min_size.y=90
-		body.text=str(article.get("content",""))
-		box.add_child(body)
-
+		var slug=str(article.get("slug",""))
+		if slug!="":
+			var open=_button(box,"Open article")
+			open.connect("pressed",RhythianUI,"open_url",[BASE_URL+"/knowledge/"+slug])
 func _rules():
 	title_label.text="Rules"
+	var epoch=page_epoch
 	var data=yield(_api_page("rules"),"completed")
-	if not data.get("ok",false): _panel("Rules unavailable",data.get("message","Could not load rules.")); return
-	for rule in data.get("rules",[]):
-		var box=_panel(str(rule.get("title","Rule")),str(rule.get("description","")))
-		var body=RichTextLabel.new()
-		body.bbcode_enabled=true
-		body.fit_content_height=true
-		body.rect_min_size.y=80
-		body.text=str(rule.get("content",""))
-		box.add_child(body)
-
+	if not _page_is_current("rules",epoch):
+		return
+	if not data.get("ok",false):
+		_panel("Rules unavailable",data.get("message","Could not load rules."))
+		return
+	var rules=data.get("rules",[])
+	for i in range(min(40,rules.size())):
+		var rule=rules[i]
+		var text=str(rule.get("description",""))
+		var body=str(rule.get("content",""))
+		if body!="" and body!=text:
+			if body.length()>1400:
+				body=body.substr(0,1400)+"…"
+			text+=("\n" if text!="" else "")+body
+		_panel(str(rule.get("title","Rule")),text)
 func _community():
 	title_label.text="Community Settings"
 	var mode=_panel("Score mode","RPL is used when Spin is not selected. RPS is used when Spin is selected. RPV is not supported by this client.")
