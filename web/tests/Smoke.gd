@@ -16,13 +16,16 @@ func _ready():
 	while not Rhythia.first_init_done and OS.get_ticks_msec() - start < 15000:
 		yield(get_tree(), "idle_frame")
 	check(Rhythia.first_init_done, "client initializes")
+	var score_song = null
 	for version in [1, 2]:
 		var song = Rhythia.registry_song.add_sspm_map("res://web/tests/v%d.sspm" % version)
 		check(song != null and not song.is_broken and song.note_count == 5, "SSPM v%d import" % version)
 		check(song != null and song.stream() != null and abs(song.stream().get_length() - 6.0) < 0.01, "embedded audio duration")
+		score_song = song
+	Rhythia.select_song(score_song)
+	Rhythian.registry[str(score_song.filePath).get_file()] = {"id": "test"}
 	var capture = Capture.new()
 	WebPortal.window = capture
-	WebPortal.active_map = {"id": "test"}
 	Rhythia.cam_unlock = true
 	WebPortal.begin_run()
 	Rhythia.song_end_total_notes = 5
