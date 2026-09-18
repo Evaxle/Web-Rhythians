@@ -87,6 +87,7 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
       <div class="tools-actions">
         <button id="import-sspm" type="button" title="Import one or more SSPM maps into the normal Play library">Import SSPM</button>
         <input id="sspm-picker" type="file" accept=".sspm,application/octet-stream" multiple hidden>
+        <input id="settings-picker" type="file" accept=".json,application/json" hidden>
         <button id="fullscreen" type="button" title="Toggle fullscreen or immersive browser mode">Fullscreen</button>
         <button id="change-account" type="button" title="Sign in, switch account, or use guest mode">Account</button>
       </div>
