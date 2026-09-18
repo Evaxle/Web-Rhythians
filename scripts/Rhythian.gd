@@ -836,18 +836,8 @@ func download_map(map:Dictionary):
 			if dir.rename(part_path, final_path) != OK:
 				load_error = "Map downloaded, but the browser could not move it into the Play library."
 				continue
-			yield(get_tree(), "idle_frame")
-			var song = null
-			if Rhythia.registry_song != null and Rhythia.registry_song.has_method("add_sspm_map"):
-				song = Rhythia.registry_song.add_sspm_map(final_path)
-			if song == null:
-				song = _registered_song_by_file(file_name)
-			if song == null:
-				load_error = "Map downloaded, but this client can't load the file (it may need a newer game version or required mods)"
-				dir.remove(final_path)
-			else:
-				_registry_add(file_name, map)
-				ok = true
+			_registry_add(file_name, map)
+			ok = true
 			continue
 		if response_text.begins_with("{") or response_text.begins_with("["):
 			var parsed = JSON.parse(response_text)
