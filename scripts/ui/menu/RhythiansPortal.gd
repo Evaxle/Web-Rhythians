@@ -742,15 +742,20 @@ func _return_battles():
 	show_page("battles")
 
 func _mode_totals():
+	var modes=Rhythian.profile.get("modes",{})
+	if typeof(modes)==TYPE_DICTIONARY and (modes.has("rpl") or modes.has("rps")):
+		return {"rpl":int(modes.get("rpl",0)),"rps":int(modes.get("rps",0))}
 	var totals={"rpl":0,"rps":0}
 	for score in Rhythian.scores_cache:
-		if typeof(score)!=TYPE_DICTIONARY or not bool(score.get("passed",false)): continue
+		if typeof(score)!=TYPE_DICTIONARY: continue
+		if score.has("passed") and not bool(score.get("passed",false)): continue
 		var explicit=str(score.get("cameraMode",score.get("gameMode",score.get("mode","")))).to_lower()
 		if explicit=="vr" or bool(score.get("vr",false)) or bool(score.get("isVr",false)): continue
-		var is_spin=explicit=="spin" or bool(score.get("spin",false)) or (typeof(score.get("mods",""))==TYPE_STRING and String(score.get("mods","")).findn("spin")>=0)
-		var accuracy=clamp(float(score.get("accuracy",100.0))/100.0,0.0,1.0)
-		if is_spin: totals["rps"]+=max(1,int(round(30.0*accuracy)))
-		else: totals["rpl"]+=max(1,int(round(25.0*accuracy)))
+		var points=max(0,int(score.get("points",0)))
+		if explicit=="spin" or bool(score.get("spin",false)):
+			totals["rps"]+=points
+		else:
+			totals["rpl"]+=points
 	return totals
 
 func _spin_toggled(value:bool):
