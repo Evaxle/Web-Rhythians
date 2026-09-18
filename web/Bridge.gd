@@ -3,6 +3,7 @@ extends Node
 var callback
 var window
 var active_map = {}
+var active_map_path = ""
 var menu_loaded = false
 var active_mode = "lock"
 var mode_sync_enabled = false
@@ -49,6 +50,7 @@ func command(args):
 		"guest":
 			Rhythian.logout()
 			active_map.clear()
+			active_map_path = ""
 			if window:
 				window.rhythiansAccountApplied(JSON.print({"loggedIn": false, "username": ""}))
 		"spin":
@@ -59,6 +61,7 @@ func command(args):
 		"portal":
 			Rhythia.save_settings()
 			active_map.clear()
+			active_map_path = ""
 			menu_loaded = false
 			get_tree().paused = false
 			get_tree().change_scene("res://scenes/loaders/menuload.tscn")
@@ -76,6 +79,7 @@ func _play_web_map(data:Dictionary):
 		if window: window.rhythiansError("This map cannot be loaded by the client.")
 		return
 	active_map = data.get("map", {})
+	active_map_path = path
 	Rhythia.cam_unlock = bool(data.get("spin", false))
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
 	Rhythia.save_settings()
@@ -148,12 +152,21 @@ func begin_run():
 	var selected = _selected_rhythian_map()
 	if not selected.empty():
 		active_map = selected
+		active_map_path = str(Rhythia.selected_song.filePath) if Rhythia.selected_song != null else ""
+	elif Rhythia.selected_song == null or active_map_path == "" or str(Rhythia.selected_song.filePath) != active_map_path:
+		active_map.clear()
+		active_map_path = ""
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
-
 func finished():
 	if not window: return
-	if active_map.empty():
-		active_map = _selected_rhythian_map()
+	var selected = _selected_rhythian_map()
+	if not selected.empty():
+		active_map = selected
+		active_map_path = str(Rhythia.selected_song.filePath) if Rhythia.selected_song != null else ""
+	elif Rhythia.selected_song == null or active_map_path == "" or str(Rhythia.selected_song.filePath) != active_map_path:
+		active_map.clear()
+		active_map_path = ""
+		return
 	if active_map.empty(): return
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
 	var total = max(Rhythia.song_end_total_notes, 1)
@@ -171,7 +184,8 @@ func finished():
 		"gameVersion": "rhythians-web-2",
 		"integrationVersion": "rhythians-web-2"
 	}))
-
+	active_map.clear()
+	active_map_path = ""
 func _auth_changed():
 	if window:
 		window.rhythiansAuthChanged(JSON.print({
