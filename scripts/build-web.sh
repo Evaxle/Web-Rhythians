@@ -112,7 +112,7 @@ run_smoke() {
   local rc=0
   echo "Running smoke: $*"
   timeout 300s "$@" >"$logfile" 2>&1 || rc=$?
-  awk '{ print } /SMOKE_FAILURES=0/ { exit }' "$logfile" | sed -e '/VisualServer attempted to free a NULL RID/d' -e '/at: free (servers\\/visual\\/visual_server_raster.cpp:69)/d'
+  awk '{ print } /SMOKE_FAILURES=0/ { exit }' "$logfile" | sed -e '/VisualServer attempted to free a NULL RID/d' -e '/at: free (servers\/visual\/visual_server_raster.cpp:69)/d'
   if [ "$rc" -eq 124 ]; then
     echo "Godot smoke test timed out after 300 seconds: $*" >&2
     return 124
