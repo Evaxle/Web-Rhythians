@@ -166,7 +166,7 @@ require_text() {
 reject_text_tree() {
   local pattern="$1"
   shift
-  if grep -RqsF "$pattern" "$@"; then
+  if grep -RqsF --exclude="build-web.sh" "$pattern" "$@"; then
     echo "Forbidden stale build content found: $pattern" >&2
     return 1
   fi
