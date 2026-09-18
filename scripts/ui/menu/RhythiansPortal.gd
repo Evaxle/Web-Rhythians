@@ -22,6 +22,9 @@ var map_search=""
 var map_mode="all"
 var map_progress_bars:Dictionary={}
 var map_progress_labels:Dictionary={}
+var map_download_buttons:Dictionary={}
+var map_go_buttons:Dictionary={}
+var map_download_pills:Dictionary={}
 var map_sort_target_rank:int=0
 var thumbnail_cache:Dictionary={}
 var thumbnail_pending:Dictionary={}
@@ -172,6 +175,9 @@ func _save_settings():
 func _clear():
 	map_progress_bars.clear()
 	map_progress_labels.clear()
+	map_download_buttons.clear()
+	map_go_buttons.clear()
+	map_download_pills.clear()
 	for item in thumbnail_queue:
 		if typeof(item)==TYPE_DICTIONARY:
 			thumbnail_pending.erase(str(item.get("id","")))
