@@ -338,7 +338,7 @@ func _maps():
 		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading the current Rhythians map catalog…")
 		return
 	var maps=_filtered_maps()
-	var page_size=24 if OS.has_feature("HTML5") else 32
+	var page_size=24
 	var max_page=max(0,int(ceil(maps.size()/float(page_size)))-1)
 	map_page=int(clamp(map_page,0,max_page))
 	var start=map_page*page_size
