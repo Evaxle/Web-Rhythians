@@ -96,8 +96,6 @@ check_log() {
   fi
 }
 
-run_godot /tmp/import.log "$GODOT_BIN" --path . --editor --quit
-check_log /tmp/import.log
 
 
 run_godot /tmp/export.log "$GODOT_BIN" --path . --export Web build/web/index.html
