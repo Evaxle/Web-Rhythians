@@ -41,10 +41,16 @@ func update(_s=null):
 	$RS/H1/Info/SongName/SongName.text = map.song
 #	$RS/H1/Info/SongName.visible = map.name != map.song
 	$RS/H1/Info/Mapper/Mapper.text = map.creator
-	$RS/HMid/Difficulty.text = map.custom_data.get("difficulty_name",
-		Globals.difficulty_names.get(map.difficulty,"INVALID DIFFICULTY ID")
-	)
-	$RS/HMid/Difficulty.modulate = Globals.difficulty_colors.get(map.difficulty,Color("#ffffff"))
+	var rhythian_meta=Rhythian.get_song_metadata(map)
+	if not rhythian_meta.empty():
+		$RS/HMid/Difficulty.text=Rhythian.get_map_summary(rhythian_meta)
+		var rank_color=str(rhythian_meta.get("rankColor","#ffffff"))
+		$RS/HMid/Difficulty.modulate=Color(rank_color if rank_color.begins_with("#") else "#ffffff")
+	else:
+		$RS/HMid/Difficulty.text = map.custom_data.get("difficulty_name",
+			Globals.difficulty_names.get(map.difficulty,"INVALID DIFFICULTY ID")
+		)
+		$RS/HMid/Difficulty.modulate = Globals.difficulty_colors.get(map.difficulty,Color("#ffffff"))
 	$RS/H1/Info/Data/Data.text = "%s - %s notes" % [get_time_ms(map.last_ms),comma_sep(map.note_count)]
 	
 	$RS/HMid/Difficulty.visible = true
