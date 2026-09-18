@@ -28,7 +28,11 @@ func _process(delta:float):
 		return
 	_poll_accum += delta
 	_heartbeat_accum += delta
-	if _poll_accum >= 1.0:
+	var parent_visible = true
+	if get_parent() is CanvasItem:
+		parent_visible = get_parent().visible
+	var poll_interval = 2.0 if parent_visible else 5.0
+	if _poll_accum >= poll_interval:
 		_poll_accum = 0.0
 		if match_id != "":
 			refresh_match()
