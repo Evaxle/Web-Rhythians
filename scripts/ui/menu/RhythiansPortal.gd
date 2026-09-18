@@ -65,8 +65,8 @@ func _ready():
 	add_child(clips)
 	clips.connect("upload_finished",self,"_clip_upload_finished")
 	Rhythian.connect("auth_changed",self,"_auth_changed")
-	Rhythian.connect("profile_updated",self,"_refresh_page")
-	Rhythian.connect("maps_updated",self,"_refresh_page")
+	Rhythian.connect("profile_updated",self,"_profile_changed")
+	Rhythian.connect("maps_updated",self,"_maps_changed")
 	Rhythian.connect("map_downloaded",self,"_map_downloaded")
 	Rhythian.connect("connection_checked",self,"_connection_checked")
 	show_page("home",true)
@@ -111,6 +111,19 @@ func _auth_changed():
 	chat_handle=""
 	search_query=""
 	_refresh_page()
+
+func _profile_changed():
+	if not visible:
+		page_dirty=true
+		return
+	if selected_page in ["home","account","maps"] or (selected_page=="profile" and (profile_handle=="" or profile_handle==Rhythian.username)):
+		show_page(selected_page,true)
+
+func _maps_changed(_success:bool,_message:String):
+	if not visible:
+		return
+	if selected_page=="maps":
+		show_page("maps",true)
 
 func _battle_state_changed(_data):
 	if visible and selected_page=="battles":
