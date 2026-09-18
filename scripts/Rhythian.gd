@@ -284,6 +284,14 @@ func _handle_auth_failure(res:Dictionary) -> bool:
 	return true
 
 func check_connection():
+	if OS.has_feature("HTML5"):
+		var web_res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/status", null, logged_in), "completed")
+		var result = int(web_res.get("result", -1))
+		var code = int(web_res.get("code", 0))
+		website_ok = result == HTTPRequest.RESULT_SUCCESS and code > 0
+		database_ok = bool(web_res.get("ok", false)) if logged_in else website_ok
+		emit_signal("connection_checked", website_ok, database_ok)
+		return
 	var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/health", null, false), "completed")
 	var web_ok = res.get("ok", false)
 	var db_ok = false
@@ -297,7 +305,6 @@ func check_connection():
 	website_ok = web_ok
 	database_ok = db_ok
 	emit_signal("connection_checked", website_ok, database_ok)
-
 func start_login():
 	if device_code != "" and OS.get_unix_time() < device_expiry:
 		return
