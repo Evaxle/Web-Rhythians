@@ -114,3 +114,6 @@ func _ready():
 		load_img()
 	else:
 		$ImgPreview.visible = false
+	if OS.has_feature("HTML5"):
+		disabled = true
+		hint_tooltip = "Browser file replacement is unavailable here. Existing browser-stored custom assets can still be cleared."
