@@ -70,6 +70,15 @@ func _ready():
 	Rhythia.load_saved_settings()
 	check(Rhythia.cam_unlock, "spin preference saves and restores")
 
+	WebPortal.last_score_payload = {}
+	var portal_mode_test = load("res://scripts/ui/menu/RhythiansPortal.gd").new()
+	portal_mode_test.spin_enabled = false
+	portal_mode_test._spin_toggled(true)
+	check(Rhythia.cam_unlock, "Rhythians Spin setting enables spin gameplay and score mode")
+	portal_mode_test._spin_toggled(false)
+	check(not Rhythia.cam_unlock, "Rhythians Spin setting disables spin for lock scores")
+	portal_mode_test.queue_free()
+
 	var source = File.new()
 	var source_ok = source.open("res://web/tests/v2.sspm", File.READ) == OK
 	check(source_ok, "browser import fixture opens")
