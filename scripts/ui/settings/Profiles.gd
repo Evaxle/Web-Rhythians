@@ -1,119 +1,180 @@
 extends MenuButton
 
-var profiles
-var file:File
+const PROFILE_ID_BASE = 1000
+const CREATE_ID = 2000
+const IMPORT_ID = 2001
 
-var overwrite_submenu = PopupMenu.new()
-var delete_submenu = PopupMenu.new()
-
-func save_profile(path:String):
-	if path:
-		var saveLoc:File = File.new()
-		var err:int = saveLoc.open(path,File.WRITE)
-		if err != OK: print("file.open errored - code " + String(err))
-		saveLoc.store_string(file.get_as_text())
-		saveLoc.close()
-		file.close()
-
-		# refresh the profile list
-		_ready()
-
-func on_pressed(i):
-	if i == profiles.size() + 1: # Create New From Current
-		var title = "Enter Profile Name"
-		var valid = false
-		var response:int = 0
-		while !valid and response != 1:
-			Globals.string_prompt.open(
-				"Input a valid file name for the new profile",
-				title,
-				"Profile Name",
-				[
-					{ text = "OK" },
-					{ text = "Cancel", wait = 0 }
-				]
-			)
-			title = "Invalid Profile Name"
-			Globals.string_prompt.s_alert.play()
-			response = yield(Globals.string_prompt,"option_selected")
-			Globals.string_prompt.close()
-			if response == 0:
-				# wait a frame for the prompt to close
-				yield(get_tree().create_timer(0.6),"timeout")
-				valid = Globals.string_prompt.input.get_text().is_valid_filename()
-		
-		if response == 0:
-			Rhythia.save_settings() # ensure the current settings are saved
-			Rhythia.save_settings(Globals.p("user://" + Globals.string_prompt.input.get_text() + ".settings.json"))
-		_ready()
-		return
-
-	# load the selected profile
-	var profile = profiles[i]
-	print("Loading profile: " + profile)
-	# overwrite Globals.p("user://settings.json") with the selected profile
-	# Rhythia.is_switch_profile = true
-	get_viewport().get_node("Menu").black_fade_target = true
-	yield(get_tree().create_timer(0.35),"timeout")
-	get_tree().change_scene("res://scenes/init.tscn")
-	Rhythia.load_saved_settings(profile)
-	Rhythia.save_settings()
-
+var profiles:Array = []
+var overwrite_submenu:PopupMenu = PopupMenu.new()
+var delete_submenu:PopupMenu = PopupMenu.new()
+var initialized:bool = false
 
 func _ready():
+	if not initialized:
+		initialized = true
+		overwrite_submenu.name = "Overwrite"
+		delete_submenu.name = "Delete"
+		get_popup().add_child(overwrite_submenu)
+		get_popup().add_child(delete_submenu)
+		get_popup().connect("id_pressed",self,"on_pressed")
+		overwrite_submenu.connect("id_pressed",self,"overwrite_profile")
+		delete_submenu.connect("id_pressed",self,"delete_profile")
+		if OS.has_feature("HTML5") and WebPortal.has_signal("settings_imported") and not WebPortal.is_connected("settings_imported",self,"_browser_import_finished"):
+			WebPortal.connect("settings_imported",self,"_browser_import_finished")
+	_refresh_profiles()
+
+func _refresh_profiles():
 	get_popup().clear()
 	delete_submenu.clear()
 	overwrite_submenu.clear()
-	# for every file Globals.p("user://<something>.settings.json") add an item with the name of the file
-	profiles = Globals.get_files_recursive([Globals.p("user://")], 1, "json").files # just putting .settings.json here doesn't work :(
-	# remove ones that are not settings profiles
-	for i in range(profiles.size() - 1, -1, -1): # reverse traversal, prevent bad index
-		if profiles[i].find(".settings.json") == -1:
+	profiles = Globals.get_files_recursive([Globals.p("user://")],1,"json").files
+	for i in range(profiles.size()-1,-1,-1):
+		if not str(profiles[i]).ends_with(".settings.json"):
 			profiles.remove(i)
-
-	#.substr(profiles[i].find_last("/") + 1, profiles[i].find(".settings.json") - profiles[i].find_last("/") - 1)
+	profiles.sort()
 	for i in range(profiles.size()):
-		var profileName = profiles[i].substr(profiles[i].find_last("/") + 1, profiles[i].find(".settings.json") - profiles[i].find_last("/") - 1)
-		get_popup().add_item(profileName, i)
-		delete_submenu.add_item(profileName, i)
-		overwrite_submenu.add_item(profileName, i)
-	
+		var profile_name = _profile_name(profiles[i])
+		var id = PROFILE_ID_BASE+i
+		get_popup().add_item(profile_name,id)
+		delete_submenu.add_item(profile_name,id)
+		overwrite_submenu.add_item(profile_name,id)
 	get_popup().add_separator()
-	get_popup().add_item("Create New From Current", -1)
-	
-	overwrite_submenu.name = "Overwrite"
-	delete_submenu.name = "Delete"
+	get_popup().add_item("Create New From Current",CREATE_ID)
+	get_popup().add_item("Import Settings File",IMPORT_ID)
+	if profiles.size()>0:
+		get_popup().add_separator()
+		get_popup().add_submenu_item("Overwrite Profile","Overwrite")
+		get_popup().add_submenu_item("Delete Profile","Delete")
 
-	get_popup().call_deferred("add_child", overwrite_submenu)
-	get_popup().call_deferred("add_child", delete_submenu)
+func _profile_name(path:String) -> String:
+	var file_name = path.get_file()
+	if file_name.ends_with(".settings.json"):
+		return file_name.substr(0,file_name.length()-14)
+	return file_name.get_basename()
 
-	overwrite_submenu.connect("id_pressed",self,"overwrite_profile")
-	delete_submenu.connect("id_pressed",self,"delete_profile")
+func _profile_index(id:int) -> int:
+	return id-PROFILE_ID_BASE
 
-	get_popup().add_submenu_item("Overwrite Profile", "Overwrite", -1)
-	get_popup().add_submenu_item("Delete Profile", "Delete", -1)
-	get_popup().connect("id_pressed",self,"on_pressed")
+func on_pressed(id:int):
+	if id==CREATE_ID:
+		_create_profile()
+		return
+	if id==IMPORT_ID:
+		_import_profile()
+		return
+	var index=_profile_index(id)
+	if index<0 or index>=profiles.size():
+		return
+	_switch_profile(profiles[index])
 
-func overwrite_profile(i):
-	var profile = profiles[i]
-	print("Overwriting profile: " + profile)
-	Rhythia.save_settings(profile)
+func _create_profile():
+	var title="Enter Profile Name"
+	var response:int=0
+	while true:
+		Globals.string_prompt.open("Input a valid file name for the new profile",title,"Profile Name",[{text="OK"},{text="Cancel",wait=0}])
+		Globals.string_prompt.s_alert.play()
+		response=yield(Globals.string_prompt,"option_selected")
+		var name=Globals.string_prompt.input.get_text().strip_edges()
+		Globals.string_prompt.close()
+		if response!=0:
+			return
+		yield(get_tree().create_timer(0.1),"timeout")
+		if name.is_valid_filename() and name!="":
+			Rhythia.save_settings()
+			Rhythia.save_settings(Globals.p("user://"+name+".settings.json"))
+			_refresh_profiles()
+			return
+		title="Invalid Profile Name"
 
-func delete_profile(i):
-	var profile = profiles[i]
-	print("Deleting profile: " + profile)
-	var userDir = Directory.new()
-	userDir.open(Globals.p("user://"))
-	var res:int = userDir.remove(profile)
-	if res != OK:
-		Globals.confirm_prompt.open(
-			"An error occurred while deleting your settings file. "+
-			"Try manually deleting it, and if that doesn't work, "+
-			"please ask for help in the Discord server.\n"+
-			"https://discord.gg/rhythia"+
-			"\n(error code %s)" % res,
-			"Error",
-			[{text="OK"}]
-		)
+func _switch_profile(path:String):
+	var result=Rhythia.load_saved_settings(path)
+	if result!=0:
+		_show_error("Could not load this settings profile. Error "+str(result)+".")
+		return
+	Rhythia.save_settings()
+	if OS.has_feature("HTML5"):
+		WebPortal.persist_user_data()
+	var menu=get_viewport().get_node_or_null("Menu")
+	if menu!=null:
+		menu.black_fade_target=true
+	yield(get_tree().create_timer(0.15),"timeout")
+	get_tree().change_scene("res://scenes/loaders/menuload.tscn")
 
-	_ready()
+func _import_profile():
+	if OS.has_feature("HTML5"):
+		WebPortal.request_settings_import()
+		return
+	Globals.file_sel.open_file(self,"import_selected",PoolStringArray(["*.json ; Rhythia settings"]))
+
+func import_selected(files:Array):
+	if files.empty():
+		return
+	_import_settings_file(str(files[0]),str(files[0]).get_file())
+
+func _import_settings_file(source_path:String,original_name:String):
+	var source=File.new()
+	if source.open(source_path,File.READ)!=OK:
+		_show_error("Could not read the settings file.")
+		return
+	var text=source.get_as_text()
+	source.close()
+	var parsed=JSON.parse(text)
+	if parsed.error!=OK or typeof(parsed.result)!=TYPE_DICTIONARY:
+		_show_error("That file is not a valid Rhythia settings JSON file.")
+		return
+	var name=_safe_import_name(original_name)
+	var target=Globals.p("user://"+name+".settings.json")
+	var output=File.new()
+	if output.open(target,File.WRITE)!=OK:
+		_show_error("Could not save the imported settings profile.")
+		return
+	output.store_string(text)
+	output.close()
+	_refresh_profiles()
+
+func _safe_import_name(original_name:String) -> String:
+	var name=original_name.get_file()
+	if name.ends_with(".settings.json"):
+		name=name.substr(0,name.length()-14)
+	elif name.ends_with(".json"):
+		name=name.substr(0,name.length()-5)
+	var safe=""
+	for i in range(name.length()):
+		var ch=name.substr(i,1)
+		if ch.is_valid_identifier() or ch in [" ","-","_","(",")","[","]"]:
+			safe+=ch
+	safe=safe.strip_edges()
+	if safe=="":
+		safe="Imported "+str(OS.get_unix_time())
+	return safe
+
+func _browser_import_finished(success:bool,message:String,_path:String):
+	if success:
+		_refresh_profiles()
+	text="Select Profile" if success else "Import failed"
+	hint_tooltip=message
+
+func overwrite_profile(id:int):
+	var index=_profile_index(id)
+	if index<0 or index>=profiles.size():
+		return
+	Rhythia.save_settings(profiles[index])
+	if OS.has_feature("HTML5"):
+		WebPortal.persist_user_data()
+	_refresh_profiles()
+
+func delete_profile(id:int):
+	var index=_profile_index(id)
+	if index<0 or index>=profiles.size():
+		return
+	var user_dir=Directory.new()
+	var result=user_dir.remove(profiles[index])
+	if result!=OK:
+		_show_error("Could not delete this settings profile. Error "+str(result)+".")
+		return
+	if OS.has_feature("HTML5"):
+		WebPortal.persist_user_data()
+	_refresh_profiles()
+
+func _show_error(message:String):
+	Globals.confirm_prompt.open(message,"Settings Profile",[{text="OK"}])
