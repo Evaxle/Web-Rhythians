@@ -419,15 +419,15 @@ func _battles():
 
 func _battle_match_view():
 	var data=battle.match_data
-	var match=data.get("match",{})
-	var mode=str(match.get("mode","1v1")).split(":")[0]
-	var panel=_panel("Battle %s" % mode,"Status: %s · %s" % [str(match.get("status","unknown")),str(match.get("matchType","casual"))])
+	var match_info=data.get("match",{})
+	var mode=str(match_info.get("mode","1v1")).split(":")[0]
+	var panel=_panel("Battle %s" % mode,"Status: %s · %s" % [str(match_info.get("status","unknown")),str(match_info.get("matchType","casual"))])
 	for player in data.get("players",[]): panel.add_child(RhythianUI.label("Team %d · %s · %s" % [int(player.get("team",0)),str(player.get("displayName",player.get("username","Player"))),"—" if player.get("accuracy",null)==null else "%.2f%%" % float(player.get("accuracy"))],14))
 	var map=data.get("map",null)
 	if map!=null: panel.add_child(RhythianUI.label("Map: %s" % str(map.get("title","Unknown")),16,RhythianUI.C_ACCENT,1))
 	var actions=RhythianUI.hbox(10)
 	panel.add_child(actions)
-	if str(match.get("status",""))=="map_vote":
+	if str(match_info.get("status",""))=="map_vote":
 		for option in data.get("options",[]):
 			var vote=_button(actions,str(option.get("title","Map")))
 			vote.connect("pressed",self,"_vote_map",[str(option.get("mapId",""))])
@@ -438,7 +438,7 @@ func _battle_match_view():
 		reconnect.connect("pressed",self,"_reconnect_battle")
 	var leave=_button(actions,"Forfeit")
 	leave.connect("pressed",self,"_forfeit_battle")
-	if str(match.get("status",""))=="finished":
+	if str(match_info.get("status",""))=="finished":
 		var back=_button(actions,"Return")
 		back.connect("pressed",self,"_return_battles")
 
