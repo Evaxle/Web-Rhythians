@@ -8,7 +8,7 @@ func _ready():
 	set_anchors_and_margins_preset(Control.PRESET_TOP_WIDE)
 	anchor_right = 1.0
 	rect_min_size.y = 78
-	raise()
+	call_deferred("raise")
 	for child in get_children(): child.visible = false
 	var background = ColorRect.new()
 	background.color = Color(0.035,0.045,0.07,0.98)
@@ -56,8 +56,14 @@ func _ready():
 	bar.add_child(account)
 	account.connect("pressed",self,"open_account")
 	portal = load("res://scripts/ui/menu/RhythiansPortal.gd").new()
-	get_parent().add_child(portal)
-	portal.raise()
+	call_deferred("_attach_portal")
+
+func _attach_portal():
+	if portal == null: return
+	var parent = get_parent()
+	if parent != null and portal.get_parent() == null:
+		parent.add_child(portal)
+		portal.raise()
 	if OS.has_feature("HTML5"): WebPortal.menu_ready()
 
 func _button(text:String,primary:bool) -> Button:

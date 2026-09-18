@@ -106,7 +106,8 @@ func switch_to_play_screen():
 	if Rhythia.menu_target == "res://scenes/menu/menu.tscn": return
 	if disp.find(Rhythia.registry_song.get_item(Rhythia.selected_song.id)) == -1:
 		reset_filters()
-	get_viewport().get_node("Menu/Sidebar").press(0,true)
+	var sidebar = get_viewport().get_node_or_null("Menu/Sidebar")
+	if sidebar != null and sidebar.has_method("to_play"): sidebar.to_play()
 	cur_map = disp.find(Rhythia.registry_song.get_item(Rhythia.selected_song.id))
 	load_pg(true)
 
