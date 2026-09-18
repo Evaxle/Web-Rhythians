@@ -27,11 +27,13 @@ var map_go_buttons:Dictionary={}
 var map_download_pills:Dictionary={}
 var map_sort_target_rank:int=0
 var thumbnail_cache:Dictionary={}
+var thumbnail_cache_order:Array=[]
 var thumbnail_pending:Dictionary={}
 var thumbnail_waiters:Dictionary={}
 var thumbnail_queue:Array=[]
 var thumbnail_active:int=0
-const THUMBNAIL_CONCURRENCY=4
+const THUMBNAIL_CONCURRENCY=2
+const THUMBNAIL_CACHE_LIMIT=80
 var page_epoch:int=0
 var render_scheduled:bool=false
 var pending_page:String="home"
@@ -663,9 +665,20 @@ func _thumbnail_loaded(_result:int,response_code:int,_headers:PoolStringArray,bo
 		if err!=OK and image.has_method("load_webp_from_buffer"):
 			err=image.call("load_webp_from_buffer",body)
 		if err==OK:
+			var max_w=384.0
+			var max_h=216.0
+			if image.get_width()>int(max_w) or image.get_height()>int(max_h):
+				var scale=min(max_w/float(image.get_width()),max_h/float(image.get_height()))
+				image.resize(max(1,int(round(image.get_width()*scale))),max(1,int(round(image.get_height()*scale))),Image.INTERPOLATE_BILINEAR)
 			var texture=ImageTexture.new()
 			texture.create_from_image(image,0)
+			if not thumbnail_cache.has(id):
+				thumbnail_cache_order.append(id)
 			thumbnail_cache[id]=texture
+			while thumbnail_cache_order.size()>THUMBNAIL_CACHE_LIMIT:
+				var victim=str(thumbnail_cache_order.pop_front())
+				if victim!=id:
+					thumbnail_cache.erase(victim)
 			for rect in thumbnail_waiters.get(id,[]):
 				if is_instance_valid(rect):
 					rect.texture=texture
