@@ -10,6 +10,7 @@ var menu_loaded = false
 var active_mode = "lock"
 var mode_sync_enabled = false
 var last_spin = false
+var last_score_payload = {}
 
 func _ready():
 	if not OS.has_feature("HTML5"): return
@@ -263,7 +264,7 @@ func finished():
 	var mods = []
 	for key in ["mod_mirror_x", "mod_mirror_y", "mod_extra_energy", "mod_no_regen", "mod_sudden_death", "mod_ghost", "mod_flashlight", "mod_nearsighted", "mod_hardrock", "mod_chaos"]:
 		if Rhythia.get(key): mods.append(key)
-	Rhythian.submit_web_score({
+	var payload={
 		"challengeMapId": str(active_map.get("id", "")),
 		"accuracy": float(Rhythia.song_end_hits) / total * 100.0,
 		"misses": int(Rhythia.song_end_misses),
@@ -273,7 +274,9 @@ func finished():
 		"resultQualified": true,
 		"gameVersion": "rhythians-web-3",
 		"integrationVersion": "rhythians-web-3"
-	})
+	}
+	last_score_payload=payload.duplicate(true)
+	Rhythian.submit_web_score(payload)
 	active_map.clear()
 	active_map_path = ""
 func _auth_changed():
