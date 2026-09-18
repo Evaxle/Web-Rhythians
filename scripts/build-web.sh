@@ -265,6 +265,7 @@ check_log() {
 
 
 
+rm -f localization/localization.csv.import
 run_godot /tmp/preimport.log "$GODOT_BIN" --path . --editor --quit
 check_log /tmp/preimport.log
 
