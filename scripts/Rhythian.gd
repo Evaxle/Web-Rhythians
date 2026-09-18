@@ -178,7 +178,9 @@ func _api_request(method:int, path:String, body=null, use_auth:bool=true, timeou
 	add_child(hr)
 	hr.use_threads = false
 	hr.timeout = timeout
-	var headers = PoolStringArray(["Content-Type: application/json"])
+	var headers = PoolStringArray()
+	if body != null:
+		headers.append("Content-Type: application/json")
 	if not OS.has_feature("HTML5"):
 		headers.append("User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version")))
 	if use_auth and token != "":
@@ -754,11 +756,9 @@ func download_map(map:Dictionary):
 				u = base_url + ("/" if not u.begins_with("/") else "") + u
 			candidates.append(u)
 	candidates.append(base_url + "/api/rhythkit/maps/" + id + "/download")
-	var headers = PoolStringArray()
+	var base_headers = PoolStringArray()
 	if not OS.has_feature("HTML5"):
-		headers.append("User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version")))
-	if token != "":
-		headers.append("Authorization: Bearer " + token)
+		base_headers.append("User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version")))
 	var watchdog = get_tree().create_timer(180.0)
 	watchdog.connect("timeout", self, "_dl_watchdog", [id])
 	var ok:bool = false
@@ -776,11 +776,14 @@ func download_map(map:Dictionary):
 		hop += 1
 		var dl_url:String = candidates[idx]
 		idx += 1
+		var request_headers = base_headers.duplicate()
+		if token != "" and dl_url.begins_with(base_url):
+			request_headers.append("Authorization: Bearer " + token)
 		dl_req = HTTPRequest.new()
 		add_child(dl_req)
 		dl_req.use_threads = false
 		dl_req.timeout = 120.0
-		var err = dl_req.request(dl_url, headers, true, HTTPClient.METHOD_GET)
+		var err = dl_req.request(dl_url, request_headers, true, HTTPClient.METHOD_GET)
 		if err != OK:
 			print("Rhythian download: could not start request for ", dl_url)
 			dl_req.queue_free()
