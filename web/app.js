@@ -446,6 +446,28 @@ window.rhythiansScoreResult=(ok,message)=>{
   }
 };
 
+async function copyBrowserFileToFS(file,path){
+  const fs=globalThis.FS||(globalThis.Module&&globalThis.Module.FS);
+  if(fs&&typeof fs.open==="function"&&typeof fs.write==="function"){
+    const stream=fs.open(path,"w+");
+    try{
+      const chunkSize=2*1024*1024;
+      let offset=0;
+      while(offset<file.size){
+        const end=Math.min(file.size,offset+chunkSize);
+        const chunk=new Uint8Array(await file.slice(offset,end).arrayBuffer());
+        fs.write(stream,chunk,0,chunk.length,offset);
+        offset=end;
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
+    }finally{
+      fs.close(stream);
+    }
+    return;
+  }
+  window.gameEngine.copyToFS(path,await file.arrayBuffer());
+}
+
 async function importFiles(files){
   if(!engineStarted||!engineReady){
     $("game-status").textContent="The client is still starting. Try Import again when the menu appears.";
@@ -467,7 +489,7 @@ async function importFiles(files){
     try{
       const id=(crypto.randomUUID?.()||String(Date.now())+Math.random().toString(16).slice(2)).replaceAll("-","");
       const path=`/tmp/rhythians-import-${id}.sspm`;
-      window.gameEngine.copyToFS(path,await file.arrayBuffer());
+      await copyBrowserFileToFS(file,path);
       window.rhythiansCommand?.(JSON.stringify({action:"import",path,name:file.name}));
       imported++;
     }catch(error){
