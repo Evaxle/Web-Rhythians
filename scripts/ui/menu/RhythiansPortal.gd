@@ -351,7 +351,7 @@ func _maps():
 		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading the current Rhythians map catalog…")
 		return
 	var maps=_filtered_maps()
-	var page_size=24
+	var page_size=40
 	var max_page=max(0,int(ceil(maps.size()/float(page_size)))-1)
 	map_page=int(clamp(map_page,0,max_page))
 	var start=map_page*page_size
@@ -376,8 +376,9 @@ func _maps():
 	for i in range(start,finish):
 		var map=maps[i]
 		var rating=Rhythian.get_map_rating(map)
-		var rank_name=str(map.get("rankName","Unranked"))
-		var details="%.2f rating · %s" % [rating,rank_name]
+		var difficulty=str(map.get("difficulty",map.get("rankName","Unranked")))
+		var rankability=Rhythian.get_rankability_label(map)
+		var details="%.2f ★ · %s · %s" % [rating,difficulty,rankability]
 		var challenge_level=map.get("challengeLevel",null)
 		var placement=str(map.get("challengePlacement",""))
 		if challenge_level!=null:
@@ -393,7 +394,9 @@ func _maps():
 			details+=" · Passed"
 		var rewards=map.get("maxRewards",null)
 		if typeof(rewards)==TYPE_DICTIONARY:
-			details+=" · max RPL %d / RPS %d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0))]
+			details+=" · RPL +%d / RPS +%d / RPV +%d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0)),int(rewards.get("vr",0))]
+		else:
+			details+=" · no rank points"
 		var row=_panel(str(map.get("title","Unknown map")),details)
 		row.add_child(RhythianUI.label("%s · mapped by %s" % [str(map.get("artist","Unknown Artist")),str(map.get("mapper",map.get("mapperName","Unknown")))],13,RhythianUI.C_MUTED))
 		var action=_button(row,"Play" if Rhythian.is_map_playable(str(map.get("id",""))) else "Download",true)
@@ -537,6 +540,27 @@ func _challenge():
 		if id!="":
 			var action=_button(box,"Play" if Rhythian.is_map_playable(id) else "Download",true)
 			action.connect("pressed",self,"_map_action",[map])
+func _safe_user_name(user:Dictionary) -> String:
+	var display=user.get("displayName",null)
+	if display!=null and str(display).strip_edges()!="":
+		return str(display)
+	var username=user.get("username",null)
+	if username!=null and str(username).strip_edges()!="":
+		return str(username)
+	var handle=user.get("profileHandle",null)
+	if handle!=null and str(handle).strip_edges()!="":
+		return str(handle)
+	return "User"
+
+func _safe_user_handle(user:Dictionary) -> String:
+	var handle=user.get("profileHandle",null)
+	if handle!=null and str(handle).strip_edges()!="":
+		return str(handle)
+	var username=user.get("username",null)
+	if username!=null and str(username).strip_edges()!="":
+		return str(username)
+	return ""
+
 func _online():
 	title_label.text="Online"
 	var epoch=page_epoch
@@ -550,11 +574,17 @@ func _online():
 	_panel("Who's online","%d users currently online · showing up to 40" % users.size())
 	for i in range(min(40,users.size())):
 		var user=users[i]
-		var row=_panel(str(user.get("displayName",user.get("username","User"))),"%d RHP · #%s global · Level %s" % [int(user.get("rhp",0)),str(user.get("globalPosition","-")),str(user.get("challengeLevel",0))])
+		var user_name=_safe_user_name(user)
+		var handle=_safe_user_handle(user)
+		var position=user.get("globalPosition",null)
+		var position_text="-" if position==null else str(position)
+		var row=_panel(user_name,"%d RHP · #%s global · Level %s" % [int(user.get("rhp",0)),position_text,str(user.get("challengeLevel",0))])
 		var open=_button(row,"View profile")
-		open.connect("pressed",self,"open_profile_handle",[str(user.get("profileHandle",""))])
+		open.disabled=handle==""
+		open.connect("pressed",self,"open_profile_handle",[handle])
 		var message=_button(row,"Message")
-		message.connect("pressed",self,"open_message_handle",[str(user.get("profileHandle",""))])
+		message.disabled=handle==""
+		message.connect("pressed",self,"open_message_handle",[handle])
 func _leaderboards():
 	title_label.text="Leaderboards"
 	var epoch=page_epoch
