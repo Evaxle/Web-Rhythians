@@ -429,26 +429,29 @@ func _maps():
 	if map_search!="":
 		var clear=_button(search_row,"Clear")
 		clear.connect("pressed",self,"_clear_map_search")
-	if Rhythian.maps_cache.empty():
-		if not Rhythian.catalog_loading:
-			Rhythian.call_deferred("fetch_maps")
-		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading the current Rhythians map catalog…")
-		return
-	var maps=_filtered_maps()
 	var page_size=40
-	var max_page=max(0,int(ceil(maps.size()/float(page_size)))-1)
+	var requested_rank=-1 if map_mode=="all" else int(active_rank.get("index",0))
+	var requested_offset=map_page*page_size
+	var page_mismatch=Rhythian.maps_loaded_offset!=requested_offset or Rhythian.maps_loaded_query!=map_search or Rhythian.maps_loaded_rank_index!=requested_rank
+	if Rhythian.maps_cache.empty() or page_mismatch:
+		if not Rhythian.catalog_loading:
+			Rhythian.call_deferred("fetch_maps_page",requested_offset,map_search,requested_rank)
+		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading maps for this catalog page…")
+		return
+	var maps=Rhythian.maps_cache
+	var max_page=max(0,int(ceil(Rhythian.maps_total/float(page_size)))-1)
 	map_page=int(clamp(map_page,0,max_page))
-	var start=map_page*page_size
-	var finish=min(start+page_size,maps.size())
-	var summary="%d current maps synced" % Rhythian.maps_cache.size()
+	var start=0
+	var finish=maps.size()
+	var summary="%d maps in this catalog" % Rhythian.maps_total
 	if map_mode!="all":
-		summary+=" · %d maps in your %s rank" % [maps.size(),point_name]
+		summary+=" · filtered to your %s rank" % point_name
 	elif map_search=="":
-		summary+=" · your current-rank maps are pinned first"
+		summary+=" · your current RHP rank is pinned first"
 	if map_search!="":
-		summary+=" · %d matches" % maps.size()
+		summary+=" · search: "+map_search
 	if Rhythian.catalog_loading:
-		summary+=" · refreshing in background"
+		summary+=" · refreshing"
 	var pager=_panel("Map catalog",summary+" · page %d of %d" % [map_page+1,max_page+1])
 	var page_row=RhythianUI.hbox(8)
 	pager.add_child(page_row)
