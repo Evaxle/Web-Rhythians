@@ -935,8 +935,8 @@ func browser_download_complete(id:String,success:bool,file_name:String,message:S
 	if not downloading or dl_map_id!=id:
 		return
 	var map=dl_pending_map.duplicate(true)
+	var safe_name=file_name if file_name!="" else "rhythians-"+id+".sspm"
 	if success:
-		var safe_name=file_name if file_name!="" else "rhythians-"+id+".sspm"
 		_registry_add(safe_name,map)
 	_dl_cleanup()
 	emit_signal("map_downloaded",id,success,safe_name if success else (message if message!="" else "Download failed"))
@@ -1028,15 +1028,26 @@ func _submit_score(payload:Dictionary):
 			completions_cache[mid] = rec
 			recompute_rhythian_progress()
 			emit_signal("completions_updated", true, "")
+		var profile_changed=false
 		if j.has("rhp"):
 			var new_rhp = int(j["rhp"])
-			if new_rhp > 0 and new_rhp <= 1000000:
+			if new_rhp >= 0 and new_rhp <= 1000000:
 				profile["rhp"] = new_rhp
 				last_rhp = new_rhp
 				profile_limited = false
-				if profile.has("username"): username = str(profile["username"])
-				_save_auth()
-				emit_signal("profile_updated")
+				profile_changed=true
+		var modes=profile.get("modes",{})
+		if typeof(modes)!=TYPE_DICTIONARY:
+			modes={}
+		for pair in [["rpl","rpl"],["rps","rps"],["rpv","rpv"]]:
+			if j.has(pair[0]):
+				modes[pair[1]]=int(j[pair[0]])
+				profile_changed=true
+		profile["modes"]=modes
+		if profile_changed:
+			if profile.has("username"): username = str(profile["username"])
+			_save_auth()
+			emit_signal("profile_updated")
 		emit_signal("score_submitted", true, str(pts))
 		return
 	if res.get("code", 0) == 409:
