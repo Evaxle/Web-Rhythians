@@ -488,6 +488,42 @@ $("import-sspm").onclick=()=>{
   }
 };
 $("sspm-picker").onchange=()=>importFiles($("sspm-picker").files);
+
+window.rhythiansRequestSettingsImport=()=>{
+  const picker=$("settings-picker");
+  picker.value="";
+  try{
+    if(typeof picker.showPicker==="function")picker.showPicker();
+    else picker.click();
+  }catch{
+    picker.click();
+  }
+};
+
+$("settings-picker").onchange=async()=>{
+  const file=$("settings-picker").files?.[0];
+  if(!file)return;
+  if(file.size>2097152){
+    $("game-status").textContent="Settings file is larger than 2 MiB.";
+    return;
+  }
+  try{
+    await engineReady;
+    const id=(crypto.randomUUID?.()||String(Date.now())+Math.random().toString(16).slice(2)).replaceAll("-","");
+    const path=`/tmp/rhythians-settings-${id}.json`;
+    window.gameEngine.copyToFS(path,await file.arrayBuffer());
+    window.rhythiansCommand?.(JSON.stringify({action:"import-settings",path,name:file.name}));
+    $("game-status").textContent=`Importing settings profile ${file.name}…`;
+  }catch(error){
+    $("game-status").textContent="Could not import settings: "+(error?.message||"browser file error");
+  }
+};
+
+window.rhythiansSettingsImported=(ok,message)=>{
+  $("game-status").textContent=String(message|| (ok?"Settings imported.":"Settings import failed."));
+  showGameToast($("game-status").textContent);
+  if(ok)window.rhythiansPersistUserData?.().catch(()=>{});
+};
 document.addEventListener("keydown",event=>{
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="o"&&!$("game").hidden){
     event.preventDefault();
