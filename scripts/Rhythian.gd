@@ -780,14 +780,15 @@ func download_map(map:Dictionary):
 	dir.make_dir_recursive(Globals.p(MAP_DIR))
 	var file_name = "rhythians-" + id + "-" + _safe_filename(str(map.get("title","map"))) + ".sspm"
 	var final_path = Globals.p(MAP_DIR).trim_suffix("/") + "/" + file_name
-	var candidates:Array = []
+	var part_path = final_path + ".part"
+	var candidates:Array = [base_url + "/api/rhythkit/maps/" + id + "/download?stream=1"]
 	for key in ["downloadUrl", "sspmUrl", "fileUrl", "cdnUrl", "download_url"]:
 		if map.has(key) and str(map[key]) != "":
 			var u = str(map[key])
 			if not u.begins_with("http"):
 				u = base_url + ("/" if not u.begins_with("/") else "") + u
-			candidates.append(u)
-	candidates.append(base_url + "/api/rhythkit/maps/" + id + "/download?stream=1")
+			if not candidates.has(u):
+				candidates.append(u)
 	var base_headers = PoolStringArray()
 	if not OS.has_feature("HTML5"):
 		base_headers.append("User-Agent: RhythianClient/" + str(ProjectSettings.get_setting("application/config/version")))
@@ -808,6 +809,8 @@ func download_map(map:Dictionary):
 		hop += 1
 		var dl_url:String = candidates[idx]
 		idx += 1
+		if dir.file_exists(part_path):
+			dir.remove(part_path)
 		var request_headers = base_headers.duplicate()
 		if token != "" and dl_url.begins_with(base_url):
 			request_headers.append("Authorization: Bearer " + token)
@@ -815,6 +818,7 @@ func download_map(map:Dictionary):
 		add_child(dl_req)
 		dl_req.use_threads = false
 		dl_req.timeout = 120.0
+		dl_req.download_file = part_path
 		var err = dl_req.request(dl_url, request_headers, true, HTTPClient.METHOD_GET)
 		if err != OK:
 			print("Rhythian download: could not start request for ", dl_url)
@@ -827,13 +831,17 @@ func download_map(map:Dictionary):
 		print("Rhythian download: ", dl_url, " -> HTTP ", last_code)
 		dl_req.queue_free()
 		dl_req = null
+		var response_text = ""
+		var downloaded = File.new()
+		if downloaded.file_exists(part_path) and downloaded.open(part_path, File.READ) == OK:
+			var sample_size = min(downloaded.get_len(), 65536)
+			var sample = downloaded.get_buffer(sample_size)
+			downloaded.close()
+			response_text = sample.get_string_from_utf8().strip_edges()
 		if last_result != HTTPRequest.RESULT_SUCCESS or last_code < 200 or last_code >= 300:
-			var body_text:String = ""
-			if res.size() > 3:
-				body_text = res[3].get_string_from_utf8()
 			if last_code == 403:
 				saw_403 = true
-				var errj = JSON.parse(body_text)
+				var errj = JSON.parse(response_text)
 				if errj.error == OK and typeof(errj.result) == TYPE_DICTIONARY and str(errj.result.get("error","")) != "":
 					var em = str(errj.result.get("error"))
 					if em.findn("rank") != -1:
@@ -843,35 +851,33 @@ func download_map(map:Dictionary):
 			elif last_code == 401:
 				saw_401 = true
 			elif last_code >= 400:
-				var ej = JSON.parse(body_text)
+				var ej = JSON.parse(response_text)
 				if ej.error == OK and typeof(ej.result) == TYPE_DICTIONARY and str(ej.result.get("error","")) != "" and server_error_msg == "":
 					server_error_msg = str(ej.result.get("error"))
+			if dir.file_exists(part_path):
+				dir.remove(part_path)
 			continue
-		var body:PoolByteArray = res[3]
-		if body.size() < 4:
+		if is_valid_sspm_file(part_path):
+			if dir.file_exists(final_path):
+				dir.remove(final_path)
+			if dir.rename(part_path, final_path) != OK:
+				load_error = "Map downloaded, but the browser could not move it into the Play library."
+				continue
+			yield(get_tree(), "idle_frame")
+			var song = null
+			if Rhythia.registry_song != null and Rhythia.registry_song.has_method("add_sspm_map"):
+				song = Rhythia.registry_song.add_sspm_map(final_path)
+			if song == null:
+				song = _registered_song_by_file(file_name)
+			if song == null:
+				load_error = "Map downloaded, but this client can't load the file (it may need a newer game version or required mods)"
+				dir.remove(final_path)
+			else:
+				_registry_add(file_name, map)
+				ok = true
 			continue
-		if body[0] == 0x53 and body[1] == 0x53 and body[2] == 0x2b and body[3] == 0x6d:
-			var f = File.new()
-			if f.open(final_path, File.WRITE) == OK:
-				f.store_buffer(body)
-				f.close()
-				var song = null
-				if Rhythia.registry_song != null and Rhythia.registry_song.has_method("add_sspm_map"):
-					song = Rhythia.registry_song.add_sspm_map(get_map_file_path(file_name))
-				if song == null:
-					song = _registered_song_by_file(file_name)
-				if song == null:
-					load_error = "Map downloaded, but this client can't load the file (it may need a newer game version or required mods)"
-				else:
-					_registry_add(file_name, map)
-					ok = true
-			continue
-		var sample:PoolByteArray = body
-		if body.size() > 65536:
-			sample = body.subarray(0, 65535)
-		var trimmed:String = sample.get_string_from_utf8().strip_edges()
-		if trimmed.begins_with("{") or trimmed.begins_with("["):
-			var parsed = JSON.parse(trimmed)
+		if response_text.begins_with("{") or response_text.begins_with("["):
+			var parsed = JSON.parse(response_text)
 			if parsed.error == OK:
 				var follow = _find_download_url(parsed.result)
 				if follow != "":
@@ -879,9 +885,16 @@ func download_map(map:Dictionary):
 						follow = base_url + ("/" if not follow.begins_with("/") else "") + follow
 					print("Rhythian download: following file URL from JSON response")
 					candidates.insert(idx, follow)
+					if dir.file_exists(part_path):
+						dir.remove(part_path)
 					continue
+		if dir.file_exists(part_path):
+			dir.remove(part_path)
 		print("Rhythian download: response was not a valid .sspm, trying next source")
 		saw_bad_200 = true
+	if dir.file_exists(part_path):
+		dir.remove(part_path)
+	_dl_cleanup()
 	if ok:
 		emit_signal("map_downloaded", id, true, file_name)
 	else:
@@ -901,7 +914,6 @@ func download_map(map:Dictionary):
 		elif last_result == HTTPRequest.RESULT_SUCCESS:
 			msg = "Download failed (HTTP " + str(last_code) + ")"
 		emit_signal("map_downloaded", id, false, msg)
-	_dl_cleanup()
 
 func _dl_cleanup():
 	if dl_req != null:
