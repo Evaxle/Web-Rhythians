@@ -1,1 +1,1 @@
-Validated browser toolbar and Godot client deployment trigger.
+Validated settings, profile import, profile switching, and reliable Godot navigation deployment trigger.
