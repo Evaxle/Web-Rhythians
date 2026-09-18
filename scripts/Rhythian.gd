@@ -56,6 +56,7 @@ var device_expiry:int = 0
 var dl_req:HTTPRequest = null
 var dl_map_id:String = ""
 var downloading:bool = false
+var dl_progress_accum:float = 0.0
 
 const RANKS = [
 	{"name":"Copper","minRhp":0,"color":"#b87333","rangeMin":0.0,"rangeMax":2.49},
@@ -87,9 +88,14 @@ func _ready():
 		refresh_status()
 		_flush_score_queue()
 
-func _process(_delta):
+func _process(delta):
 	if dl_req != null and is_instance_valid(dl_req):
-		emit_signal("download_progress", dl_map_id, dl_req.get_downloaded_bytes(), dl_req.get_body_size())
+		dl_progress_accum+=delta
+		if dl_progress_accum>=0.1:
+			dl_progress_accum=0.0
+			emit_signal("download_progress", dl_map_id, dl_req.get_downloaded_bytes(), dl_req.get_body_size())
+	else:
+		dl_progress_accum=0.0
 
 func _ensure_dirs():
 	var dir = Directory.new()
