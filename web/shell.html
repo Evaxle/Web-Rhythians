@@ -76,16 +76,24 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
 </section>
 
 <section id="game" hidden>
-  <div class="game-tools">
-    <div class="game-brand"><img src="logo.png" alt="">Rhythians</div>
-    <span id="account-state">Guest</span>
-    <span id="game-status" role="status" aria-live="polite"></span>
-    <button id="import-sspm" type="button" title="Import one or more SSPM maps into the normal Play library">Import SSPM</button>
-    <input id="sspm-picker" type="file" accept=".sspm,application/octet-stream" multiple hidden>
-    <button id="fullscreen" type="button" title="Toggle fullscreen or immersive browser mode">Fullscreen</button>
-    <button id="change-account" type="button" title="Sign in, switch account, or use guest mode">Account</button>
-  </div>
   <canvas id="canvas" tabindex="0" aria-label="Rhythians game"></canvas>
+  <div id="game-tools" class="game-tools">
+    <button id="tools-toggle" class="tools-toggle" type="button" aria-expanded="false" aria-controls="tools-panel" title="Rhythians browser tools">Tools</button>
+    <div id="tools-panel" class="tools-panel">
+      <div class="tools-head">
+        <div class="game-brand"><img src="logo.png" alt=""><span>Rhythians Web</span></div>
+        <span id="account-state">Guest</span>
+      </div>
+      <div class="tools-actions">
+        <button id="import-sspm" type="button" title="Import one or more SSPM maps into the normal Play library">Import SSPM</button>
+        <input id="sspm-picker" type="file" accept=".sspm,application/octet-stream" multiple hidden>
+        <button id="fullscreen" type="button" title="Toggle fullscreen or immersive browser mode">Fullscreen</button>
+        <button id="change-account" type="button" title="Sign in, switch account, or use guest mode">Account</button>
+      </div>
+      <span id="game-status" role="status" aria-live="polite"></span>
+    </div>
+  </div>
+  <div id="game-toast" role="status" aria-live="polite" hidden></div>
 </section>
 
 <div id="drop" hidden>Drop SSPM files to import them into Rhythians</div>
