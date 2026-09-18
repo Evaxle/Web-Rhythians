@@ -32,6 +32,11 @@ var database_ok:bool = false
 
 var profile:Dictionary = {}
 var maps_cache:Array = []
+var maps_total:int = 0
+var maps_loaded_offset:int = 0
+var maps_loaded_query:String = ""
+var maps_loaded_rank_index:int = -1
+var maps_page_limit:int = 40
 var scores_cache:Array = []
 var completions_cache:Dictionary = {}
 var rhythian_stats:Dictionary = {"completed": 0, "total": 0, "rhp": 0}
@@ -52,19 +57,17 @@ var dl_map_id:String = ""
 var downloading:bool = false
 
 const RANKS = [
-	{"name":"Copper","minRhp":0,"color":"#b87333","rangeMin":0.0,"rangeMax":1.09},
-	{"name":"Bronze","minRhp":500,"color":"#cd7f32","rangeMin":1.1,"rangeMax":1.49},
-	{"name":"Silver","minRhp":1000,"color":"#c0c0c0","rangeMin":1.5,"rangeMax":1.89},
-	{"name":"Gold","minRhp":1500,"color":"#ffd700","rangeMin":1.9,"rangeMax":2.29},
-	{"name":"Platinum","minRhp":2000,"color":"#7fd4ff","rangeMin":2.3,"rangeMax":2.69},
-	{"name":"Emerald","minRhp":2500,"color":"#50c878","rangeMin":2.7,"rangeMax":2.99},
-	{"name":"Diamond","minRhp":3000,"color":"#b9f2ff","rangeMin":3.0,"rangeMax":3.29},
-	{"name":"Master","minRhp":3500,"color":"#a855f7","rangeMin":3.3,"rangeMax":3.69},
-	{"name":"Expert","minRhp":4000,"color":"#f43f5e","rangeMin":3.7,"rangeMax":9.99},
+	{"name":"Copper","minRhp":0,"color":"#b87333","rangeMin":0.0,"rangeMax":2.49},
+	{"name":"Bronze","minRhp":600,"color":"#cd7f32","rangeMin":2.5,"rangeMax":3.19},
+	{"name":"Silver","minRhp":1600,"color":"#c0c0c0","rangeMin":3.2,"rangeMax":3.69},
+	{"name":"Gold","minRhp":3100,"color":"#ffd700","rangeMin":3.7,"rangeMax":4.19},
+	{"name":"Platinum","minRhp":5150,"color":"#7fd4ff","rangeMin":4.2,"rangeMax":4.69},
+	{"name":"Emerald","minRhp":7850,"color":"#50c878","rangeMin":4.7,"rangeMax":5.19},
+	{"name":"Diamond","minRhp":11300,"color":"#b9f2ff","rangeMin":5.2,"rangeMax":5.69},
+	{"name":"Master","minRhp":15550,"color":"#a855f7","rangeMin":5.7,"rangeMax":6.19},
+	{"name":"Expert","minRhp":20750,"color":"#f43f5e","rangeMin":6.2,"rangeMax":99.0},
 ]
-const RANK_SPAN = 500
 const RANK_TIERS = 5
-const TIER_SPAN = 100
 const MAP_RHP_FLOOR = 18.0
 const MAP_RHP_CEILING = 25.0
 const MAP_LENGTH_REFERENCE_SECONDS = 180.0
@@ -149,6 +152,10 @@ func _refresh_browser_account():
 func _clear_account_state():
 	profile = {}
 	maps_cache = []
+	maps_total = 0
+	maps_loaded_offset = 0
+	maps_loaded_query = ""
+	maps_loaded_rank_index = -1
 	scores_cache = []
 	completions_cache = {}
 	rhythian_stats = {"completed": 0, "total": 0, "rhp": 0}
@@ -481,6 +488,9 @@ func fetch_scores():
 		emit_signal("scores_updated", false, scores_error)
 
 func fetch_maps():
+	return fetch_maps_page(0,"",-1)
+
+func fetch_maps_page(offset:int=0,query:String="",rank_index:int=-1):
 	if catalog_loading:
 		return
 	if not logged_in:
@@ -488,77 +498,40 @@ func fetch_maps():
 		emit_signal("maps_updated", false, maps_error)
 		return
 	catalog_loading = true
-	var collected:Array = []
-	var seen:Dictionary = {}
-	var offset:int = 0
-	var safety:int = 0
-	var page_limit:int = 40 if OS.has_feature("HTML5") else 250
-	var complete:bool = true
-	var error_message:String = ""
-	while safety < 100:
-		safety += 1
-		var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/maps?limit=" + str(page_limit) + "&offset=" + str(offset), null, true, 60.0), "completed")
-		if _handle_auth_failure(res):
-			complete = false
-			error_message = "Your Rhythians session expired - sign in again."
-			break
-		if not res.get("ok", false):
-			complete = false
-			error_message = _http_error_message(res, "the map list")
-			break
-		var j = res.get("json", {})
-		if typeof(j) != TYPE_DICTIONARY:
-			complete = false
-			error_message = "The Rhythians map API returned an invalid response."
-			break
-		if j.has("ok") and not bool(j.get("ok", false)):
-			complete = false
-			error_message = str(j.get("error", "Could not load the map list"))
-			break
-		var arr:Array = _extract_array(j, ["maps", "data", "items", "results", "challengeMaps", "challenges"])
-		if arr.size() == 0 and j.has("maps") and typeof(j["maps"]) == TYPE_DICTIONARY:
-			arr = _extract_array(j["maps"], ["data", "items", "results", "maps"])
-		var fresh:int = 0
-		for i in range(arr.size()):
-			var map = arr[i]
-			if typeof(map) != TYPE_DICTIONARY:
-				continue
-			var mid = str(map.get("id", ""))
-			if mid == "" or seen.has(mid):
-				continue
-			seen[mid] = true
-			collected.append(map)
-			fresh += 1
-			if OS.has_feature("HTML5") and i > 0 and i % 75 == 0:
-				yield(get_tree(), "idle_frame")
-		if offset==0 and collected.size()>0 and maps_cache.empty():
-			maps_cache=collected.duplicate(true)
-			maps_error=""
-			emit_signal("maps_updated",true,"")
-			yield(get_tree(),"idle_frame")
-		var has_more:bool = bool(j.get("hasMore", arr.size() >= page_limit))
-		if not has_more:
-			break
-		if arr.size() == 0 or fresh == 0:
-			complete = false
-			error_message = "The Rhythians map catalog stopped before all pages were received."
-			break
-		offset = int(j.get("offset", offset)) + arr.size()
-	if safety >= 100:
-		complete = false
-		error_message = "The Rhythians map catalog exceeded the safe pagination limit."
-	catalog_loading = false
-	if not complete:
-		maps_error = error_message
-		emit_signal("maps_updated", false, maps_error)
+	var safe_offset=max(0,offset)
+	var safe_rank=rank_index if rank_index>=0 and rank_index<RANKS.size() else -1
+	var path="/api/rhythkit/maps?limit="+str(maps_page_limit)+"&offset="+str(safe_offset)
+	if query.strip_edges()!="":
+		path+="&q="+query.strip_edges().http_escape()
+	if safe_rank>=0:
+		path+="&rankIndex="+str(safe_rank)
+	var res=yield(_api_request(HTTPClient.METHOD_GET,path,null,true,60.0),"completed")
+	catalog_loading=false
+	if _handle_auth_failure(res):
+		maps_error="Your Rhythians session expired - sign in again."
+		emit_signal("maps_updated",false,maps_error)
 		return
-	maps_cache = collected
-	completions_embedded = _maps_have_embedded_completions(collected)
-	completions_error = "" if completions_embedded else completions_error
-	maps_error = ""
+	if not res.get("ok",false):
+		maps_error=_http_error_message(res,"the map list")
+		emit_signal("maps_updated",false,maps_error)
+		return
+	var j=res.get("json",{})
+	if typeof(j)!=TYPE_DICTIONARY or (j.has("ok") and not bool(j.get("ok",false))):
+		maps_error=str(j.get("error","The Rhythians map API returned an invalid response.")) if typeof(j)==TYPE_DICTIONARY else "The Rhythians map API returned an invalid response."
+		emit_signal("maps_updated",false,maps_error)
+		return
+	var arr:Array=_extract_array(j,["maps","data","items","results","challengeMaps","challenges"])
+	maps_cache=arr
+	maps_total=max(arr.size(),int(j.get("total",arr.size())))
+	maps_loaded_offset=int(j.get("offset",safe_offset))
+	maps_loaded_query=query.strip_edges()
+	maps_loaded_rank_index=safe_rank
+	completions_embedded=_maps_have_embedded_completions(arr)
+	maps_error=""
 	_sync_registry_metadata()
 	recompute_rhythian_progress()
-	emit_signal("maps_updated", true, "")
+	emit_signal("maps_updated",true,"")
+
 func _maps_have_embedded_completions(maps:Array) -> bool:
 	for m in maps:
 		if typeof(m) == TYPE_DICTIONARY and m.has("completion"):
@@ -723,7 +696,7 @@ func recompute_rhythian_progress():
 		if typeof(emb) == TYPE_DICTIONARY and (bool(emb.get("passed", false)) or bool(emb.get("hasScore", false)) or bool(emb.get("completed", false))):
 			completed += 1
 			rhp += _completion_points(emb)
-	rhythian_stats = {"completed": completed, "total": maps_cache.size(), "rhp": rhp}
+	rhythian_stats = {"completed": completed, "total": maps_total if maps_total > 0 else maps_cache.size(), "rhp": rhp}
 
 func _completion_points(c:Dictionary) -> int:
 	for key in ["points", "rhp", "rhpAwarded", "pointsEarned", "reward", "pointsAwarded", "earned"]:
@@ -1078,8 +1051,6 @@ func _registry_add(file_name:String, map:Dictionary):
 	registry[file_name] = _map_registry_payload(map)
 	registry[file_name]["downloadedAt"] = _iso_now()
 	_save_registry()
-	if OS.has_feature("HTML5"):
-		WebPortal.persist_user_data()
 
 func _map_registry_payload(map:Dictionary) -> Dictionary:
 	return {
@@ -1178,35 +1149,35 @@ func is_valid_sspm_file(path:String) -> bool:
 	return head.size() == 4 and head[0] == 0x53 and head[1] == 0x53 and head[2] == 0x2b and head[3] == 0x6d
 
 func get_rank_info(rhp:int) -> Dictionary:
-	var safe = max(int(floor(rhp)), 0)
-	var index = min(RANKS.size() - 1, int(floor(safe / float(RANK_SPAN))))
-	var rank = RANKS[index]
-	var within = safe - int(rank.minRhp)
-	var tier = min(RANK_TIERS, int(floor(within / float(TIER_SPAN))) + 1)
-	var tier_start = int(rank.minRhp) + (tier - 1) * TIER_SPAN
-	var tier_end = min(tier_start + TIER_SPAN, int(rank.minRhp) + RANK_SPAN)
-	var next_tier_start = min(int(rank.minRhp) + tier * TIER_SPAN, int(rank.minRhp) + RANK_SPAN)
-	var progress = clamp((safe - tier_start) / float(TIER_SPAN), 0.0, 1.0)
-	var next_rank_start = null
-	var max_rhp = null
-	if index < RANKS.size() - 1:
-		next_rank_start = int(RANKS[index + 1].minRhp)
-		max_rhp = int(rank.minRhp) + RANK_SPAN
+	var safe=max(int(floor(rhp)),0)
+	var index=0
+	for i in range(RANKS.size()-1,-1,-1):
+		if safe>=int(RANKS[i].minRhp):
+			index=i
+			break
+	var rank=RANKS[index]
+	var is_expert=index==RANKS.size()-1
+	if is_expert:
+		return {
+			"index":index,"name":str(rank.name),"tier":1,"isExpert":true,
+			"minRhp":int(rank.minRhp),"maxRhp":null,"tierStart":int(rank.minRhp),
+			"tierEnd":2147483647,"nextTierStart":int(rank.minRhp),"nextRankStart":null,
+			"color":Color(str(rank.color)),"progressToNextTier":1.0,
+			"rangeMin":float(rank.rangeMin),"rangeMax":float(rank.rangeMax)
+		}
+	var next_rank_start=int(RANKS[index+1].minRhp)
+	var span=max(1,next_rank_start-int(rank.minRhp))
+	var within=safe-int(rank.minRhp)
+	var tier=min(RANK_TIERS,int(floor(within*RANK_TIERS/float(span)))+1)
+	var tier_start=int(rank.minRhp)+int(floor(span*(tier-1)/float(RANK_TIERS)))
+	var tier_end=next_rank_start if tier==RANK_TIERS else int(rank.minRhp)+int(floor(span*tier/float(RANK_TIERS)))
+	var progress=clamp((safe-tier_start)/float(max(1,tier_end-tier_start)),0.0,1.0)
 	return {
-		"index": index,
-		"name": str(rank.name),
-		"tier": tier,
-		"isExpert": index == RANKS.size() - 1,
-		"minRhp": int(rank.minRhp),
-		"maxRhp": max_rhp,
-		"tierStart": tier_start,
-		"tierEnd": tier_end,
-		"nextTierStart": next_tier_start,
-		"nextRankStart": next_rank_start,
-		"color": Color(str(rank.color)),
-		"progressToNextTier": progress,
-		"rangeMin": float(rank.rangeMin),
-		"rangeMax": float(rank.rangeMax)
+		"index":index,"name":str(rank.name),"tier":tier,"isExpert":false,
+		"minRhp":int(rank.minRhp),"maxRhp":next_rank_start,"tierStart":tier_start,
+		"tierEnd":tier_end,"nextTierStart":tier_end,"nextRankStart":next_rank_start,
+		"color":Color(str(rank.color)),"progressToNextTier":progress,
+		"rangeMin":float(rank.rangeMin),"rangeMax":float(rank.rangeMax)
 	}
 
 func is_map_in_rank_range(rating:float, rank_index:int) -> bool:
