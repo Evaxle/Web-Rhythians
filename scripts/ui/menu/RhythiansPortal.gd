@@ -14,9 +14,17 @@ var battle:Node
 var clips:Node
 var search_query=""
 var chat_handle=""
+var profile_handle=""
 var global_refresh_accum=0.0
 var direct_refresh_accum=0.0
 var map_page=0
+var map_search=""
+var page_epoch:int=0
+var render_scheduled:bool=false
+var pending_page:String="home"
+var page_dirty:bool=true
+var api_cache:Dictionary={}
+var api_cache_time:Dictionary={}
 
 func _ready():
 	Rhythian.base_url=BASE_URL
@@ -60,55 +68,75 @@ func _ready():
 	Rhythian.connect("maps_updated",self,"_refresh_page")
 	Rhythian.connect("map_downloaded",self,"_map_downloaded")
 	Rhythian.connect("connection_checked",self,"_connection_checked")
-	show_page("home")
+	show_page("home",true)
 
 func _process(delta:float):
-	if not visible: return
+	if not visible:
+		return
 	global_refresh_accum+=delta
 	direct_refresh_accum+=delta
-	if selected_page=="global-chat" and global_refresh_accum>=3.0:
+	if selected_page=="global-chat" and global_refresh_accum>=10.0:
 		global_refresh_accum=0.0
-		if get_focus_owner()==null or not (get_focus_owner() is LineEdit): _refresh_global_chat_silent()
-	if selected_page=="messages" and chat_handle!="" and direct_refresh_accum>=3.0:
+		if get_focus_owner()==null or not (get_focus_owner() is LineEdit):
+			_refresh_global_chat_silent()
+	if selected_page=="messages" and chat_handle!="" and direct_refresh_accum>=8.0:
 		direct_refresh_accum=0.0
-		if get_focus_owner()==null or not (get_focus_owner() is LineEdit): _refresh_direct_silent()
+		if get_focus_owner()==null or not (get_focus_owner() is LineEdit):
+			_refresh_direct_silent()
 
 func open_page(page:String):
+	if page=="":
+		return
 	visible=true
-	show_page(page)
+	show_page(page,false)
 
 func close_page():
 	visible=false
+	page_epoch+=1
+	render_scheduled=false
 
 func _refresh_page(_a=null,_b=null):
-	show_page(selected_page)
+	if not visible:
+		page_dirty=true
+		return
+	show_page(selected_page,true)
 
 func _battle_state_changed(_data):
-	if selected_page=="battles": show_page("battles")
+	if visible and selected_page=="battles":
+		show_page("battles",true)
 
 func _network_error(message:String):
-	status.text=message
-	if selected_page=="battles": show_page("battles")
+	if status!=null:
+		status.text=message
+	if visible and selected_page=="battles":
+		show_page("battles",true)
 
 func _connection_checked(web_ok:bool,db_ok:bool):
-	if selected_page=="home": status.text="Internet: %s · Rhythians API: %s · Database: %s" % ["connected" if web_ok else "offline","online" if web_ok else "unavailable","connected" if db_ok else "unavailable"]
+	if visible and selected_page=="home":
+		status.text="Internet: %s · Rhythians API: %s · Database: %s" % ["connected" if web_ok else "offline","online" if web_ok else "unavailable","connected" if db_ok else "unavailable"]
 
 func _load_settings():
 	var file=File.new()
-	if not file.file_exists(Globals.p(SETTINGS_FILE)): return
-	if file.open(Globals.p(SETTINGS_FILE),File.READ)!=OK: return
+	if not file.file_exists(Globals.p(SETTINGS_FILE)):
+		return
+	if file.open(Globals.p(SETTINGS_FILE),File.READ)!=OK:
+		return
 	var parsed=JSON.parse(file.get_as_text())
 	file.close()
-	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY: spin_enabled=bool(parsed.result.get("spinEnabled",false))
+	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY:
+		spin_enabled=bool(parsed.result.get("spinEnabled",false))
 
 func _save_settings():
 	var file=File.new()
-	if file.open(Globals.p(SETTINGS_FILE),File.WRITE)!=OK: return
+	if file.open(Globals.p(SETTINGS_FILE),File.WRITE)!=OK:
+		return
 	file.store_string(JSON.print({"spinEnabled":spin_enabled}))
 	file.close()
 
 func _clear():
-	for child in content.get_children(): child.queue_free()
+	for child in content.get_children():
+		content.remove_child(child)
+		child.queue_free()
 	status.text=""
 
 func _panel(name:String,text:String="") -> VBoxContainer:
@@ -137,10 +165,30 @@ func _line(parent:Container,placeholder:String,initial:String="") -> LineEdit:
 	parent.add_child(field)
 	return field
 
-func show_page(page:String):
+func show_page(page:String,force:bool=true):
+	if page=="":
+		page="home"
+	if not force and page==selected_page and not page_dirty:
+		return
 	selected_page=page
+	page_dirty=false
+	page_epoch+=1
+	pending_page=page
 	global_refresh_accum=0.0
 	direct_refresh_accum=0.0
+	if render_scheduled:
+		return
+	render_scheduled=true
+	call_deferred("_render_pending_page")
+
+func _render_pending_page():
+	render_scheduled=false
+	if not visible:
+		page_dirty=true
+		return
+	var page=pending_page
+	if page!=selected_page:
+		return
 	_clear()
 	match page:
 		"home": _home()
@@ -159,16 +207,60 @@ func show_page(page:String):
 		"rules": _rules()
 		"community": _community()
 		"account": _account()
-		"profile": _profile(Rhythian.username)
+		"profile": _profile(profile_handle if profile_handle!="" else Rhythian.username)
 		_: _home()
 
-func _api_page(page:String,extra:Dictionary={}) -> Dictionary:
+func _page_is_current(page:String,epoch:int) -> bool:
+	return visible and selected_page==page and page_epoch==epoch
+
+func _cache_key(page:String,extra:Dictionary) -> String:
+	var keys=extra.keys()
+	keys.sort()
+	var key=page
+	for k in keys:
+		key+="|"+str(k)+"="+str(extra[k])
+	return key
+
+func _cache_ttl(page:String) -> int:
+	match page:
+		"wiki","rules": return 300000
+		"daily","path","challenge": return 60000
+		"leaderboards": return 30000
+		"online","clips","profile","search": return 15000
+		"messages","global-chat": return 0
+		_: return 10000
+
+func _invalidate_cache(page:String):
+	var remove=[]
+	for key in api_cache.keys():
+		if str(key).begins_with(page+"|") or str(key)==page:
+			remove.append(key)
+	for key in remove:
+		api_cache.erase(key)
+		api_cache_time.erase(key)
+
+func _api_page(page:String,extra:Dictionary={},force:bool=false) -> Dictionary:
+	var key=_cache_key(page,extra)
+	var ttl=_cache_ttl(page)
+	var now=OS.get_ticks_msec()
+	if not force and ttl>0 and api_cache.has(key) and now-int(api_cache_time.get(key,0))<ttl:
+		yield(get_tree(),"idle_frame")
+		var cached=api_cache[key].duplicate(true)
+		cached["ok"]=true
+		return cached
 	var query="page="+page
-	for k in extra.keys(): query += "&"+str(k).http_escape()+"="+str(extra[k]).http_escape()
+	var keys=extra.keys()
+	keys.sort()
+	for k in keys:
+		query+="&"+str(k).http_escape()+"="+str(extra[k]).http_escape()
 	var result=yield(Rhythian._api_request(HTTPClient.METHOD_GET,"/api/rhythkit/portal?"+query,null,true,35.0),"completed")
-	if not result.get("ok",false): return {"ok":false,"message":Rhythian._http_error_message(result,page)}
+	if not result.get("ok",false):
+		return {"ok":false,"message":Rhythian._http_error_message(result,page)}
 	var json=result.get("json",{})
-	if typeof(json)!=TYPE_DICTIONARY: return {"ok":false,"message":"The Rhythians API returned an invalid response."}
+	if typeof(json)!=TYPE_DICTIONARY:
+		return {"ok":false,"message":"The Rhythians API returned an invalid response."}
+	api_cache[key]=json.duplicate(true)
+	api_cache_time[key]=OS.get_ticks_msec()
 	json["ok"]=true
 	return json
 
