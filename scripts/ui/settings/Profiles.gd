@@ -27,10 +27,19 @@ func _ready():
 		import_button.text="Import Settings"
 		import_button.rect_min_size=Vector2(120,33)
 		import_button.focus_mode=Control.FOCUS_NONE
-		get_parent().add_child(import_button)
-		get_parent().move_child(import_button,get_index()+1)
 		import_button.connect("pressed",self,"_import_profile")
+		call_deferred("_install_import_button")
 	_refresh_profiles()
+
+func _install_import_button():
+	if import_button==null or not is_instance_valid(import_button):
+		return
+	var parent=get_parent()
+	if parent==null:
+		return
+	if import_button.get_parent()==null:
+		parent.add_child(import_button)
+		parent.move_child(import_button,get_index()+1)
 
 func _refresh_profiles():
 	get_popup().clear()
