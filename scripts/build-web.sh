@@ -103,7 +103,7 @@ blocked_exact = {
     "assets/worlds/event_horizon/starmap_4k.png",
 }
 resource_suffixes = {
-    ".gd", ".tscn", ".tres", ".res", ".obj", ".dae", ".glb", ".gltf",
+    ".gd", ".tscn", ".tres", ".res", ".obj", ".dae", ".glb", ".gltf", ".csv",
     ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ttf", ".otf",
     ".wav", ".mp3", ".ogg", ".webm", ".shader",
 }
@@ -126,6 +126,15 @@ for base in (Path("scripts"), Path("web")):
 pack_smoke = Path("web/PackSmoke.gd")
 if pack_smoke.exists():
     selected.add("res://web/PackSmoke.gd")
+
+for core in [
+    "default_bus_layout.tres",
+    "default_env.tres",
+    "uitheme.tres",
+    "localization/localization.csv",
+]:
+    if Path(core).exists():
+        selected.add("res://" + core)
 
 scan_files.append(Path("project.godot"))
 path_pattern = re.compile(r'res://[^"\']+')
@@ -165,16 +174,29 @@ PY
 python3 - <<'PY'
 from pathlib import Path
 
-for name in [
-    "assets/worlds/baseplate/skybox.png.import",
-    "assets/worlds/event_horizon/starmap.png.import",
-]:
+limits = {
+    "assets/worlds/baseplate/skybox.png.import": 2048,
+    "assets/worlds/event_horizon/starmap.png.import": 2048,
+    "assets/images/ui/flashlight.png.import": 2048,
+    "assets/images/grid_inner.png.import": 1024,
+    "assets/images/grid_outer.png.import": 1024,
+    "assets/images/spawn_effect.png.import": 1024,
+    "assets/notefx/miss/miss.png.import": 1024,
+    "assets/notefx/ripple/ripple.png.import": 1024,
+    "assets/notefx/shards/shard.png.import": 1024,
+    "assets/worlds/neon_tunnel/ring.png.import": 1024,
+    "assets/worlds/neon_tunnel/space_ring.png.import": 1024,
+    "assets/worlds/neon_tunnel/space_ring_b.png.import": 1024,
+}
+for name, limit in limits.items():
     path = Path(name)
     if not path.exists():
         continue
     text = path.read_text()
-    text = text.replace("compress/mode=0", "compress/mode=1")
-    text = text.replace("size_limit=0", "size_limit=2048")
+    for mode in ("compress/mode=1", "compress/mode=2", "compress/mode=3"):
+        text = text.replace(mode, "compress/mode=0")
+    text = text.replace("flags/mipmaps=true", "flags/mipmaps=false")
+    text = text.replace("size_limit=0", f"size_limit={limit}")
     path.write_text(text)
 PY
 
@@ -249,7 +271,7 @@ pack_rc=0
   timeout 60s "$GODOT_BIN" --main-pack "$PACK_PATH" --script res://web/PackSmoke.gd
 ) >/tmp/pack-smoke.log 2>&1 || pack_rc=$?
 cat /tmp/pack-smoke.log
-if [ "$pack_rc" -ne 0 ] || ! grep -q 'PACK_SMOKE_FAILURES=0' /tmp/pack-smoke.log || grep -E 'SCRIPT ERROR|Parse Error|Cannot load source code|Can.t autoload' /tmp/pack-smoke.log; then
+if [ "$pack_rc" -ne 0 ] || ! grep -q 'PACK_SMOKE_FAILURES=0' /tmp/pack-smoke.log || grep -E 'SCRIPT ERROR|Parse Error|Cannot load source code|Can.t autoload|Cannot open file .res://localization/' /tmp/pack-smoke.log; then
   echo "Exported Web PCK failed runtime dependency validation." >&2
   exit 1
 fi
