@@ -52,5 +52,9 @@ func _ready():
 	get_tree().root.add_child(menu)
 	yield(get_tree(), "idle_frame")
 	check(menu != null and menu.get_node_or_null("Sidebar") != null, "real client menu loads")
+	if menu != null:
+		menu.queue_free()
+		yield(get_tree(), "idle_frame")
+		yield(get_tree(), "idle_frame")
 	print("SMOKE_FAILURES=" + str(failures))
 	get_tree().quit(1 if failures else 0)
