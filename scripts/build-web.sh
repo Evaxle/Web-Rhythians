@@ -112,9 +112,11 @@ test -s build/web/index.html
 test -s build/web/index.wasm
 test -s build/web/index.pck
 grep -q 'https://www.rhythians.com' web/app.js
-grep -q 'id="launch-play"' web/shell.html
-grep -q 'id="signin-rhythians"' web/shell.html
-grep -q 'id="play-guest"' web/shell.html
+grep -q 'id="launch-play"' build/web/index.html
+grep -q 'id="signin-rhythians"' build/web/index.html
+grep -q 'id="play-guest"' build/web/index.html
+grep -q 'type="module" src="app.js"' build/web/index.html
+grep -q 'href="logo.png" type="image/png"' build/web/index.html
 grep -q 'RhythiansBrowser' web/app.js
 grep -q 'rhythiansPersistUserData' web/shell.html
 ! grep -Rqs 'rhythians-evans-projects-edff1a37.vercel.app' project.godot scripts web
