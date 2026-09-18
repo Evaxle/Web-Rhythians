@@ -141,6 +141,7 @@ async function beginSignin(force=false){
     if(attempt!==loginGeneration)return;
     const verification=new URL(data.verificationUrl);
     if(verification.origin!==BASE)throw new Error("Unexpected authorization website.");
+    verification.searchParams.set("client","web");
     $("signin-code").textContent=data.userCode;
     $("signin-copy").textContent="Confirm this browser on the Rhythians tab. This page will connect automatically after approval.";
     $("signin-link").href=verification.href;
