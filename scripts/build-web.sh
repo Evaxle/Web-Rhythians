@@ -99,8 +99,6 @@ check_log() {
 run_godot /tmp/import.log "$GODOT_BIN" --path . --editor --quit
 check_log /tmp/import.log
 
-run_godot /tmp/export-pack.log "$GODOT_BIN" --path . --export-pack Web /tmp/rhythians-web-check.pck
-check_log /tmp/export-pack.log
 
 run_godot /tmp/export.log "$GODOT_BIN" --path . --export Web build/web/index.html
 check_log /tmp/export.log
