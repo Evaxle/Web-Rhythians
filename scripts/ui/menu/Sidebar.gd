@@ -184,9 +184,15 @@ func to_play():
 	if portal != null and portal.has_method("close_page"):
 		portal.close_page()
 	_hide_game_pages()
-	var results = get_node_or_null("../Main/Results")
+	var play_root = get_node_or_null("../Main/Maps")
+	if play_root != null:
+		play_root.visible = true
+	var results = get_node_or_null("../Main/Maps/Results")
 	if results != null:
 		results.visible = true
+	var map_list = get_node_or_null("../Main/Maps/MapRegistry/S/VBoxContainer")
+	if map_list != null and map_list.has_method("refresh_visible_list"):
+		map_list.call_deferred("refresh_visible_list")
 	call_deferred("_raise_nav")
 
 func _save_settings_if_needed():
