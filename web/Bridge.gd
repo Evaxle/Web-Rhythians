@@ -143,6 +143,7 @@ func _import_sspm(data:Dictionary):
 		if window: window.rhythiansImported(safe_name, false, "Could not save the SSPM in browser storage.")
 		return
 	dir.remove(path)
+	yield(get_tree(),"idle_frame")
 	var song = Rhythia.registry_song.add_sspm_map(target)
 	if song == null:
 		dir.remove(target)
