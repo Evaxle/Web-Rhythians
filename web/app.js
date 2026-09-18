@@ -106,9 +106,9 @@ try{
   db=await Promise.race([
     new Promise((resolve,reject)=>{
       if(!("indexedDB" in window)){reject(new Error("IndexedDB unavailable"));return;}
-      const request=indexedDB.open("RhythiansBrowser",3);
+      const request=indexedDB.open("RhythiansBrowser",4);
       request.onupgradeneeded=()=>{
-        for(const name of ["account","settings"])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name);
+        for(const name of ["account","settings","maps"])if(!request.result.objectStoreNames.contains(name))request.result.createObjectStore(name);
       };
       request.onsuccess=()=>resolve(request.result);
       request.onerror=()=>reject(request.error||new Error("IndexedDB failed"));
@@ -442,6 +442,117 @@ window.rhythiansScoreResult=(ok,message)=>{
     window.rhythiansPersistUserData?.().catch(()=>{});
   }else{
     $("game-status").textContent=String(message||"Score queued and will retry when Rhythians reconnects.");
+  }
+};
+
+const MAP_CACHE_NAME="rhythians-map-files-v1";
+const mapCacheKey=id=>new Request(`${location.origin}/__rhythians_map_cache__/${encodeURIComponent(String(id))}`);
+
+async function validateCachedSSPM(cache,key){
+  const cached=await cache.match(key);
+  if(!cached||!cached.body)return false;
+  const reader=cached.body.getReader();
+  try{
+    const first=await reader.read();
+    const value=first.value||new Uint8Array();
+    return value.length>=4&&value[0]===0x53&&value[1]===0x53&&value[2]===0x2b&&value[3]===0x6d;
+  }finally{
+    try{await reader.cancel();}catch{}
+  }
+}
+
+window.rhythiansDownloadMap=async text=>{
+  let meta={};
+  try{meta=JSON.parse(text||"{}");}catch{}
+  const id=String(meta.id||"");
+  const fileName=String(meta.fileName||(`rhythians-${id}.sspm`));
+  if(!id||!sessionAccount?.token){
+    window.rhythiansCommand?.(JSON.stringify({action:"download-complete",id,success:false,message:"Sign in to download maps."}));
+    return;
+  }
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),180000);
+    let response;
+    try{
+      response=await fetch(`${BASE}/api/rhythkit/maps/${encodeURIComponent(id)}/download?stream=1`,{
+        method:"GET",
+        headers:{Authorization:"Bearer "+sessionAccount.token},
+        credentials:"omit",
+        cache:"no-store",
+        signal:controller.signal
+      });
+    }finally{
+      clearTimeout(timer);
+    }
+    if(!response?.ok)throw new Error(`Map download failed (HTTP ${response?.status||0}).`);
+    const total=Number(response.headers.get("content-length")||0);
+    window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received:0,total}));
+    const cache=await caches.open(MAP_CACHE_NAME);
+    const key=mapCacheKey(id);
+    await cache.put(key,response);
+    if(!await validateCachedSSPM(cache,key)){
+      await cache.delete(key);
+      throw new Error("The downloaded file is not a valid SSPM.");
+    }
+    await storage("maps","put",id,{id,fileName,size:total,savedAt:Date.now()});
+    window.rhythiansCommand?.(JSON.stringify({action:"download-complete",id,success:true,fileName,size:total}));
+  }catch(error){
+    window.rhythiansCommand?.(JSON.stringify({
+      action:"download-complete",
+      id,
+      success:false,
+      message:error?.name==="AbortError"?"Map download timed out.":String(error?.message||"Map download failed.")
+    }));
+  }
+};
+
+async function writeResponseToFS(response,path,id){
+  const fs=globalThis.FS||(globalThis.Module&&globalThis.Module.FS);
+  if(!fs||typeof fs.open!=="function"||typeof fs.write!=="function")throw new Error("Browser filesystem is unavailable.");
+  try{fs.unlink(path);}catch{}
+  const stream=fs.open(path,"w+");
+  const reader=response.body?.getReader();
+  if(!reader){fs.close(stream);throw new Error("Cached map stream is unavailable.");}
+  let offset=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      if(value?.length){
+        fs.write(stream,value,0,value.length,offset);
+        offset+=value.length;
+        if((offset&0x3fffff)<value.length)await new Promise(resolve=>setTimeout(resolve,0));
+      }
+    }
+  }finally{
+    try{reader.releaseLock();}catch{}
+    fs.close(stream);
+  }
+  window.rhythiansCommand?.(JSON.stringify({action:"materialize-progress",id,received:offset}));
+}
+
+window.rhythiansOpenDownloadedMap=async text=>{
+  let meta={};
+  try{meta=JSON.parse(text||"{}");}catch{}
+  const map=meta.map&&typeof meta.map==="object"?meta.map:{};
+  const id=String(map.id||meta.id||"");
+  if(!id)return;
+  try{
+    const cache=await caches.open(MAP_CACHE_NAME);
+    const response=await cache.match(mapCacheKey(id));
+    if(!response){
+      await storage("maps","delete",id).catch(()=>{});
+      window.rhythiansCommand?.(JSON.stringify({action:"download-missing",id}));
+      return;
+    }
+    const safe=id.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,80)||"map";
+    const path=`/tmp/rhythians-cached-${safe}.sspm`;
+    $("game-status").textContent="Loading downloaded map into the client…";
+    await writeResponseToFS(response,path,id);
+    window.rhythiansCommand?.(JSON.stringify({action:"play",path,map}));
+  }catch(error){
+    $("game-status").textContent="Could not open downloaded map: "+String(error?.message||"browser storage error");
   }
 };
 
