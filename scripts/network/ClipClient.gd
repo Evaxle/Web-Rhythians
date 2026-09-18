@@ -37,6 +37,9 @@ func submit(file_path:String,title:String,song_name:String,description:String,ca
 	if size<=0 or size>MAX_UPLOAD_BYTES:
 		file.close()
 		return {"ok":false,"message":"Clip must be between 1 byte and 500 MB."}
+	if OS.has_feature("HTML5") and size>134217728:
+		file.close()
+		return {"ok":false,"message":"Browser clip uploads are limited to 128 MB to prevent the tab from running out of memory. Use the Rhythians website for larger clips."}
 	var upload_request=yield(Rhythian._api_request(HTTPClient.METHOD_POST,"/api/clip-upload",{"fileName":actual_path.get_file(),"contentType":content_type,"folder":"clips","fileSize":size},true,25.0),"completed")
 	if not upload_request.get("ok",false):
 		file.close()
@@ -53,7 +56,7 @@ func submit(file_path:String,title:String,song_name:String,description:String,ca
 	emit_signal("upload_progress",0,size)
 	var request=HTTPRequest.new()
 	add_child(request)
-	request.use_threads=true
+	request.use_threads=not OS.has_feature("HTML5")
 	request.timeout=900.0
 	var headers=PoolStringArray(["Content-Type: "+content_type])
 	var err=request.request_raw(HTTPClient.METHOD_PUT,upload_url,headers,bytes)

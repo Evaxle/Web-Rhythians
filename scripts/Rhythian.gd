@@ -142,9 +142,7 @@ func _refresh_browser_account():
 	if not logged_in: return
 	refresh_status()
 	fetch_profile()
-	fetch_maps()
 	fetch_scores()
-	fetch_completions()
 	_flush_score_queue()
 
 func _clear_account_state():
@@ -489,10 +487,11 @@ func fetch_maps():
 	var seen:Dictionary = {}
 	var offset:int = 0
 	var safety:int = 0
+	var page_limit:int = 200 if OS.has_feature("HTML5") else 1000
 	catalog_loading = true
-	while safety < 20:
+	while safety < 100:
 		safety += 1
-		var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/maps?limit=1000&offset=" + str(offset), null, true, 60.0), "completed")
+		var res = yield(_api_request(HTTPClient.METHOD_GET, "/api/rhythkit/maps?limit=" + str(page_limit) + "&offset=" + str(offset), null, true, 60.0), "completed")
 		var maps_auth_dead = _handle_auth_failure(res)
 		if maps_auth_dead:
 			catalog_loading = false
@@ -514,7 +513,8 @@ func fetch_maps():
 		if arr.size() == 0 and typeof(j) == TYPE_DICTIONARY and j.has("maps") and typeof(j["maps"]) == TYPE_DICTIONARY:
 			arr = _extract_array(j["maps"], ["data", "items", "results", "maps"])
 		var fresh:int = 0
-		for m in arr:
+		for i in range(arr.size()):
+			var m = arr[i]
 			if typeof(m) != TYPE_DICTIONARY:
 				continue
 			var mid = str(m.get("id", ""))
@@ -523,15 +523,17 @@ func fetch_maps():
 			seen[mid] = true
 			collected.append(m)
 			fresh += 1
+			if OS.has_feature("HTML5") and i > 0 and i % 50 == 0:
+				yield(get_tree(), "idle_frame")
 		maps_cache = collected
 		completions_embedded = _maps_have_embedded_completions(collected)
 		maps_error = ""
 		recompute_rhythian_progress()
-		if safety == 1 or arr.size() < 1000 or fresh == 0:
+		if safety == 1 or arr.size() < page_limit or fresh == 0:
 			emit_signal("maps_updated", true, "")
-		if arr.size() < 1000 or fresh == 0:
+		if arr.size() < page_limit or fresh == 0:
 			break
-		offset += 1000
+		offset += page_limit
 	catalog_loading = false
 
 func _maps_have_embedded_completions(maps:Array) -> bool:

@@ -61,7 +61,6 @@ func _ready():
 	Rhythian.connect("map_downloaded",self,"_map_downloaded")
 	Rhythian.connect("connection_checked",self,"_connection_checked")
 	show_page("home")
-	Rhythian.check_connection()
 
 func _process(delta:float):
 	if not visible: return
@@ -220,6 +219,8 @@ func _maps():
 	var check=_button(controls,"Check scores")
 	check.connect("pressed",self,"_check_all_maps")
 	if Rhythian.maps_cache.empty():
+		if not Rhythian.catalog_loading:
+			Rhythian.call_deferred("fetch_maps")
 		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading maps from Rhythians…")
 		return
 	var page_size=40

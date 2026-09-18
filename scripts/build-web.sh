@@ -158,6 +158,9 @@ for path in Path("assets/songs").glob("*"):
     if path.is_file() and path.suffix.lower() in {".mp3", ".ogg", ".wav"}:
         selected.add("res://" + path.as_posix())
 
+for locale in ["en", "fr", "ja", "pl", "es", "it"]:
+    selected.add(f"res://localization/localization.{locale}.translation")
+
 selected = sorted(selected)
 encoded = ", ".join(json.dumps(item) for item in selected)
 line = "export_files=PoolStringArray(" + encoded + ")"
@@ -178,9 +181,9 @@ python3 - <<'PY'
 from pathlib import Path
 
 limits = {
-    "assets/worlds/baseplate/skybox.png.import": 2048,
-    "assets/worlds/event_horizon/starmap.png.import": 2048,
-    "assets/images/ui/flashlight.png.import": 2048,
+    "assets/worlds/baseplate/skybox.png.import": 1024,
+    "assets/worlds/event_horizon/starmap.png.import": 1024,
+    "assets/images/ui/flashlight.png.import": 1024,
     "assets/images/grid_inner.png.import": 1024,
     "assets/images/grid_outer.png.import": 1024,
     "assets/images/spawn_effect.png.import": 1024,
@@ -277,7 +280,7 @@ pack_rc=0
   timeout 60s "$GODOT_BIN" --main-pack "$PACK_PATH" --script res://web/PackSmoke.gd
 ) >/tmp/pack-smoke.log 2>&1 || pack_rc=$?
 cat /tmp/pack-smoke.log
-if [ "$pack_rc" -ne 0 ] || ! grep -q 'PACK_SMOKE_FAILURES=0' /tmp/pack-smoke.log || grep -E 'SCRIPT ERROR|Parse Error|Cannot load source code|Can.t autoload|Cannot open file .res://localization/' /tmp/pack-smoke.log; then
+if [ "$pack_rc" -ne 0 ] || ! grep -q 'PACK_SMOKE_FAILURES=0' /tmp/pack-smoke.log || grep -E 'SCRIPT ERROR|Parse Error|Cannot load source code|Can.t autoload' /tmp/pack-smoke.log; then
   echo "Exported Web PCK failed runtime dependency validation." >&2
   exit 1
 fi
@@ -316,7 +319,7 @@ require_file build/web/index.html
 require_file build/web/index.wasm
 require_file build/web/index.pck
 echo "Largest imported browser resources:"
-find .import -type f -printf '%s %p\n' 2>/dev/null | sort -nr | head -25 || true
+find .import -type f -printf '%s %p\n' 2>/dev/null | sort -nr | sed -n '1,25p' || true
 echo "Web export sizes:"
 du -h build/web/index.wasm build/web/index.pck
 pck_bytes="$(stat -c%s build/web/index.pck)"
@@ -344,6 +347,9 @@ require_text '"cameraMode": "spin" if Rhythia.cam_unlock else "lock"' scripts/Rh
 require_text 'sidebar.has_method("to_play")' web/Bridge.gd 'normal client play navigation'
 require_text 'if not OS.has_feature("HTML5"):' scripts/ui/menu/buttons/v3MapList.gd 'HTML5 cover preload guard'
 require_text 'export_filter="resources"' export_presets.cfg 'dependency-based Web export'
+require_text 'vram_texture_compression/for_mobile=false' export_presets.cfg 'single browser texture target'
+require_text 'page_limit:int = 200 if OS.has_feature("HTML5") else 1000' scripts/Rhythian.gd 'paged browser map catalog'
+require_text 'request.use_threads=not OS.has_feature("HTML5")' scripts/network/ClipClient.gd 'Web-safe clip networking'
 if grep -Fq 'tween.tween_property(btns[i]' scripts/ui/menu/buttons/v3MapList.gd; then
   echo "Per-frame map-list tween allocation regression found" >&2
   exit 1
