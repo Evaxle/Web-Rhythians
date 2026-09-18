@@ -4,12 +4,27 @@ GODOT_BIN="${GODOT_BIN:-godot}"
 mkdir -p build/web
 
 PROJECT_BACKUP="$(mktemp)"
+NATIVE_BACKUP="$(mktemp -d)"
 cp project.godot "$PROJECT_BACKUP"
+
 restore_project() {
   cp "$PROJECT_BACKUP" project.godot
+  for addon in discord_game_sdk godot-openvr native_dialogs; do
+    if [ -d "$NATIVE_BACKUP/$addon" ]; then
+      rm -rf "addons/$addon"
+      mv "$NATIVE_BACKUP/$addon" "addons/$addon"
+    fi
+  done
   rm -f "$PROJECT_BACKUP"
+  rmdir "$NATIVE_BACKUP" 2>/dev/null || true
 }
 trap restore_project EXIT
+
+for addon in discord_game_sdk godot-openvr native_dialogs; do
+  if [ -d "addons/$addon" ]; then
+    mv "addons/$addon" "$NATIVE_BACKUP/$addon"
+  fi
+done
 
 python3 - <<'PY'
 from pathlib import Path
