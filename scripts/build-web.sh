@@ -379,7 +379,11 @@ require_text 'sidebar.has_method("to_play")' web/Bridge.gd 'normal client play n
 require_text 'if not OS.has_feature("HTML5"):' scripts/ui/menu/buttons/v3MapList.gd 'HTML5 cover preload guard'
 require_text 'export_filter="resources"' export_presets.cfg 'dependency-based Web export'
 require_text 'vram_texture_compression/for_mobile=false' export_presets.cfg 'single browser texture target'
-require_text 'page_limit:int = 200 if OS.has_feature("HTML5") else 1000' scripts/Rhythian.gd 'paged browser map catalog'
+require_text 'page_limit:int = 250 if OS.has_feature("HTML5") else 1000' scripts/Rhythian.gd 'paged browser map catalog'
+require_text 'if catalog_loading:' scripts/Rhythian.gd 'duplicate map catalog load guard'
+require_text 'page_epoch:int=0' scripts/ui/menu/RhythiansPortal.gd 'tab generation guard'
+require_text 'var page_size=24 if OS.has_feature("HTML5") else 32' scripts/ui/menu/RhythiansPortal.gd 'lightweight map UI paging'
+require_text 'if not is_visible_in_tree():' scripts/ui/menu/buttons/v3MapList.gd 'hidden Play map processing guard'
 require_text 'request.use_threads=not OS.has_feature("HTML5")' scripts/network/ClipClient.gd 'Web-safe clip networking'
 if grep -Fq 'tween.tween_property(btns[i]' scripts/ui/menu/buttons/v3MapList.gd; then
   echo "Per-frame map-list tween allocation regression found" >&2
