@@ -149,7 +149,11 @@ func _ready():
 			yield(get_tree(), "idle_frame")
 			yield(get_tree(), "idle_frame")
 			check(sidebar.portal.selected_page == "maps", "optimized Maps page renders")
-			check(sidebar.portal.content.get_child_count() <= 46, "Maps page renders only one 40-map catalog page")
+			check(sidebar.portal.content.get_child_count() <= 10, "Maps page keeps 40 cards inside one catalog grid")
+			var map_grid=sidebar.portal.content.get_node_or_null("MapCatalogGrid")
+			check(map_grid!=null and map_grid.columns==4, "Maps catalog renders four maps across")
+			check(map_grid!=null and map_grid.get_child_count()==40, "Maps catalog renders exactly 40 maps per full page")
+			check(sidebar.nav.has(["maps","Maps"]), "Maps is exposed as a top navigation tab")
 			check(sidebar.portal._safe_user_name({"displayName":null,"username":"FallbackPlayer"})=="FallbackPlayer", "online players fall back from null display names")
 			Rhythian.logged_in = old_logged_in
 			Rhythian.profile = old_profile
