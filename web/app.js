@@ -167,7 +167,7 @@ async function beginSignin(force=false){
     }
     if(attempt===loginGeneration)throw new Error("The login request expired. Try again.");
   }catch(error){
-    if(authTab&&!authTab.closed&&authTab.location?.href==="about:blank")authTab.close();
+    if(authTab&&!authTab.closed)try{authTab.close();}catch{}
     if(attempt===loginGeneration){
       $("signin-copy").textContent="Rhythians sign-in could not finish.";
       status(error.message);
