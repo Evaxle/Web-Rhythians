@@ -159,13 +159,16 @@ func _connection_checked(web_ok:bool,db_ok:bool):
 func _load_settings():
 	var file=File.new()
 	if not file.file_exists(Globals.p(SETTINGS_FILE)):
+		spin_enabled=Rhythia.cam_unlock
 		return
 	if file.open(Globals.p(SETTINGS_FILE),File.READ)!=OK:
+		spin_enabled=Rhythia.cam_unlock
 		return
 	var parsed=JSON.parse(file.get_as_text())
 	file.close()
 	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY:
-		spin_enabled=bool(parsed.result.get("spinEnabled",false))
+		spin_enabled=bool(parsed.result.get("spinEnabled",Rhythia.cam_unlock))
+		Rhythia.cam_unlock=spin_enabled
 
 func _save_settings():
 	var file=File.new()
@@ -1258,6 +1261,7 @@ func _rules():
 		_panel(str(rule.get("title","Rule")),text)
 func _community():
 	title_label.text="Community Settings"
+	spin_enabled=Rhythia.cam_unlock
 	var mode=_panel("Score mode","RPL is used when Spin is not selected. RPS is used when Spin is selected. Your RPV rank is synchronized and visible throughout the client even though VR gameplay is not available in the browser build.")
 	var spin=RhythianUI.check_button("Spin mode",spin_enabled)
 	spin.connect("toggled",self,"_spin_toggled")
@@ -1406,4 +1410,6 @@ func _mode_totals():
 
 func _spin_toggled(value:bool):
 	spin_enabled=value
+	Rhythia.cam_unlock=value
+	Rhythia.save_settings()
 	_save_settings()
