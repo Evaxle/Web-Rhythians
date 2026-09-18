@@ -424,7 +424,6 @@ window.rhythiansError=message=>{$("game-status").textContent=String(message||"Rh
 window.rhythiansSelected=()=>{$("game-status").textContent="Map selected. Choose modifiers and press Play.";};
 window.rhythiansImported=(name,ok,message)=>{
   $("game-status").textContent=ok?`${name} imported into your Play library.`:String(message||"Import failed.");
-  if(ok)window.rhythiansPersistUserData?.().catch(()=>{});
 };
 window.rhythiansMode=()=>{};
 window.rhythiansScore=async text=>{
