@@ -200,6 +200,9 @@ func _ready():
 	get_popup().add_submenu_item("Set difficulty","Difficulty",3)
 	get_popup().add_item("Export .txt map data",4)
 	get_popup().add_item("Export audio data",5)
+	if OS.has_feature("HTML5"):
+		get_popup().set_item_disabled(4,true)
+		get_popup().set_item_disabled(5,true)
 
 	copy_submenu.add_item("ID",0)
 	copy_submenu.add_item("Path",1)
