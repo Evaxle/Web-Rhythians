@@ -120,6 +120,29 @@ func _save_auth():
 	}))
 	f.close()
 
+func apply_browser_auth(account:Dictionary):
+	token = str(account.get("token", ""))
+	installation_id = str(account.get("installationId", ""))
+	user_id = str(account.get("userId", ""))
+	username = str(account.get("username", ""))
+	logged_in = token != ""
+	if not logged_in:
+		logout()
+		return
+	base_url = DEFAULT_BASE_URL
+	_save_auth()
+	emit_signal("auth_changed")
+	call_deferred("_refresh_browser_account")
+
+func _refresh_browser_account():
+	if not logged_in: return
+	refresh_status()
+	fetch_profile()
+	fetch_maps()
+	fetch_scores()
+	fetch_completions()
+	_flush_score_queue()
+
 func logout():
 	token = ""
 	installation_id = ""
