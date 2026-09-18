@@ -4,6 +4,10 @@ var portal:Control
 var account:Button
 var nav = [["home","Home"],["maps","Maps"],["daily","Daily"],["path","Path"],["challenge","Challenge"],["online","Online"],["leaderboards","Leaderboards"],["battles","Battles"],["clips","Clips"],["search","Search"],["messages","Messages"],["global-chat","Global Chat"],["wiki","Wiki"],["rules","Rules"],["community","Community"]]
 
+var pending_page:String = ""
+var active_page:String = "play"
+var navigation_scheduled:bool = false
+
 func _ready():
 	set_anchors_and_margins_preset(Control.PRESET_TOP_WIDE)
 	anchor_right = 1.0
@@ -76,21 +80,47 @@ func _button(text:String,primary:bool) -> Button:
 	return b
 
 func _process(_delta:float):
-	if account != null: account.text = Rhythian.username if Rhythian.logged_in else "Sign in"
+	if account != null:
+		account.text = Rhythian.username if Rhythian.logged_in else "Sign in"
 
 func open_page(page:String):
-	_hide_game_pages()
-	if portal != null and portal.has_method("open_page"): portal.open_page(page)
+	if page == "":
+		return
+	pending_page = page
+	if navigation_scheduled:
+		return
+	navigation_scheduled = true
+	call_deferred("_apply_pending_page")
 
-func open_account(): open_page("account")
+func _apply_pending_page():
+	navigation_scheduled = false
+	var page = pending_page
+	pending_page = ""
+	if page == "":
+		return
+	if active_page == page and portal != null and portal.visible:
+		return
+	active_page = page
+	_hide_game_pages()
+	if portal != null and portal.has_method("open_page"):
+		portal.open_page(page)
+
+func open_account():
+	open_page("account")
 
 func to_play():
-	if portal != null and portal.has_method("close_page"): portal.close_page()
+	pending_page = ""
+	navigation_scheduled = false
+	active_page = "play"
+	if portal != null and portal.has_method("close_page"):
+		portal.close_page()
 	_hide_game_pages()
 	var results = get_node_or_null("../Main/Results")
-	if results != null: results.visible = true
+	if results != null:
+		results.visible = true
 
 func _hide_game_pages():
 	for path in ["../Main/Results","../Main/Maps","../Main/Settings","../Main/Credits","../Main/Content","../Main/Language","../Main/Rhythian"]:
 		var node = get_node_or_null(path)
-		if node != null: node.visible = false
+		if node != null:
+			node.visible = false
