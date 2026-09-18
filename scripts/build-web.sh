@@ -136,7 +136,7 @@ for core in [
     if Path(core).exists():
         selected.add("res://" + core)
 
-for locale in ["en", "fr", "ja", "pl", "es", "it"]:
+for locale in ["en", "ja", "fr", "es", "es (lat)", "de", "pl", "it"]:
     selected.add(f"res://localization/localization.{locale}.translation")
 
 scan_files.append(Path("project.godot"))
@@ -266,8 +266,35 @@ check_log() {
 
 
 rm -f localization/localization.csv.import
-run_godot /tmp/preimport.log "$GODOT_BIN" --path . --editor --quit
-check_log /tmp/preimport.log
+echo "Pre-importing Godot resources..."
+rm -f localization/localization.csv.import localization/*.translation
+"$GODOT_BIN" --path . --editor >/tmp/preimport.log 2>&1 &
+preimport_pid=$!
+preimport_ok=0
+for _ in $(seq 1 480); do
+  if [ -s "localization/localization.en.translation" ] \
+    && [ -s "localization/localization.ja.translation" ] \
+    && [ -s "localization/localization.fr.translation" ] \
+    && [ -s "localization/localization.es.translation" ] \
+    && [ -s "localization/localization.es (lat).translation" ] \
+    && [ -s "localization/localization.de.translation" ] \
+    && [ -s "localization/localization.pl.translation" ] \
+    && [ -s "localization/localization.it.translation" ]; then
+    preimport_ok=1
+    break
+  fi
+  if ! kill -0 "$preimport_pid" 2>/dev/null; then
+    break
+  fi
+  sleep 0.25
+done
+kill "$preimport_pid" 2>/dev/null || true
+wait "$preimport_pid" 2>/dev/null || true
+cat /tmp/preimport.log
+if [ "$preimport_ok" -ne 1 ]; then
+  echo "Godot did not finish generating translation resources before export." >&2
+  exit 1
+fi
 
 run_godot /tmp/export.log "$GODOT_BIN" --path . --export Web build/web/index.html
 check_log /tmp/export.log
