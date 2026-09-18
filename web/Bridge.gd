@@ -15,6 +15,8 @@ func _ready():
 	window.rhythiansCommand = callback
 	if not Rhythian.is_connected("maps_updated", self, "_maps_updated"):
 		Rhythian.connect("maps_updated", self, "_maps_updated")
+	if not Rhythian.is_connected("auth_changed", self, "_auth_changed"):
+		Rhythian.connect("auth_changed", self, "_auth_changed")
 
 func menu_ready():
 	menu_loaded = true
@@ -167,6 +169,15 @@ func finished():
 		"gameVersion": "rhythians-web-2",
 		"integrationVersion": "rhythians-web-2"
 	}))
+
+func _auth_changed():
+	if window:
+		window.rhythiansAuthChanged(JSON.print({
+			"loggedIn": Rhythian.logged_in,
+			"username": Rhythian.username,
+			"userId": Rhythian.user_id,
+			"installationId": Rhythian.installation_id
+		}))
 
 func _maps_updated(success:bool, _message:String):
 	if window and success:
