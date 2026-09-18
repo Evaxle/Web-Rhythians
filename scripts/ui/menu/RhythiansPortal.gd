@@ -1,6 +1,6 @@
 extends Control
 
-const BASE_URL = "https://rhythians-evans-projects-edff1a37.vercel.app"
+const BASE_URL = "https://www.rhythians.com"
 const SETTINGS_FILE = "user://rhythian/client-settings.json"
 
 var title_label:Label
@@ -16,6 +16,7 @@ var search_query=""
 var chat_handle=""
 var global_refresh_accum=0.0
 var direct_refresh_accum=0.0
+var map_page=0
 
 func _ready():
 	Rhythian.base_url=BASE_URL
@@ -57,6 +58,7 @@ func _ready():
 	Rhythian.connect("auth_changed",self,"_refresh_page")
 	Rhythian.connect("profile_updated",self,"_refresh_page")
 	Rhythian.connect("maps_updated",self,"_refresh_page")
+	Rhythian.connect("map_downloaded",self,"_map_downloaded")
 	Rhythian.connect("connection_checked",self,"_connection_checked")
 	show_page("home")
 	Rhythian.check_connection()
@@ -204,25 +206,109 @@ func _home():
 func _maps():
 	title_label.text="Maps"
 	if not Rhythian.logged_in:
-		var need=_panel("Sign in required","Sign in to synchronize rank and map data.")
-		var login=_button(need,"Sign in",true)
+		var need=_panel("Sign in required","Sign in to synchronize your ranks and the complete Rhythians map catalog.")
+		var login=_button(need,"Sign in with Rhythians",true)
 		login.connect("pressed",self,"_login")
 		return
 	var rhp=int(Rhythian.profile.get("rhp",0))
 	var rank=Rhythian.get_rank_info(rhp)
-	var banner=_panel("Current rank","%s · %d RHP · ranked maps outside your current range are not eligible for RHP." % [str(rank.name),rhp])
-	var refresh=_button(banner,"Refresh maps",true)
+	var banner=_panel("Current rank","%s · %d RHP · downloaded maps also appear in the normal Play library." % [str(rank.name),rhp])
+	var controls=RhythianUI.hbox(8)
+	banner.add_child(controls)
+	var refresh=_button(controls,"Refresh maps",true)
 	refresh.connect("pressed",Rhythian,"fetch_maps")
+	var check=_button(controls,"Check scores")
+	check.connect("pressed",self,"_check_all_maps")
 	if Rhythian.maps_cache.empty():
-		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "No maps loaded yet.")
+		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading maps from Rhythians…")
 		return
-	for i in range(min(40,Rhythian.maps_cache.size())):
+	var page_size=40
+	var max_page=max(0,int(ceil(Rhythian.maps_cache.size()/float(page_size)))-1)
+	map_page=int(clamp(map_page,0,max_page))
+	var start=map_page*page_size
+	var finish=min(start+page_size,Rhythian.maps_cache.size())
+	var pager=_panel("Map catalog","%d maps · page %d of %d" % [Rhythian.maps_cache.size(),map_page+1,max_page+1])
+	var page_row=RhythianUI.hbox(8)
+	pager.add_child(page_row)
+	var prev=_button(page_row,"Previous")
+	prev.disabled=map_page<=0
+	prev.connect("pressed",self,"_map_page_change",[-1])
+	var next=_button(page_row,"Next")
+	next.disabled=map_page>=max_page
+	next.connect("pressed",self,"_map_page_change",[1])
+	for i in range(start,finish):
 		var map=Rhythian.maps_cache[i]
-		var row=_panel(str(map.get("title","Unknown map")),"%.2f rating" % Rhythian.get_map_rating(map))
-		if str(map.get("mapFileUrl",""))!="":
-			var play=_button(row,"Download / Play")
-			play.connect("pressed",RhythianUI,"open_url",[str(map.get("mapFileUrl"))])
+		var rating=Rhythian.get_map_rating(map)
+		var rank_name=str(map.get("rankName","Unranked"))
+		var details="%.2f rating · %s" % [rating,rank_name]
+		var challenge_level=map.get("challengeLevel",null)
+		var placement=str(map.get("challengePlacement",""))
+		if challenge_level!=null:
+			details+=" · %s level %s" % [_challenge_name(placement),str(challenge_level)]
+		elif str(map.get("submissionType",""))=="challenge":
+			details+=" · %s challenge" % _challenge_name(placement)
+		if int(map.get("noteCount",0))>0:
+			details+=" · %d notes" % int(map.get("noteCount",0))
+		if int(map.get("length",0))>0:
+			details+=" · "+Rhythian.format_length(map.get("length",0))
+		var completion=map.get("completion",{})
+		if typeof(completion)==TYPE_DICTIONARY and bool(completion.get("passed",false)):
+			details+=" · Passed"
+		var row=_panel(str(map.get("title","Unknown map")),details)
+		row.add_child(RhythianUI.label("%s · mapped by %s" % [str(map.get("artist","Unknown Artist")),str(map.get("mapper","Unknown"))],13,RhythianUI.C_MUTED))
+		var action=_button(row,"Play" if Rhythian.is_map_playable(str(map.get("id",""))) else "Download",true)
+		action.connect("pressed",self,"_map_action",[map])
 
+func _challenge_name(value:String) -> String:
+	match value:
+		"main": return "Main Challenge"
+		"jumps": return "Jumps"
+		"stream": return "Stream"
+		"tech": return "Tech"
+		"off_grid": return "Off-Grid"
+		"vibro": return "Vibro"
+		_: return "Challenge"
+
+func _map_page_change(delta:int):
+	map_page=max(0,map_page+delta)
+	show_page("maps")
+
+func _map_action(map:Dictionary):
+	var id=str(map.get("id",""))
+	if id=="":
+		status.text="This map has no Rhythians map id."
+		return
+	if Rhythian.is_map_playable(id):
+		var song=Rhythian.get_song_for_map_id(id)
+		if song==null:
+			status.text="The downloaded map could not be loaded."
+			return
+		Rhythia.select_song(song)
+		close_page()
+		var sidebar=get_tree().current_scene.get_node_or_null("Sidebar")
+		if sidebar!=null and sidebar.has_method("to_play"): sidebar.to_play()
+		return
+	status.text="Downloading %s…" % str(map.get("title","map"))
+	Rhythian.download_map(map)
+
+func _map_downloaded(_id:String,success:bool,message:String):
+	status.text="Map downloaded into the Play library." if success else message
+	if selected_page=="maps" or selected_page=="challenge":
+		call_deferred("show_page",selected_page)
+
+func _check_all_maps():
+	status.text="Checking your Rhythians scores…"
+	var state=Rhythian.check_all_maps()
+	if state is GDScriptFunctionState:
+		state.connect("completed",self,"_check_all_maps_done")
+	else:
+		_check_all_maps_done(state)
+
+func _check_all_maps_done(result):
+	if typeof(result)==TYPE_DICTIONARY and result.has("error"):
+		status.text=str(result.error)
+	else:
+		status.text="Score check complete."
 func _daily():
 	title_label.text="Daily"
 	var data=yield(_api_page("daily"),"completed")
@@ -256,15 +342,19 @@ func _path():
 func _challenge():
 	title_label.text="Challenge"
 	var data=yield(_api_page("challenge"),"completed")
-	if not data.get("ok",false): _panel("Challenge unavailable",data.get("message","Could not load challenge.")); return
+	if not data.get("ok",false):
+		_panel("Challenge unavailable",data.get("message","Could not load challenge."))
+		return
 	_panel("Challenge progression","Current level %d" % int(data.get("level",0)))
 	for map in data.get("maps",[]):
-		var box=_panel(str(map.get("title","Challenge map")),"Level %s · %s" % [str(map.get("level",map.get("rank",0))),"Passed" if bool(map.get("completed",false)) else "Available"])
-		var url=str(map.get("mapFileUrl",map.get("downloadUrl","")))
-		if url!="":
-			var play=_button(box,"Download / Play map")
-			play.connect("pressed",RhythianUI,"open_url",[url])
-
+		var level=map.get("level",map.get("challengeLevel","?"))
+		var complete=bool(map.get("completed",map.get("passed",false)))
+		var box=_panel(str(map.get("title","Challenge map")),"Level %s · %s" % [str(level),"Passed" if complete else "Available"])
+		box.add_child(RhythianUI.label("%s · %.2f rating" % [str(map.get("artist","Unknown Artist")),Rhythian.get_map_rating(map)],13,RhythianUI.C_MUTED))
+		var id=str(map.get("id",""))
+		if id!="":
+			var action=_button(box,"Play" if Rhythian.is_map_playable(id) else "Download",true)
+			action.connect("pressed",self,"_map_action",[map])
 func _online():
 	title_label.text="Online"
 	var data=yield(_api_page("online"),"completed")
@@ -576,13 +666,15 @@ func _account():
 	_profile(Rhythian.username)
 
 func _login():
+	if OS.has_feature("HTML5"):
+		WebPortal.request_signin()
+		return
 	_clear()
 	title_label.text="Sign in"
 	var p=_panel("Waiting for authorization","The existing Rhythians device authorization flow will open the verification page.")
 	var cancel=_button(p,"Cancel")
 	cancel.connect("pressed",Rhythian,"cancel_login")
 	Rhythian.start_login()
-
 func _check_connection():
 	status.text="Checking connection..."
 	Rhythian.check_connection()
