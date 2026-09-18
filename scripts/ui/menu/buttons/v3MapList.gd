@@ -261,6 +261,13 @@ func reload_to_current_page(_a=null):
 	build_list()
 	load_pg()
 
+func refresh_visible_list():
+	if not ready:
+		return
+	songs = Rhythia.registry_song.get_items()
+	prepare_songs()
+	reload_to_current_page()
+
 func update_search_text(txt:String):
 	search_text = txt
 	if ready:
