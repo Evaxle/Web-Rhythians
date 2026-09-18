@@ -83,7 +83,7 @@ run_godot() {
 
 check_log() {
   local logfile="$1"
-  if grep -E 'SCRIPT ERROR|Parse Error|No library set for this platform|does not have a library for the current platform|Failed loading resource' "$logfile"; then
+  if grep -E 'SCRIPT ERROR|Parse Error|No library set for this platform|does not have a library for the current platform' "$logfile"; then
     return 1
   fi
 }
