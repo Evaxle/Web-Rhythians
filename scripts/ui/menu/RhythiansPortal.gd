@@ -712,6 +712,8 @@ func _go_to_map(map:Dictionary):
 	if id=="" or not Rhythian.is_map_playable(id):
 		status.text="Download this map before opening it in Play."
 		return
+	status.text="Opening downloaded map…"
+	yield(get_tree(),"idle_frame")
 	var song=Rhythian.get_song_for_map_id(id)
 	if song==null:
 		status.text="The downloaded map could not be loaded."
@@ -736,8 +738,9 @@ func _refresh_maps():
 	if Rhythian.catalog_loading:
 		status.text="The current map catalog is already refreshing."
 		return
-	status.text="Refreshing the current Rhythians map catalog…"
-	Rhythian.fetch_maps()
+	status.text="Refreshing this Rhythians catalog page…"
+	var rank_index=-1 if map_mode=="all" else int(Rhythian.get_rank_info(_map_mode_points()).get("index",0))
+	Rhythian.fetch_maps_page(map_page*40,map_search,rank_index)
 
 func _challenge_name(value:String) -> String:
 	match value:
@@ -763,10 +766,17 @@ func _map_downloaded(id:String,success:bool,message:String):
 		map_progress_bars[id].visible=false
 	if map_progress_labels.has(id) and is_instance_valid(map_progress_labels[id]):
 		map_progress_labels[id].visible=false
+	if success:
+		if map_download_pills.has(id) and is_instance_valid(map_download_pills[id]):
+			map_download_pills[id].visible=true
+		if map_go_buttons.has(id) and is_instance_valid(map_go_buttons[id]):
+			map_go_buttons[id].visible=true
+		if map_download_buttons.has(id) and is_instance_valid(map_download_buttons[id]):
+			map_download_buttons[id].text="Download again"
 	if status!=null:
-		status.text="Map downloaded into the Play library." if success else message
-	if visible and (selected_page=="maps" or selected_page=="challenge"):
-		show_page(selected_page,true)
+		status.text="Map downloaded. Press Go to map when you want the client to load it." if success else message
+	if visible and selected_page=="challenge":
+		call_deferred("show_page","challenge",true)
 func _check_all_maps():
 	status.text="Checking your Rhythians scores…"
 	var state=Rhythian.check_all_maps()
