@@ -4,7 +4,8 @@ signal search_updated
 signal reset_filters
 signal lock_type
 
-var thread:Thread
+var thread:Thread = null
+var layout_frames:int = 0
 
 var songs:Array = Rhythia.registry_song.get_items()
 var btns:Array = []
@@ -155,7 +156,9 @@ func _physics_process(delta):
 		call_deferred("pg_down")
 	if scroll_up:
 		call_deferred("pg_up")
-	tween_length()
+	if layout_frames > 0:
+		tween_length()
+		layout_frames -= 1
 
 func check_drag_on():
 	momentum = 0
@@ -196,6 +199,7 @@ func load_pg(select_cur:bool=false):
 			if btn.song != Rhythia.selected_song:
 				Rhythia.select_song(btn.song)
 				btn.get_node("Select").pressed = true
+	layout_frames = 10
 
 func append_filtering_favorites(to:Array,from:Array):
 	for s in from:
@@ -398,6 +402,7 @@ func pg_up():
 	move_child(btn, 0)
 	btn.visible = true
 	tween_in(btn)
+	layout_frames = 10
 
 func pg_down():
 	if cur_map >= disp.size() - 1: return
@@ -411,6 +416,7 @@ func pg_down():
 	add_child(btn)
 	btn.visible = true
 	tween_in(btn)
+	layout_frames = 10
 
 func tween_out(p:Panel):
 	var tween = get_tree().create_tween()
@@ -422,9 +428,12 @@ func tween_in(p:Panel):
 	tween.tween_property(p, "rect_min_size", Vector2(size_x - (next_index() - prev_index())/2 * 10, 90), 0.2)
 
 func tween_length():
-	for i in btns.size():
-		var tween = get_tree().create_tween()
-		tween.tween_property(btns[i], "rect_min_size", Vector2(size_x-(15*(abs((next_index() - prev_index())/2-i))), 90), 0.15)
+	for i in range(btns.size()):
+		var btn = btns[i]
+		if not is_instance_valid(btn):
+			continue
+		var target = Vector2(size_x-(15*(abs((next_index() - prev_index())/2-i))), 90)
+		btn.rect_min_size = btn.rect_min_size.linear_interpolate(target, 0.35)
 
 
 func _input(ev:InputEvent):
@@ -489,8 +498,11 @@ func scroll_to(i:int):
 	scrolling_to = true
 
 func _ready():
-	thread = Thread.new()
-	thread.start(self, "_load_covers")
+	if not OS.has_feature("HTML5"):
+		thread = Thread.new()
+		var thread_error = thread.start(self, "_load_covers")
+		if thread_error != OK:
+			thread = null
 
 	randomize()
 	if !visible: return
@@ -511,11 +523,13 @@ func _ready():
 	print("size_x: ", size_x)
 
 func _exit_tree():
-	thread.wait_to_finish()
+	if thread != null and thread.is_active():
+		thread.wait_to_finish()
 
 func size_list():
 	size_x = get_viewport_rect().size.x/2.8
 	$"..".rect_min_size.x = size_x
+	layout_frames = 10
 
 func _load_covers():
 	var allmaps:Array = Rhythia.registry_song.get_items()

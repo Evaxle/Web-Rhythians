@@ -69,7 +69,12 @@ for line in lines:
     if not skipping:
         out.append(line)
 
-path.write_text("\n".join(out) + "\n")
+text = "\n".join(out) + "\n"
+text = text.replace("threads/thread_model=2", "threads/thread_model=0")
+text = text.replace("quality/directional_shadow/size=1024", "quality/directional_shadow/size=512")
+text = text.replace("quality/shadow_atlas/size=2048", "quality/shadow_atlas/size=1024")
+text = text.replace("quality/filters/msaa=1", "quality/filters/msaa=0")
+path.write_text(text)
 PY
 
 python3 - <<'PY'
@@ -94,6 +99,9 @@ python3 web/tests/make_fixtures.py
 node web/tests/sspm.mjs
 cp web/app.js /tmp/rhythians-app.mjs
 node --check /tmp/rhythians-app.mjs
+
+echo "Godot thread usage audit:"
+grep -RIn --include='*.gd' -E 'Thread\.new\(|\.start\(self|wait_to_finish\(' scripts web 2>/dev/null || true
 
 run_godot() {
   local logfile="$1"
@@ -177,6 +185,13 @@ reject_text_tree() {
 require_file build/web/index.html
 require_file build/web/index.wasm
 require_file build/web/index.pck
+echo "Web export sizes:"
+du -h build/web/index.wasm build/web/index.pck
+pck_bytes="$(stat -c%s build/web/index.pck)"
+if [ "$pck_bytes" -gt 62914560 ]; then
+  echo "Web PCK is too large ($pck_bytes bytes); keep browser payload below 60 MiB." >&2
+  exit 1
+fi
 require_text 'https://www.rhythians.com' web/app.js 'Rhythians production URL'
 require_text 'id="launch-play"' build/web/index.html 'launcher play button'
 require_text 'id="signin-rhythians"' build/web/index.html 'Rhythians sign-in button'
@@ -195,6 +210,11 @@ require_text 'fallbackStorageKey' web/app.js 'resilient browser storage'
 require_text 'immersive-fallback' web/app.js 'fullscreen fallback'
 require_text '"cameraMode": "spin" if Rhythia.cam_unlock else "lock"' scripts/Rhythian.gd 'web score camera mode'
 require_text 'sidebar.has_method("to_play")' web/Bridge.gd 'normal client play navigation'
+require_text 'if not OS.has_feature("HTML5"):' scripts/ui/menu/buttons/v3MapList.gd 'HTML5 cover preload guard'
+if grep -Fq 'tween.tween_property(btns[i]' scripts/ui/menu/buttons/v3MapList.gd; then
+  echo "Per-frame map-list tween allocation regression found" >&2
+  exit 1
+fi
 if grep -Fq 'sidebar.press(' web/Bridge.gd; then
   echo "Obsolete Sidebar.press call found in web bridge" >&2
   exit 1

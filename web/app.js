@@ -273,6 +273,7 @@ async function applySession(account){
   $("game").hidden=false;
   $("launcher").hidden=true;
   $("game-status").textContent="Loading Rhythians…";
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   try{
     await startEngine();
   }catch(error){
