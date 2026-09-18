@@ -133,6 +133,7 @@ func _ready():
 			var old_maps_offset = Rhythian.maps_loaded_offset
 			var old_maps_query = Rhythian.maps_loaded_query
 			var old_maps_rank = Rhythian.maps_loaded_rank_index
+			var old_maps_page_loaded = Rhythian.maps_page_loaded
 			Rhythian.logged_in = true
 			Rhythian.profile = {"rhp":1000}
 			Rhythian.maps_cache = []
@@ -152,6 +153,7 @@ func _ready():
 			Rhythian.maps_loaded_offset = 0
 			Rhythian.maps_loaded_query = ""
 			Rhythian.maps_loaded_rank_index = -1
+			Rhythian.maps_page_loaded = true
 			Rhythian.catalog_loading = false
 			sidebar.open_page("maps")
 			yield(get_tree(), "idle_frame")
@@ -170,6 +172,7 @@ func _ready():
 			Rhythian.maps_loaded_offset = old_maps_offset
 			Rhythian.maps_loaded_query = old_maps_query
 			Rhythian.maps_loaded_rank_index = old_maps_rank
+			Rhythian.maps_page_loaded = old_maps_page_loaded
 
 			sidebar.open_native_page("settings")
 			yield(get_tree(), "idle_frame")
