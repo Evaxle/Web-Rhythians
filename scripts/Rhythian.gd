@@ -139,12 +139,13 @@ func apply_browser_auth(account:Dictionary):
 	call_deferred("_refresh_browser_account")
 
 func _refresh_browser_account():
-	if not logged_in: return
+	if not logged_in:
+		return
 	refresh_status()
 	fetch_profile()
+	fetch_maps()
 	fetch_scores()
 	_flush_score_queue()
-
 func _clear_account_state():
 	profile = {}
 	maps_cache = []
@@ -491,7 +492,7 @@ func fetch_maps():
 	var seen:Dictionary = {}
 	var offset:int = 0
 	var safety:int = 0
-	var page_limit:int = 250 if OS.has_feature("HTML5") else 1000
+	var page_limit:int = 40 if OS.has_feature("HTML5") else 250
 	var complete:bool = true
 	var error_message:String = ""
 	while safety < 100:
@@ -550,6 +551,7 @@ func fetch_maps():
 	completions_embedded = _maps_have_embedded_completions(collected)
 	completions_error = "" if completions_embedded else completions_error
 	maps_error = ""
+	_sync_registry_metadata()
 	recompute_rhythian_progress()
 	emit_signal("maps_updated", true, "")
 func _maps_have_embedded_completions(maps:Array) -> bool:
@@ -1056,15 +1058,32 @@ func _load_registry():
 		registry = parsed.result
 
 func _registry_add(file_name:String, map:Dictionary):
-	registry[file_name] = {
+	registry[file_name] = _map_registry_payload(map)
+	registry[file_name]["downloadedAt"] = _iso_now()
+	_save_registry()
+	if OS.has_feature("HTML5"):
+		WebPortal.persist_user_data()
+
+func _map_registry_payload(map:Dictionary) -> Dictionary:
+	return {
 		"id": str(map.get("id","")),
 		"title": str(map.get("title","")),
-		"rating": float(map.get("rating", 0.0)),
-		"isRanked": bool(map.get("isRanked", false)),
-		"isLegacy": bool(map.get("isLegacy", false)),
-		"downloadedAt": _iso_now()
+		"artist": str(map.get("artist","Unknown Artist")),
+		"mapper": str(map.get("mapper",map.get("mapperName","Unknown"))),
+		"rating": float(map.get("rating",0.0)),
+		"difficulty": str(map.get("difficulty",map.get("rankName","Unranked"))),
+		"rankName": str(map.get("rankName","Unranked")),
+		"rankColor": str(map.get("rankColor","#ffffff")),
+		"isRanked": bool(map.get("isRanked",false)),
+		"isLegacy": bool(map.get("isLegacy",false)),
+		"sourceStatus": str(map.get("sourceStatus","")),
+		"submissionType": str(map.get("submissionType","ranked")),
+		"challengePlacement": map.get("challengePlacement",null),
+		"challengeLevel": map.get("challengeLevel",null),
+		"maxRewards": map.get("maxRewards",null),
+		"noteCount": int(map.get("noteCount",map.get("notes",0))),
+		"length": int(map.get("length",0))
 	}
-	_save_registry()
 
 func is_map_downloaded(id:String) -> bool:
 	for key in registry.keys():
@@ -1242,6 +1261,72 @@ func is_rhythian_map_ranked(map_id:String) -> bool:
 				return bool(m.get("isRanked", false)) or bool(m.get("isLegacy", false))
 			return get_map_rating(m) > 0.0
 	return false
+
+func _sync_registry_metadata():
+	var changed=false
+	for map in maps_cache:
+		if typeof(map)!=TYPE_DICTIONARY:
+			continue
+		var id=str(map.get("id",""))
+		if id=="":
+			continue
+		for file_name in registry.keys():
+			if str(registry[file_name].get("id",""))!=id:
+				continue
+			var downloaded_at=str(registry[file_name].get("downloadedAt",""))
+			var next=_map_registry_payload(map)
+			next["downloadedAt"]=downloaded_at
+			if registry[file_name]!=next:
+				registry[file_name]=next
+				changed=true
+	if changed:
+		_save_registry()
+		if OS.has_feature("HTML5"):
+			WebPortal.persist_user_data()
+
+func get_map_metadata(id:String) -> Dictionary:
+	if id=="":
+		return {}
+	for map in maps_cache:
+		if typeof(map)==TYPE_DICTIONARY and str(map.get("id",""))==id:
+			return map
+	for file_name in registry.keys():
+		var saved=registry[file_name]
+		if typeof(saved)==TYPE_DICTIONARY and str(saved.get("id",""))==id:
+			return saved
+	return {}
+
+func get_song_metadata(song) -> Dictionary:
+	if song==null:
+		return {}
+	var file_name=str(song.filePath).get_file()
+	if registry.has(file_name) and typeof(registry[file_name])==TYPE_DICTIONARY:
+		var id=str(registry[file_name].get("id",""))
+		var current=get_map_metadata(id)
+		if not current.empty():
+			return current
+		return registry[file_name]
+	return {}
+
+func get_rankability_label(map:Dictionary) -> String:
+	if bool(map.get("isRanked",false)):
+		return "Ranked"
+	if bool(map.get("isLegacy",false)):
+		return "Legacy"
+	return "Unranked"
+
+func get_reward_text(map:Dictionary) -> String:
+	var rewards=map.get("maxRewards",null)
+	if typeof(rewards)!=TYPE_DICTIONARY:
+		return "No rank points"
+	return "RPL +%d · RPS +%d · RPV +%d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0)),int(rewards.get("vr",0))]
+
+func get_map_summary(map:Dictionary) -> String:
+	if map.empty():
+		return ""
+	var rating=get_map_rating(map)
+	var difficulty=str(map.get("difficulty",map.get("rankName","Unranked")))
+	return "%.2f ★ · %s · %s · %s" % [rating,difficulty,get_rankability_label(map),get_reward_text(map)]
 
 func get_map_rating(map:Dictionary) -> float:
 	for key in ["rating", "difficulty", "difficultyRating", "stars", "starRating", "level", "sr", "bp"]:
