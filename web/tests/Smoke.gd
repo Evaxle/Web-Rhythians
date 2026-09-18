@@ -103,7 +103,57 @@ func _ready():
 			check(sidebar.portal.visible and sidebar.portal.selected_page == "home", "Rhythians Home opens inside Godot")
 			sidebar.open_page("maps")
 			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
 			check(sidebar.portal.visible and sidebar.portal.selected_page == "maps", "Rhythians Maps opens inside Godot")
+
+			for i in range(40):
+				var rapid_page = ["community","account","maps"][i % 3]
+				sidebar.open_page(rapid_page)
+			sidebar.open_page("community")
+			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
+			check(sidebar.portal.selected_page == "community", "rapid tab switching coalesces to the latest page")
+
+			var wiki_key = sidebar.portal._cache_key("wiki",{})
+			sidebar.portal.api_cache[wiki_key] = {"articles":[{"title":"Old page result","slug":"old-page-result","description":"must not render after leaving"}]}
+			sidebar.portal.api_cache_time[wiki_key] = OS.get_ticks_msec()
+			sidebar.open_page("wiki")
+			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
+			sidebar.open_page("community")
+			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
+			check(sidebar.portal.selected_page == "community" and sidebar.portal.title_label.text == "Community Settings", "stale async page cannot overwrite the active tab")
+
+			var old_logged_in = Rhythian.logged_in
+			var old_profile = Rhythian.profile.duplicate(true)
+			var old_maps = Rhythian.maps_cache.duplicate(true)
+			Rhythian.logged_in = true
+			Rhythian.profile = {"rhp":1000}
+			Rhythian.maps_cache = []
+			for i in range(100):
+				Rhythian.maps_cache.append({
+					"id":"smoke-map-"+str(i),
+					"title":"Smoke Map "+str(i),
+					"artist":"Artist",
+					"mapper":"Mapper",
+					"rating":1.5,
+					"rankName":"Silver",
+					"noteCount":100,
+					"length":60,
+					"completion":{"passed":false}
+				})
+			Rhythian.catalog_loading = false
+			sidebar.open_page("maps")
+			yield(get_tree(), "idle_frame")
+			yield(get_tree(), "idle_frame")
+			check(sidebar.portal.selected_page == "maps", "optimized Maps page renders")
+			check(sidebar.portal.content.get_child_count() <= 30, "Maps page renders only one lightweight catalog page")
+			Rhythian.logged_in = old_logged_in
+			Rhythian.profile = old_profile
+			Rhythian.maps_cache = old_maps
+
 			sidebar.to_play()
 			yield(get_tree(), "idle_frame")
 			check(not sidebar.portal.visible, "Play returns to the normal Godot client")
