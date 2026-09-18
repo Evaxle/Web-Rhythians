@@ -6,6 +6,8 @@ signal lock_type
 
 var thread:Thread = null
 var layout_frames:int = 0
+var filter_dirty:bool = false
+var filter_debounce:float = 0.0
 
 var songs:Array = Rhythia.registry_song.get_items()
 var btns:Array = []
@@ -115,6 +117,20 @@ func switch_to_play_screen():
 var was_maximized = OS.window_maximized
 var was_fullscreen = OS.window_fullscreen
 func _process(delta):
+	if not is_visible_in_tree():
+		check_drag = false
+		dragged = false
+		scroll_up = false
+		scroll_down = false
+		scrolling_to = false
+		momentum = 0
+		layout_frames = 0
+		return
+	if filter_dirty:
+		filter_debounce -= delta
+		if filter_debounce <= 0:
+			filter_dirty = false
+			reload_to_current_page()
 	if check_drag or dragged:
 		drag_offset = get_global_mouse_position()
 		var diff = drag_offset - drag_start
@@ -133,6 +149,8 @@ func _process(delta):
 		handle_window_resize()
 
 func _physics_process(delta):
+	if not is_visible_in_tree():
+		return
 	if momentum != 0:
 		momentum = lerp(momentum, 0, 0.3)
 		if abs(momentum) < 0.3:
@@ -181,7 +199,11 @@ func select_random():
 
 func load_pg(select_cur:bool=false):
 	size_list()
-	for n in btns: n.queue_free()
+	for n in btns:
+		if is_instance_valid(n):
+			if n.get_parent() == self:
+				remove_child(n)
+			n.queue_free()
 	btns.clear()
 
 	if disp.size() == 0: return
@@ -199,7 +221,7 @@ func load_pg(select_cur:bool=false):
 			if btn.song != Rhythia.selected_song:
 				Rhythia.select_song(btn.song)
 				btn.get_node("Select").pressed = true
-	layout_frames = 10
+	layout_frames = 3 if OS.has_feature("HTML5") else 10
 
 func append_filtering_favorites(to:Array,from:Array):
 	for s in from:
@@ -241,12 +263,16 @@ func reload_to_current_page(_a=null):
 
 func update_search_text(txt:String):
 	search_text = txt
-	if ready: reload_to_current_page()
+	if ready:
+		filter_dirty = true
+		filter_debounce = 0.12
 	emit_signal("search_updated")
 
 func update_author_search_text(txt:String):
 	author_search_text = txt
-	if ready: reload_to_current_page()
+	if ready:
+		filter_dirty = true
+		filter_debounce = 0.12
 	emit_signal("search_updated")
 
 func update_search_dfil(dfil:Array):
@@ -389,7 +415,8 @@ func make_song_button(id:int=-1):
 	return btn
 
 func pg_up():
-	if cur_map < 0: return
+	if not is_visible_in_tree(): return
+	if cur_map <= 0: return
 	cur_map -= 1
 
 	$Press.play()
@@ -402,9 +429,10 @@ func pg_up():
 	move_child(btn, 0)
 	btn.visible = true
 	tween_in(btn)
-	layout_frames = 10
+	layout_frames = 3 if OS.has_feature("HTML5") else 10
 
 func pg_down():
+	if not is_visible_in_tree(): return
 	if cur_map >= disp.size() - 1: return
 	cur_map += 1
 
@@ -416,16 +444,23 @@ func pg_down():
 	add_child(btn)
 	btn.visible = true
 	tween_in(btn)
-	layout_frames = 10
+	layout_frames = 3 if OS.has_feature("HTML5") else 10
 
 func tween_out(p:Panel):
+	if OS.has_feature("HTML5"):
+		p.queue_free()
+		return
 	var tween = get_tree().create_tween()
 	tween.tween_property(p, "rect_min_size", Vector2(size_x - (page_size/2) * 10, 0), 0.2)
 	tween.tween_callback(p, "queue_free")
 
 func tween_in(p:Panel):
+	var target = Vector2(size_x - (next_index() - prev_index())/2 * 10, 90)
+	if OS.has_feature("HTML5"):
+		p.rect_min_size = target
+		return
 	var tween = get_tree().create_tween()
-	tween.tween_property(p, "rect_min_size", Vector2(size_x - (next_index() - prev_index())/2 * 10, 90), 0.2)
+	tween.tween_property(p, "rect_min_size", target, 0.2)
 
 func tween_length():
 	for i in range(btns.size()):
@@ -474,8 +509,10 @@ func update_clouds():
 		if btn.has_node("Cloud") and btn.song:
 			btn.get_node("Cloud").visible = btn.song.is_online
 
-func _on_rhythian_map_downloaded(_mid, _success, _msg):
-	if ready:
+func _on_rhythian_map_downloaded(_mid, success, _msg):
+	if ready and success:
+		songs = Rhythia.registry_song.get_items()
+		prepare_songs()
 		reload_to_current_page()
 
 func pg_up_cont():
@@ -529,7 +566,7 @@ func _exit_tree():
 func size_list():
 	size_x = get_viewport_rect().size.x/2.8
 	$"..".rect_min_size.x = size_x
-	layout_frames = 10
+	layout_frames = 3 if OS.has_feature("HTML5") else 10
 
 func _load_covers():
 	var allmaps:Array = Rhythia.registry_song.get_items()
