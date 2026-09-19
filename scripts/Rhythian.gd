@@ -49,6 +49,7 @@ var catalog_loading:bool = false
 var profile_limited:bool = false
 
 var registry:Dictionary = {}
+var runtime_song_metadata:Dictionary = {}
 
 var device_code:String = ""
 var device_expiry:int = 0
@@ -730,6 +731,8 @@ func _completion_points(c:Dictionary) -> int:
 func is_rhythian_song(song) -> bool:
 	if song == null:
 		return false
+	if not get_song_metadata(song).empty():
+		return true
 	return is_rhythian_map_path(str(song.filePath))
 
 func is_rhythian_map_path(fp:String) -> bool:
@@ -1344,10 +1347,28 @@ func get_map_metadata(id:String) -> Dictionary:
 			return saved
 	return {}
 
+func register_runtime_song(song,map:Dictionary):
+	if song==null or typeof(map)!=TYPE_DICTIONARY or map.empty():
+		return
+	var payload=_map_registry_payload(map)
+	var full_path=str(song.filePath)
+	var file_name=full_path.get_file()
+	runtime_song_metadata[full_path]=payload
+	runtime_song_metadata[file_name]=payload
+
 func get_song_metadata(song) -> Dictionary:
 	if song==null:
 		return {}
-	var file_name=str(song.filePath).get_file()
+	var full_path=str(song.filePath)
+	var file_name=full_path.get_file()
+	for key in [full_path,file_name]:
+		if runtime_song_metadata.has(key) and typeof(runtime_song_metadata[key])==TYPE_DICTIONARY:
+			var runtime_saved=runtime_song_metadata[key]
+			var runtime_id=str(runtime_saved.get("id",""))
+			var runtime_current=get_map_metadata(runtime_id)
+			if not runtime_current.empty():
+				return runtime_current
+			return runtime_saved
 	if registry.has(file_name) and typeof(registry[file_name])==TYPE_DICTIONARY:
 		var id=str(registry[file_name].get("id",""))
 		var current=get_map_metadata(id)
@@ -1366,15 +1387,23 @@ func get_rankability_label(map:Dictionary) -> String:
 func get_reward_text(map:Dictionary) -> String:
 	var rewards=map.get("maxRewards",null)
 	if typeof(rewards)!=TYPE_DICTIONARY:
-		return "No rank points"
-	return "RPL +%d · RPS +%d · RPV +%d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0)),int(rewards.get("vr",0))]
+		return "RPL — · RPS — · RPV —"
+	var lock=int(rewards.get("lock",0))
+	var spin=int(rewards.get("spin",0))
+	var vr=int(rewards.get("vr",0))
+	return "RPL %s · RPS %s · RPV %s" % [
+		("+"+str(lock)) if lock>0 else "—",
+		("+"+str(spin)) if spin>0 else "—",
+		("+"+str(vr)) if vr>0 else "—"
+	]
 
 func get_map_summary(map:Dictionary) -> String:
 	if map.empty():
 		return ""
 	var rating=get_map_rating(map)
 	var difficulty=str(map.get("difficulty",map.get("rankName","Unranked")))
-	return "%.2f ★ · %s · %s · %s" % [rating,difficulty,get_rankability_label(map),get_reward_text(map)]
+	var rating_text=("%.2f ★" % rating) if rating>0.0 else "Unrated"
+	return "%s · %s · %s · %s" % [rating_text,difficulty,get_rankability_label(map),get_reward_text(map)]
 
 func get_map_rating(map:Dictionary) -> float:
 	for key in ["rating", "difficulty", "difficultyRating", "stars", "starRating", "level", "sr", "bp"]:
