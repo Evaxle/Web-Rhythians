@@ -174,7 +174,7 @@ PY
 python3 - <<'PY'
 from pathlib import Path
 import base64
-Path("web/logo.png").write_bytes(base64.b64decode(Path("web/logo.b64").read_text().strip()))
+Path("web/rhythians-client.png").write_bytes(base64.b64decode(Path("web/logo.b64").read_text().strip()))
 PY
 
 python3 - <<'PY'
@@ -315,7 +315,7 @@ fi
 
 run_smoke /tmp/smoke.log "$GODOT_BIN" --path . web/tests/Smoke.tscn
 
-cp web/app.js web/app.css web/sspm.mjs web/logo.png web/manifest.webmanifest build/web/
+cp web/app.js web/app.css web/sspm.mjs web/rhythians-client.png web/manifest.webmanifest build/web/
 
 require_file() {
   if [ ! -s "$1" ]; then
@@ -366,7 +366,9 @@ require_text 'id="import-sspm"' build/web/index.html 'SSPM import button'
 require_text 'id="fullscreen"' build/web/index.html 'fullscreen button'
 require_text 'id="change-account"' build/web/index.html 'account button'
 require_text 'type="module" src="app.js"' build/web/index.html 'application module'
-require_text 'href="logo.png" type="image/png"' build/web/index.html 'web icon'
+require_text 'href="rhythians-client.png" type="image/png"' build/web/index.html 'Rhythians-Client web icon'
+require_text 'apple-mobile-web-app-title" content="Rhythians-Client"' build/web/index.html 'Rhythians-Client iOS app name'
+require_text '"name":"Rhythians-Client"' web/manifest.webmanifest 'Rhythians-Client manifest name'
 require_text 'RhythiansBrowser' web/app.js 'browser storage bridge'
 require_text 'rhythiansPersistUserData' web/shell.html 'persistent user data bridge'
 require_text 'NativeDialogDisabled.gd' scenes/menu/contentmgr.tscn 'web-safe native dialog replacement'
