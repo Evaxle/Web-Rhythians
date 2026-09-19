@@ -340,7 +340,68 @@ func reset_filters():
 func prepare_songs():
 	for i in range(songs.size()):
 		var map:Song = songs[i]
-		var metadata=Rhythian.get_song_metadata(map)
+		if Rhythian.is_rhythian_song(map):
+			if rhythian.find(map) == -1:
+				rhythian.append(map)
+			continue
+		var add_to:Array
+		match map.difficulty:
+			Globals.DIFF_EASY: add_to = easy
+			Globals.DIFF_MEDIUM: add_to = medium
+			Globals.DIFF_HARD: add_to = hard
+			Globals.DIFF_LOGIC: add_to = logic
+			Globals.DIFF_AMOGUS: add_to = amogus
+			_: add_to = unknown
+		if add_to.find(map) == -1:
+			add_to.append(map)
+	rhythian.sort_custom(self,"sortsongsimple")
+	easy.sort_custom(self,"sortsongsimple")
+	medium.sort_custom(self,"sortsongsimple")
+	hard.sort_custom(self,"sortsongsimple")
+	logic.sort_custom(self,"sortsongsimple")
+	amogus.sort_custom(self,"sortsongsimple")
+
+func make_song_button(id:int=-1):
+	if id < 0 or id >= disp.size():
+		var btn:Panel = $EMPTY.duplicate()
+		btn.rect_min_size = Vector2(int(size_x - (page_size/2) * 10), 0)
+		return btn
+	var map:Song = disp[id]
+	if map == null: return
+	var btn:Panel
+	match map.difficulty:
+		Globals.DIFF_EASY: btn = $EASY.duplicate()
+		Globals.DIFF_MEDIUM: btn = $MEDIUM.duplicate()
+		Globals.DIFF_HARD: btn = $HARD.duplicate()
+		Globals.DIFF_LOGIC: btn = $LOGIC.duplicate()
+		Globals.DIFF_AMOGUS: btn = $AMOGUS.duplicate()
+		_: btn = $NODIF.duplicate()
+	btn.rect_min_size = Vector2(size_x - 50, 0)
+	btn.get_node("Label").visible = false
+	if map.has_cover:
+		btn.get_node("Cover").visible = true
+		btn.get_node("Cover").texture = map.cover
+	btn.get_node("Name").visible = true
+	if map.name.length() > 55:
+		btn.get_node("Name").text = strip_diacritics(map.name)
+	else:
+		btn.get_node("Name").text = map.name
+	btn.song = map
+	if map.warning != "" || map.is_broken:
+		if map.is_broken: btn.get_node("Name").modulate = Color(1,0.4,0.4)
+		else: btn.get_node("Name").modulate = Color(1,1,0.2)
+	var rbtn:Button = btn.get_node("Select")
+	if is_fav(map): btn.get_node("F").visible = true
+	btn.get_node("Cloud").visible = map.is_online
+	rbtn.disabled = false
+	rbtn.connect("pressed",self,"on_pressed",[id])
+	rbtn.action_mode = 1
+	rbtn.connect("button_down", self, "check_drag_on")
+	rbtn.connect("button_up", self, "check_drag_off")
+	rbtn.keep_pressed_outside = true
+	if map == Rhythia.selected_song:
+		btn.get_node("Select").pressed = true
+	var metadata=Rhythian.get_song_metadata(map)
 	var linked=not metadata.empty()
 	var info=Label.new()
 	info.name="RhythianMeta"
@@ -374,8 +435,8 @@ func prepare_songs():
 	status.margin_bottom=20
 	status.mouse_default_cursor_shape=Control.CURSOR_POINTING_HAND
 	status.hint_tooltip=("On Rhythians · "+Rhythian.get_rankability_label(metadata)+" · "+Rhythian.get_map_pass_label(metadata)) if linked else "Not linked or not found on Rhythians. Tap to check this map."
-	status.disabled=linked
-	status.mouse_filter=Control.MOUSE_FILTER_STOP
+	status.disabled=false
+	status.mouse_filter=Control.MOUSE_FILTER_STOP if not linked else Control.MOUSE_FILTER_IGNORE
 	btn.add_child(status)
 
 	var ic=TextureRect.new()
@@ -401,7 +462,6 @@ func prepare_songs():
 	status.add_child(mark)
 	if not linked:
 		status.connect("pressed",self,"_check_rhythian_map",[map,status])
-
 	return btn
 
 func _check_rhythian_map(song:Song,status:Button):
