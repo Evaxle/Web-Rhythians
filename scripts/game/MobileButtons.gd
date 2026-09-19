@@ -21,8 +21,25 @@ func _make_action_button(text:String) -> Button:
 	button.text=text
 	button.pause_mode=Node.PAUSE_MODE_PROCESS
 	button.focus_mode=Control.FOCUS_NONE
-	button.rect_min_size=Vector2(116,54)
+	button.rect_min_size=Vector2(124,58)
 	button.add_font_override("font",RhythianUI.font(17,1))
+	var normal=StyleBoxFlat.new()
+	normal.bg_color=Color(0.035,0.055,0.10,0.92)
+	normal.border_width_left=1
+	normal.border_width_top=1
+	normal.border_width_right=1
+	normal.border_width_bottom=1
+	normal.border_color=Color(0.55,0.48,1.0,0.75)
+	normal.corner_radius_top_left=14
+	normal.corner_radius_top_right=14
+	normal.corner_radius_bottom_left=14
+	normal.corner_radius_bottom_right=14
+	var pressed=normal.duplicate()
+	pressed.bg_color=Color(0.18,0.14,0.38,0.96)
+	button.add_stylebox_override("normal",normal)
+	button.add_stylebox_override("hover",normal)
+	button.add_stylebox_override("focus",normal)
+	button.add_stylebox_override("pressed",pressed)
 	return button
 
 func _install_web_controls():
@@ -63,8 +80,10 @@ func _input(event):
 			spawn.mobile_tap_skip()
 
 func _process(_delta):
+	var spawn=get_node_or_null("../../Spawn")
+	if pause_button!=null and spawn!=null:
+		pause_button.text="Hold Resume" if float(spawn.get("pause_state"))!=0 else "Pause"
 	if hint_label!=null:
-		var spawn=get_node_or_null("../../Spawn")
 		hint_label.visible=spawn!=null and bool(spawn.get("can_skip"))
 
 func _ready():
