@@ -118,9 +118,13 @@ func _play_web_map(data:Dictionary):
 		return
 	active_map = data.get("map", {})
 	active_map_path = path
+	Rhythian.register_runtime_song(song,active_map)
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
 	mode_sync_enabled = true
 	last_spin = Rhythia.cam_unlock
+	var map_list = get_tree().current_scene.get_node_or_null("Main/Maps/MapRegistry/S/VBoxContainer")
+	if map_list != null and map_list.has_method("refresh_visible_list"):
+		map_list.call_deferred("refresh_visible_list")
 	Rhythia.select_song(song)
 	var sidebar = get_tree().current_scene.get_node_or_null("Sidebar")
 	if sidebar != null and sidebar.has_method("to_play"): sidebar.to_play()
@@ -228,9 +232,8 @@ func _finish_settings_import(success:bool,message:String,path:String):
 func _selected_rhythian_map() -> Dictionary:
 	var song = Rhythia.selected_song
 	if song == null: return {}
-	var fname = str(song.filePath).get_file()
-	if not Rhythian.registry.has(fname): return {}
-	var saved = Rhythian.registry[fname]
+	var saved=Rhythian.get_song_metadata(song)
+	if saved.empty(): return {}
 	var map_id = str(saved.get("id", ""))
 	if map_id == "": return {}
 	for map in Rhythian.maps_cache:
