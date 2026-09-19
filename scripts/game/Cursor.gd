@@ -92,17 +92,50 @@ func move_cursor_abs(mdel:Vector2):
 
 
 onready var absCamera = get_node("../../../AbsCamera")
-func get_absolute_position():
+var active_touch_index:int = -1
+
+func _web_touch_enabled() -> bool:
+	return OS.has_feature("HTML5") and WebPortal.mobile_touch
+
+func get_absolute_screen_position(screen_position:Vector2):
 	absCamera.fov = Rhythia.get("fov")
-	var pos = absCamera.project_position(get_viewport().get_mouse_position(),3.75) * Rhythia.absolute_scale
+	var pos = absCamera.project_position(screen_position,3.75) * Rhythia.absolute_scale
 	return Vector2(pos.x,-pos.y) + Vector2(1,1)
+
+func get_absolute_position():
+	return get_absolute_screen_position(get_viewport().get_mouse_position())
 
 func _input(event:InputEvent):
 	if !Rhythia.replaying and !Rhythia.vr and !ai_control:
+		var web_touch=_web_touch_enabled()
+		if web_touch and event is InputEventScreenTouch:
+			if event.pressed:
+				if active_touch_index==-1:
+					active_touch_index=event.index
+				if event.index==active_touch_index:
+					$VisualPos.visible=true
+					$VisualPos.rect_position=event.position
+					if !Rhythia.get("cam_unlock"):
+						visible=true
+						move_cursor_abs(get_absolute_screen_position(event.position))
+			elif event.index==active_touch_index:
+				$VisualPos.visible=false
+				active_touch_index=-1
+		elif web_touch and event is InputEventScreenDrag:
+			if active_touch_index==-1:
+				active_touch_index=event.index
+			if event.index==active_touch_index:
+				$VisualPos.visible=true
+				$VisualPos.rect_position=event.position
+				if !Rhythia.get("cam_unlock"):
+					visible=true
+					face=event.relative
+					move_cursor_abs(get_absolute_screen_position(event.position))
+
 		if can_switch_move_modes:
 			if event is InputEventJoypadMotion:
 				move_mode = C_JOYSTICK
-			elif event is InputEventMouseMotion:
+			elif event is InputEventMouseMotion and not web_touch:
 				move_mode = C_MOUSE
 
 		if move_mode == C_JOYSTICK:
@@ -114,9 +147,9 @@ func _input(event:InputEvent):
 				move_cursor_abs((relative + off) * -1)
 			else:
 				move_cursor_abs(relative + off)
-		elif !Rhythia.get("cam_unlock") and move_mode == C_MOUSE:
+		elif !Rhythia.get("cam_unlock") and move_mode == C_MOUSE and not web_touch:
 			visible = true
-			if (event is InputEventMouseMotion):
+			if event is InputEventMouseMotion:
 				face = event.relative
 				if Rhythia.invert_mouse:
 					if Rhythia.absolute_mode:
@@ -129,10 +162,10 @@ func _input(event:InputEvent):
 					else:
 						move_cursor(event.relative * 0.018 * Rhythia.sensitivity / Rhythia.render_scale)
 
-		if (event is InputEventScreenDrag):
+		if event is InputEventScreenDrag:
 			$VisualPos.visible = true
 			$VisualPos.rect_position = event.position
-		elif event is InputEventScreenTouch:
+		elif event is InputEventScreenTouch and not web_touch:
 			$VisualPos.visible = event.pressed
 
 var frame:int = Engine.get_frames_drawn()
@@ -238,7 +271,9 @@ func _ready():
 	if !Rhythia.show_cursor: visible = false
 
 	if !Rhythia.replaying:
-		if not Rhythia.absolute_mode:
+		if _web_touch_enabled():
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		elif not Rhythia.absolute_mode:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 		else:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CONFINED)

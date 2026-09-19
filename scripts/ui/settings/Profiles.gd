@@ -98,7 +98,10 @@ func _create_profile():
 			return
 		yield(get_tree().create_timer(0.1),"timeout")
 		if name.is_valid_filename() and name!="":
-			Rhythia.save_settings()
+			if OS.has_feature("HTML5"):
+				WebPortal.save_and_sync_settings()
+			else:
+				Rhythia.save_settings()
 			Rhythia.save_settings(Globals.p("user://"+name+".settings.json"))
 			_refresh_profiles()
 			return
@@ -109,9 +112,10 @@ func _switch_profile(path:String):
 	if result!=0:
 		_show_error("Could not load this settings profile. Error "+str(result)+".")
 		return
-	Rhythia.save_settings()
 	if OS.has_feature("HTML5"):
-		WebPortal.persist_user_data()
+		WebPortal.save_and_sync_settings()
+	else:
+		Rhythia.save_settings()
 	var menu=get_viewport().get_node_or_null("Menu")
 	if menu!=null:
 		menu.black_fade_target=true

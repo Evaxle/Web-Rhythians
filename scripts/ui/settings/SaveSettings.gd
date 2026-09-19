@@ -1,15 +1,17 @@
 extends Button
 
 func _pressed():
-	Rhythia.save_settings()
 	if OS.has_feature("HTML5"):
-		WebPortal.persist_user_data()
+		WebPortal.save_and_sync_settings()
+	else:
+		Rhythia.save_settings()
 
 func _exit_tree():
 	if !OS.has_feature("debug"):
-		Rhythia.save_settings()
 		if OS.has_feature("HTML5"):
-			WebPortal.persist_user_data()
+			WebPortal.save_and_sync_settings()
+		else:
+			Rhythia.save_settings()
 
 func _ready():
 	visible = OS.has_feature("debug") or OS.has_feature("HTML5")

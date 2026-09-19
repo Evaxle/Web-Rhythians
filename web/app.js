@@ -9,7 +9,6 @@ const deviceInfo=(()=>{
 })();
 document.documentElement.dataset.mobile=deviceInfo.mobile?"1":"0";
 let mobileInputMode="mouse";
-let activeTouchId=null;
 
 function isStandalone(){
   return navigator.standalone===true||window.matchMedia("(display-mode: standalone)").matches;
@@ -22,59 +21,14 @@ function showMobileSetup(view){
   $("android-unsupported").hidden=view!=="android";
   $("mobile-mode-choice").hidden=view!=="mode";
 }
-function dispatchTouchAsMouse(type,touch,buttons){
-  const canvas=$("canvas");
-  canvas.dispatchEvent(new MouseEvent(type,{
-    bubbles:true,
-    cancelable:true,
-    view:window,
-    clientX:touch.clientX,
-    clientY:touch.clientY,
-    screenX:touch.screenX,
-    screenY:touch.screenY,
-    button:0,
-    buttons
-  }));
-}
-function trackedTouch(list){
-  return Array.from(list||[]).find(touch=>touch.identifier===activeTouchId)||null;
-}
 function enableTouchMouseBridge(){
   const canvas=$("canvas");
   if(canvas.dataset.touchMouseBridge==="1")return;
   canvas.dataset.touchMouseBridge="1";
   canvas.classList.add("touchscreen-mode");
-  canvas.addEventListener("touchstart",event=>{
-    if(mobileInputMode!=="touchscreen"||activeTouchId!==null)return;
-    const touch=event.changedTouches[0];
-    if(!touch)return;
-    activeTouchId=touch.identifier;
-    canvas.focus();
-    dispatchTouchAsMouse("mousemove",touch,0);
-    dispatchTouchAsMouse("mousedown",touch,1);
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  },{passive:false});
-  canvas.addEventListener("touchmove",event=>{
-    if(mobileInputMode!=="touchscreen"||activeTouchId===null)return;
-    const touch=trackedTouch(event.touches)||trackedTouch(event.changedTouches);
-    if(!touch)return;
-    dispatchTouchAsMouse("mousemove",touch,1);
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  },{passive:false});
-  const endTouch=event=>{
-    if(mobileInputMode!=="touchscreen"||activeTouchId===null)return;
-    const touch=trackedTouch(event.changedTouches);
-    if(!touch)return;
-    dispatchTouchAsMouse("mousemove",touch,1);
-    dispatchTouchAsMouse("mouseup",touch,0);
-    activeTouchId=null;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  };
-  canvas.addEventListener("touchend",endTouch,{passive:false});
-  canvas.addEventListener("touchcancel",endTouch,{passive:false});
+  canvas.addEventListener("touchstart",()=>{
+    try{canvas.focus({preventScroll:true});}catch{canvas.focus();}
+  },{passive:true});
 }
 function enterClient(mode="mouse"){
   mobileInputMode=mode;
@@ -361,8 +315,9 @@ async function beginSignin(force=false){
   $("signin-copy").textContent="Checking your Rhythians session…";
   $("signin-link").hidden=true;
   let authTab=null;
+  const externalIOSLogin=deviceInfo.ios&&isStandalone();
   try{
-    authTab=window.open("about:blank","rhythians-web-auth");
+    authTab=window.open("about:blank",externalIOSLogin?"_blank":"rhythians-web-auth");
     if(authTab)authTab.opener=null;
   }catch{}
   if(!force){
@@ -380,11 +335,14 @@ async function beginSignin(force=false){
     const verification=new URL(data.verificationUrl);
     if(verification.origin!==BASE)throw new Error("Unexpected authorization website.");
     verification.searchParams.set("client","web");
+    if(externalIOSLogin)verification.searchParams.set("source","ios-home-screen");
     $("signin-code").textContent=data.userCode;
-    $("signin-copy").textContent="Confirm this browser on the Rhythians tab. This page will connect automatically after approval.";
+    $("signin-copy").textContent=externalIOSLogin?"Finish signing in through your default browser, then return to Rhythians. The app will connect automatically.":"Confirm this browser on the Rhythians tab. This page will connect automatically after approval.";
     $("signin-link").href=verification.href;
     $("signin-link").hidden=false;
-    if(authTab)authTab.location.href=verification.href;
+    if(authTab){
+      try{authTab.location.replace(verification.href);}catch{authTab.location.href=verification.href;}
+    }
     const expires=Date.now()+Number(data.expiresIn||300)*1000;
     while(attempt===loginGeneration&&Date.now()<expires){
       await new Promise(resolve=>setTimeout(resolve,3000));
@@ -752,6 +710,11 @@ window.rhythiansSettingsImported=(ok,message)=>{
   $("game-status").textContent=String(message|| (ok?"Settings imported.":"Settings import failed."));
   showGameToast($("game-status").textContent);
   if(ok)window.rhythiansPersistUserData?.().catch(()=>{});
+};
+window.rhythiansSettingsSync=(state,message)=>{
+  const text=String(message||"");
+  if(text)$("game-status").textContent=text;
+  if(state==="loaded"||state==="saved"||state==="error")showGameToast(text);
 };
 document.addEventListener("keydown",event=>{
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="o"&&!$("game").hidden){

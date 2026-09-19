@@ -15,6 +15,12 @@ var mobile_layout:bool = false
 var mobile_touch:bool = false
 var mobile_viewport:Vector2 = Vector2(1280,720)
 var mobile_layout_accum:float = 0.0
+var account_settings_loading:bool = false
+var account_settings_saving:bool = false
+var account_settings_save_pending:bool = false
+var account_settings_ready:bool = false
+var applying_account_settings:bool = false
+var settings_account_user_id:String = ""
 
 func _ready():
 	if not OS.has_feature("HTML5"): return
@@ -61,6 +67,111 @@ func persist_user_data():
 	if window and window.rhythiansPersistUserData:
 		window.rhythiansPersistUserData()
 
+func _settings_sync_status(state:String,message:String):
+	if window and window.rhythiansSettingsSync:
+		window.rhythiansSettingsSync(state,message)
+
+func _read_local_settings() -> Dictionary:
+	var file=File.new()
+	if file.open(Globals.p("user://settings.json"),File.READ)!=OK:
+		return {}
+	var parsed=JSON.parse(file.get_as_text())
+	file.close()
+	if parsed.error!=OK or typeof(parsed.result)!=TYPE_DICTIONARY:
+		return {}
+	return parsed.result
+
+func _write_local_settings(data:Dictionary) -> bool:
+	var file=File.new()
+	if file.open(Globals.p("user://settings.json"),File.WRITE)!=OK:
+		return false
+	file.store_string(JSON.print(data,"\t"))
+	file.flush()
+	file.close()
+	return true
+
+func save_and_sync_settings():
+	Rhythia.save_settings()
+	persist_user_data()
+	if Rhythian.logged_in:
+		call_deferred("save_account_settings")
+
+func save_account_settings():
+	if applying_account_settings or not Rhythian.logged_in:
+		return
+	if not account_settings_ready:
+		account_settings_save_pending=true
+		return
+	if account_settings_saving:
+		account_settings_save_pending=true
+		return
+	var settings=_read_local_settings()
+	if settings.empty():
+		return
+	var user_at_start=Rhythian.user_id
+	account_settings_saving=true
+	var res=yield(Rhythian._api_request(HTTPClient.METHOD_POST,"/api/rhythkit/settings",{"settings":settings},true,25.0),"completed")
+	account_settings_saving=false
+	if user_at_start!=Rhythian.user_id:
+		account_settings_save_pending=false
+		return
+	var ok=bool(res.get("ok",false))
+	var json=res.get("json",null)
+	if ok and typeof(json)==TYPE_DICTIONARY and bool(json.get("ok",true)):
+		_settings_sync_status("saved","Settings saved to your Rhythians account.")
+	else:
+		_settings_sync_status("error",Rhythian._http_error_message(res,"account settings"))
+	if account_settings_save_pending:
+		account_settings_save_pending=false
+		call_deferred("save_account_settings")
+
+func load_account_settings():
+	if account_settings_loading or not Rhythian.logged_in:
+		return
+	var user_at_start=Rhythian.user_id
+	var allow_seed=settings_account_user_id=="" or settings_account_user_id==user_at_start
+	account_settings_loading=true
+	var res=yield(Rhythian._api_request(HTTPClient.METHOD_GET,"/api/rhythkit/settings",null,true,25.0),"completed")
+	account_settings_loading=false
+	if user_at_start!=Rhythian.user_id:
+		return
+	if not bool(res.get("ok",false)):
+		_settings_sync_status("error",Rhythian._http_error_message(res,"account settings"))
+		return
+	var json=res.get("json",null)
+	if typeof(json)!=TYPE_DICTIONARY or not bool(json.get("ok",false)):
+		_settings_sync_status("error","Rhythians returned an invalid settings response.")
+		return
+	var remote=json.get("settings",null)
+	settings_account_user_id=user_at_start
+	account_settings_ready=true
+	if remote==null:
+		if allow_seed:
+			Rhythia.save_settings()
+			persist_user_data()
+			call_deferred("save_account_settings")
+			_settings_sync_status("saving","Saving these settings to your Rhythians account for the first time.")
+		else:
+			_settings_sync_status("loaded","This Rhythians account does not have cloud settings yet. Your current device settings stay local until you save them.")
+		return
+	if typeof(remote)!=TYPE_DICTIONARY:
+		_settings_sync_status("error","Your Rhythians account settings are invalid.")
+		return
+	applying_account_settings=true
+	var wrote=_write_local_settings(remote)
+	var load_result=-1
+	if wrote:
+		load_result=Rhythia.load_saved_settings()
+	applying_account_settings=false
+	if not wrote or load_result!=0:
+		_settings_sync_status("error","Cloud settings were found but the client could not apply them.")
+		return
+	persist_user_data()
+	_settings_sync_status("loaded","Settings loaded from your Rhythians account.")
+	if account_settings_save_pending:
+		account_settings_save_pending=false
+		call_deferred("save_account_settings")
+
 func command(args):
 	if args.empty(): return
 	var parsed = JSON.parse(str(args[0]))
@@ -70,7 +181,11 @@ func command(args):
 		"auth":
 			var account = data.get("account", {})
 			if typeof(account) != TYPE_DICTIONARY: return
+			account_settings_ready=false
+			account_settings_save_pending=false
 			Rhythian.apply_browser_auth(account)
+			if Rhythian.logged_in:
+				call_deferred("load_account_settings")
 			if window:
 				window.rhythiansAccountApplied(JSON.print({
 					"loggedIn": Rhythian.logged_in,
@@ -78,20 +193,22 @@ func command(args):
 				}))
 		"guest":
 			Rhythian.logout()
+			account_settings_ready=false
+			account_settings_save_pending=false
 			active_map.clear()
 			active_map_path = ""
 			if window:
 				window.rhythiansAccountApplied(JSON.print({"loggedIn": false, "username": ""}))
 		"spin":
 			Rhythia.cam_unlock = bool(data.get("enabled", false))
-			Rhythia.save_settings()
+			save_and_sync_settings()
 		"save":
-			Rhythia.save_settings()
+			save_and_sync_settings()
 		"flush":
 			if Rhythian.logged_in:
 				Rhythian._flush_score_queue()
 		"portal":
-			Rhythia.save_settings()
+			save_and_sync_settings()
 			active_map.clear()
 			active_map_path = ""
 			menu_loaded = false

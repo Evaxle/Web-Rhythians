@@ -16,12 +16,16 @@ func _ready():
 	var tween:Tween = Tween.new()
 	add_child(tween)
 	
-	$Pause/Button.visible = OS.has_feature("Android")
-	$GiveUp/Button.visible = OS.has_feature("Android")
+	var mobile_buttons=OS.has_feature("Android") or (OS.has_feature("HTML5") and WebPortal.mobile_touch)
+	$Pause/Button.visible = mobile_buttons
+	$GiveUp/Button.visible = mobile_buttons
 	
-	if Rhythia.mirror_buttons:
-		$Pause/Button.position.x = OS.get_window_safe_area().size.x - 150
-		$GiveUp/Button.position.x = OS.get_window_safe_area().size.x - 150
+	if Rhythia.mirror_buttons and mobile_buttons:
+		var viewport_width=float(OS.get_window_safe_area().size.x)
+		if OS.has_feature("HTML5") and WebPortal.mobile_touch:
+			viewport_width=WebPortal.mobile_viewport.x
+		$Pause/Button.position.x = max(0,viewport_width - 150)
+		$GiveUp/Button.position.x = max(0,viewport_width - 150)
 	
 	tween.interpolate_property($Pause, "modulate", Color(1,1,1,0.5), Color(1,1,1,0), 1, Tween.TRANS_QUAD, Tween.EASE_IN_OUT, 1)
 	tween.start()

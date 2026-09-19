@@ -8,6 +8,12 @@ var edgec:float = 0.13125
 onready var cursor = get_node("../Game/Spawn/Cursor")
 
 var phase:int = 0
+var active_touch_index:int = -1
+var touch_position:Vector2 = Vector2()
+var touch_position_valid:bool = false
+
+func _web_touch_enabled() -> bool:
+	return OS.has_feature("HTML5") and WebPortal.mobile_touch
 
 func _physics_process(delta):
 	if Rhythia.hit_fov_decay != 0:
@@ -49,7 +55,7 @@ func _process(delta):
 				centeroff.y = -cy - cursor_offset.y
 				cursor.transform.origin = centeroff + cursor_offset
 		else:
-			var abs_pos = cursor.get_absolute_position()
+			var abs_pos = cursor.get_absolute_screen_position(touch_position) if _web_touch_enabled() and touch_position_valid else cursor.get_absolute_position()
 			cursor.move_cursor_abs(abs_pos)
 			abs_pos = Vector3(abs_pos.x, -abs_pos.y, 0) - cursor_offset
 			transform.origin = Vector3(
@@ -62,8 +68,25 @@ var yaw = 0
 var pitch = 0
 
 func _input(event):
+	if _web_touch_enabled():
+		if event is InputEventScreenTouch:
+			if event.pressed:
+				if active_touch_index==-1:
+					active_touch_index=event.index
+				if event.index==active_touch_index:
+					touch_position=event.position
+					touch_position_valid=true
+			elif event.index==active_touch_index:
+				touch_position_valid=false
+				active_touch_index=-1
+		elif event is InputEventScreenDrag:
+			if active_touch_index==-1:
+				active_touch_index=event.index
+			if event.index==active_touch_index:
+				touch_position=event.position
+				touch_position_valid=true
 	if Rhythia.get("cam_unlock") and !Rhythia.replaying and !Rhythia.absolute_mode:
-		if (event is InputEventMouseMotion) or (event is InputEventScreenDrag):
+		if (event is InputEventMouseMotion and not _web_touch_enabled()) or event is InputEventScreenDrag:
 			yaw = fmod(yaw - event.relative.x * Rhythia.sensitivity * 0.2, 360)
 			pitch = max(min(pitch - event.relative.y * Rhythia.sensitivity * 0.2, 89), -89)
 			rotation = Vector3(deg2rad(pitch), deg2rad(yaw), 0)
