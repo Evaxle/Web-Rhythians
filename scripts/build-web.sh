@@ -405,7 +405,7 @@ require_text '["settings","Settings"]' scripts/ui/menu/Sidebar.gd 'native Settin
 require_text 'func open_native_page(page:String):' scripts/ui/menu/Sidebar.gd 'native page navigation'
 require_text 'var play_root = get_node_or_null("../Main/Maps")' scripts/ui/menu/Sidebar.gd 'Play root restoration'
 require_text 'func get_map_summary(map:Dictionary) -> String:' scripts/Rhythian.gd 'persisted Rhythians map metadata summary'
-require_text 'RPL +%d · RPS +%d · RPV +%d' scripts/Rhythian.gd 'all rank reward types'
+require_text 'RPL %s · RPS %s · RPV %s' scripts/Rhythian.gd 'all rank reward types'
 require_text 'func _safe_user_name(user:Dictionary) -> String:' scripts/ui/menu/RhythiansPortal.gd 'online player null-name fallback'
 require_text 'get_parent().get_node_or_null("ImportSettings")' web/tests/Smoke.gd 'settings import control smoke test'
 require_text 'func request_settings_import():' web/Bridge.gd 'browser settings import bridge'
