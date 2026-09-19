@@ -19,6 +19,7 @@ const REGISTRY_FILE = "user://maps/rhythian maps/rhythian_maps.json"
 const AUTH_FILE = "user://rhythian/auth.json"
 const QUEUE_FILE = "user://rhythian/score_queue.json"
 const SONG_LINKS_FILE = "user://rhythian/song_links.json"
+const SONG_LINK_CHECKS_FILE = "user://rhythian/song_link_checks.json"
 const INTEGRATION_VERSION = "rhythian-client-1"
 
 var base_url:String = DEFAULT_BASE_URL
@@ -52,7 +53,11 @@ var profile_limited:bool = false
 
 var registry:Dictionary = {}
 var song_links:Dictionary = {}
+var song_link_checks:Dictionary = {}
 var song_lookup_inflight:Dictionary = {}
+var auto_link_running:bool = false
+var auto_link_checked:int = 0
+var auto_link_found:int = 0
 var runtime_song_metadata:Dictionary = {}
 var runtime_song_id:String = ""
 
@@ -92,6 +97,7 @@ func _ready():
 	_load_auth()
 	_load_registry()
 	_load_song_links()
+	_load_song_link_checks()
 	if logged_in and not OS.has_feature("HTML5"):
 		refresh_status()
 		_flush_score_queue()
@@ -164,6 +170,7 @@ func _refresh_browser_account():
 	fetch_maps()
 	fetch_scores()
 	_flush_score_queue()
+	call_deferred("start_auto_link_unchecked")
 func _clear_account_state():
 	clear_runtime_song()
 	profile = {}
@@ -182,6 +189,9 @@ func _clear_account_state():
 	completions_embedded = false
 	catalog_loading = false
 	profile_limited = false
+	auto_link_running = false
+	auto_link_checked = 0
+	auto_link_found = 0
 	last_rhp = -1
 
 func logout():
@@ -1133,6 +1143,86 @@ func _load_song_links():
 	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY:
 		song_links=parsed.result
 
+func _save_song_link_checks():
+	var f=File.new()
+	if f.open(Globals.p(SONG_LINK_CHECKS_FILE),File.WRITE)!=OK:
+		return
+	f.store_string(JSON.print(song_link_checks))
+	f.close()
+	if OS.has_feature("HTML5"):
+		WebPortal.persist_user_data()
+
+func _load_song_link_checks():
+	var f=File.new()
+	if not f.file_exists(Globals.p(SONG_LINK_CHECKS_FILE)):
+		return
+	if f.open(Globals.p(SONG_LINK_CHECKS_FILE),File.READ)!=OK:
+		return
+	var parsed=JSON.parse(f.get_as_text())
+	f.close()
+	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY:
+		song_link_checks=parsed.result
+
+func _mark_song_checked(song,found:bool):
+	var key=_song_link_key(song)
+	if key=="":
+		return
+	song_link_checks[key]={
+		"found":found,
+		"checkedAt":_iso_now()
+	}
+	_save_song_link_checks()
+
+func get_unchecked_local_songs() -> Array:
+	var result=[]
+	if Rhythia.registry_song==null:
+		return result
+	for song in Rhythia.registry_song.get_items():
+		if not (song is Song) or song.is_broken:
+			continue
+		if not get_song_metadata(song).empty():
+			continue
+		var key=_song_link_key(song)
+		if key=="" or song_link_checks.has(key):
+			continue
+		result.append(song)
+	return result
+
+func start_auto_link_unchecked():
+	if auto_link_running or not logged_in or Rhythia.registry_song==null:
+		return
+	call_deferred("_auto_link_unchecked")
+
+func _auto_link_unchecked():
+	if auto_link_running or not logged_in:
+		return
+	var pending=get_unchecked_local_songs()
+	if pending.empty():
+		return
+	auto_link_running=true
+	auto_link_checked=0
+	auto_link_found=0
+	for song in pending:
+		if not logged_in:
+			break
+		if song==null or not is_instance_valid(song):
+			continue
+		if not get_song_metadata(song).empty():
+			continue
+		var result=lookup_song(song,true)
+		var found=false
+		if result is GDScriptFunctionState:
+			found=bool(yield(result,"completed"))
+		else:
+			found=bool(result)
+		auto_link_checked+=1
+		if found:
+			auto_link_found+=1
+		if not logged_in:
+			break
+		yield(get_tree().create_timer(0.20),"timeout")
+	auto_link_running=false
+
 func _song_link_key(song) -> String:
 	if song==null:
 		return ""
@@ -1152,19 +1242,21 @@ func _link_song_metadata(song,map:Dictionary):
 		song_links[key]["hasScore"]=bool(map["hasScore"])
 	_save_song_links()
 
-func lookup_song(song):
+func lookup_song(song,quiet:bool=false):
 	if song==null:
-		return
+		return false
 	var lookup_id=str(song.id)
 	if lookup_id=="":
-		emit_signal("song_link_updated","",false,"This map has no source id.")
-		return
+		if not quiet:
+			emit_signal("song_link_updated","",false,"This map has no source id.")
+		return false
 	if not logged_in:
-		emit_signal("song_link_updated",lookup_id,false,"Sign in to Rhythians to check this map.")
-		return
+		if not quiet:
+			emit_signal("song_link_updated",lookup_id,false,"Sign in to Rhythians to check this map.")
+		return false
 	var key=_song_link_key(song)
 	if song_lookup_inflight.has(key):
-		return
+		return false
 	song_lookup_inflight[key]=true
 	var path="/api/rhythkit/maps/"+lookup_id.http_escape()
 	var query=[]
@@ -1179,18 +1271,24 @@ func lookup_song(song):
 	var res=yield(_api_request(HTTPClient.METHOD_GET,path,null,true,30.0),"completed")
 	song_lookup_inflight.erase(key)
 	if _handle_auth_failure(res):
-		emit_signal("song_link_updated",lookup_id,false,"Your Rhythians session expired - sign in again.")
-		return
+		if not quiet:
+			emit_signal("song_link_updated",lookup_id,false,"Your Rhythians session expired - sign in again.")
+		return false
 	if not bool(res.get("ok",false)):
 		var code=int(res.get("code",0))
 		var message="Map not found on Rhythians." if code==404 else _http_error_message(res,"the map lookup")
-		emit_signal("song_link_updated",lookup_id,false,message)
-		return
+		if code==404:
+			_mark_song_checked(song,false)
+		if not quiet:
+			emit_signal("song_link_updated",lookup_id,false,message)
+		return false
 	var map=res.get("json",null)
 	if typeof(map)!=TYPE_DICTIONARY or not bool(map.get("ok",false)) or str(map.get("id",""))=="":
-		emit_signal("song_link_updated",lookup_id,false,"Rhythians returned invalid map metadata.")
-		return
+		if not quiet:
+			emit_signal("song_link_updated",lookup_id,false,"Rhythians returned invalid map metadata.")
+		return false
 	_link_song_metadata(song,map)
+	_mark_song_checked(song,true)
 	var mid=str(map.get("id",""))
 	var completion=map.get("completion",null)
 	if mid!="" and typeof(completion)==TYPE_DICTIONARY:
@@ -1198,6 +1296,7 @@ func lookup_song(song):
 		recompute_rhythian_progress()
 		emit_signal("completions_updated",true,"")
 	emit_signal("song_link_updated",lookup_id,true,"Map found on Rhythians.")
+	return true
 
 func _registry_add(file_name:String, map:Dictionary):
 	registry[file_name] = _map_registry_payload(map)
