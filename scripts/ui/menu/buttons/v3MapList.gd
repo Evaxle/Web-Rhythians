@@ -372,7 +372,7 @@ func _set_rhythian_badge_state(status:Button,state:String):
 	status.add_stylebox_override("focus",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
 	var state_panel=status.get_node_or_null("State")
 	if state_panel!=null:
-		state_panel.add_stylebox_override("panel",_rhythian_badge_box(color,bg,11))
+		state_panel.add_stylebox_override("panel",_rhythian_badge_box(color,bg,9))
 		var mark=state_panel.get_node_or_null("Mark")
 		if mark!=null:
 			mark.text=mark_text
@@ -452,7 +452,7 @@ func make_song_button(id:int=-1):
 	info.anchor_top=1.0
 	info.anchor_bottom=1.0
 	info.margin_left=12
-	info.margin_right=-90
+	info.margin_right=-72
 	info.margin_top=-25
 	info.margin_bottom=-4
 	info.clip_text=true
@@ -465,15 +465,15 @@ func make_song_button(id:int=-1):
 	status.name="RhythianStatus"
 	status.flat=false
 	status.focus_mode=Control.FOCUS_NONE
-	status.rect_min_size=Vector2(70,38)
+	status.rect_min_size=Vector2(54,42)
 	status.anchor_left=1.0
 	status.anchor_right=1.0
 	status.anchor_top=0.5
 	status.anchor_bottom=0.5
-	status.margin_left=-80
+	status.margin_left=-64
 	status.margin_right=-10
-	status.margin_top=-19
-	status.margin_bottom=19
+	status.margin_top=-21
+	status.margin_bottom=21
 	status.mouse_default_cursor_shape=Control.CURSOR_POINTING_HAND
 	status.hint_tooltip=("On Rhythians · "+Rhythian.get_rankability_label(metadata)+" · "+Rhythian.get_map_pass_label(metadata)) if linked else "Not found or not checked on Rhythians. Tap to check this map."
 	status.mouse_filter=Control.MOUSE_FILTER_IGNORE if linked else Control.MOUSE_FILTER_STOP
@@ -482,8 +482,8 @@ func make_song_button(id:int=-1):
 	var ic=TextureRect.new()
 	ic.name="RhythianIcon"
 	ic.texture=RHYTHIAN_ICON
-	ic.rect_position=Vector2(7,7)
-	ic.rect_size=Vector2(24,24)
+	ic.rect_position=Vector2(8,5)
+	ic.rect_size=Vector2(32,32)
 	ic.expand=true
 	ic.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -491,8 +491,8 @@ func make_song_button(id:int=-1):
 
 	var state_panel=Panel.new()
 	state_panel.name="State"
-	state_panel.rect_position=Vector2(39,7)
-	state_panel.rect_size=Vector2(24,24)
+	state_panel.rect_position=Vector2(31,22)
+	state_panel.rect_size=Vector2(18,18)
 	state_panel.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	status.add_child(state_panel)
 
@@ -503,7 +503,7 @@ func make_song_button(id:int=-1):
 	mark.align=Label.ALIGN_CENTER
 	mark.valign=Label.VALIGN_CENTER
 	mark.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	mark.add_font_override("font",RhythianUI.font(14,1))
+	mark.add_font_override("font",RhythianUI.font(11,1))
 	state_panel.add_child(mark)
 	_set_rhythian_badge_state(status,"linked" if linked else "missing")
 	if not linked:
