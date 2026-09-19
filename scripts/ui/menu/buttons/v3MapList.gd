@@ -423,7 +423,8 @@ func make_song_button(id:int=-1):
 		var ic = TextureRect.new()
 		ic.name = "RhythianIcon"
 		ic.texture = RHYTHIAN_ICON
-		ic.rect_min_size = Vector2(38, 38)
+		ic.hint_tooltip = "Downloaded from Rhythians"
+		ic.rect_min_size = Vector2(28, 28)
 		ic.expand = true
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -431,10 +432,10 @@ func make_song_button(id:int=-1):
 		ic.anchor_right = 1.0
 		ic.anchor_top = 0.0
 		ic.anchor_bottom = 1.0
-		ic.margin_left = -54
-		ic.margin_right = -12
-		ic.margin_top = 10
-		ic.margin_bottom = -10
+		ic.margin_left = -42
+		ic.margin_right = -10
+		ic.margin_top = 14
+		ic.margin_bottom = -14
 		ic.grow_vertical = Control.GROW_DIRECTION_BOTH
 		btn.add_child(ic)
 	return btn
