@@ -112,6 +112,7 @@ func _play_web_map(data:Dictionary):
 	if not menu_loaded: return
 	var path = str(data.get("path", ""))
 	if not path.begins_with("/tmp/rhythians-") or not path.ends_with(".sspm"): return
+	Rhythian.clear_runtime_song()
 	var song = Rhythia.registry_song.add_sspm_map(path)
 	if song == null:
 		if window: window.rhythiansError("This map cannot be loaded by the client.")
