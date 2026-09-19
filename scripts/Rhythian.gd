@@ -50,6 +50,7 @@ var profile_limited:bool = false
 
 var registry:Dictionary = {}
 var runtime_song_metadata:Dictionary = {}
+var runtime_song_id:String = ""
 
 var device_code:String = ""
 var device_expiry:int = 0
@@ -159,6 +160,7 @@ func _refresh_browser_account():
 	fetch_scores()
 	_flush_score_queue()
 func _clear_account_state():
+	clear_runtime_song()
 	profile = {}
 	maps_cache = []
 	maps_total = 0
@@ -1347,12 +1349,19 @@ func get_map_metadata(id:String) -> Dictionary:
 			return saved
 	return {}
 
+func clear_runtime_song():
+	if runtime_song_id!="" and Rhythia.registry_song!=null:
+		Rhythia.registry_song.check_and_remove_id(runtime_song_id)
+	runtime_song_id=""
+	runtime_song_metadata.clear()
+
 func register_runtime_song(song,map:Dictionary):
 	if song==null or typeof(map)!=TYPE_DICTIONARY or map.empty():
 		return
 	var payload=_map_registry_payload(map)
 	var full_path=str(song.filePath)
 	var file_name=full_path.get_file()
+	runtime_song_id=str(song.id)
 	runtime_song_metadata[full_path]=payload
 	runtime_song_metadata[file_name]=payload
 
