@@ -21,6 +21,10 @@ var account_settings_save_pending:bool = false
 var account_settings_ready:bool = false
 var applying_account_settings:bool = false
 var settings_account_user_id:String = ""
+var settings_watch_accum:float = 0.0
+var settings_sync_delay:float = -1.0
+var last_settings_fingerprint:String = ""
+var mobile_keyboard_control:Control = null
 
 func _ready():
 	if not OS.has_feature("HTML5"): return
@@ -90,13 +94,44 @@ func _write_local_settings(data:Dictionary) -> bool:
 	file.close()
 	return true
 
-func save_and_sync_settings():
+func _settings_fingerprint(settings:Dictionary) -> String:
+	return JSON.print(settings)
+
+func save_and_sync_settings(show_status:bool=true):
 	Rhythia.save_settings()
+	var settings=_read_local_settings()
+	if not settings.empty():
+		last_settings_fingerprint=_settings_fingerprint(settings)
 	persist_user_data()
 	if Rhythian.logged_in:
-		call_deferred("save_account_settings")
+		call_deferred("save_account_settings",show_status)
 
-func save_account_settings():
+func _schedule_settings_sync(delay:float=0.9):
+	settings_sync_delay=delay if settings_sync_delay<0 else min(settings_sync_delay,delay)
+
+func _watch_settings(delta:float):
+	if applying_account_settings or not account_settings_ready or not Rhythian.logged_in:
+		return
+	settings_watch_accum+=delta
+	if settings_watch_accum>=0.75:
+		settings_watch_accum=0.0
+		Rhythia.save_settings()
+		var settings=_read_local_settings()
+		if not settings.empty():
+			var fingerprint=_settings_fingerprint(settings)
+			if last_settings_fingerprint=="":
+				last_settings_fingerprint=fingerprint
+			elif fingerprint!=last_settings_fingerprint:
+				last_settings_fingerprint=fingerprint
+				persist_user_data()
+				_schedule_settings_sync()
+	if settings_sync_delay>=0:
+		settings_sync_delay-=delta
+		if settings_sync_delay<=0:
+			settings_sync_delay=-1
+			call_deferred("save_account_settings",false)
+
+func save_account_settings(show_status:bool=true):
 	if applying_account_settings or not Rhythian.logged_in:
 		return
 	if not account_settings_ready:
@@ -118,12 +153,15 @@ func save_account_settings():
 	var ok=bool(res.get("ok",false))
 	var json=res.get("json",null)
 	if ok and typeof(json)==TYPE_DICTIONARY and bool(json.get("ok",true)):
-		_settings_sync_status("saved","Settings saved to your Rhythians account.")
+		last_settings_fingerprint=_settings_fingerprint(settings)
+		if show_status:
+			_settings_sync_status("saved","Settings saved to your Rhythians account.")
 	else:
+		last_settings_fingerprint=""
 		_settings_sync_status("error",Rhythian._http_error_message(res,"account settings"))
 	if account_settings_save_pending:
 		account_settings_save_pending=false
-		call_deferred("save_account_settings")
+		call_deferred("save_account_settings",show_status)
 
 func load_account_settings():
 	if account_settings_loading or not Rhythian.logged_in:
@@ -148,8 +186,11 @@ func load_account_settings():
 	if remote==null:
 		if allow_seed:
 			Rhythia.save_settings()
+			var local_settings=_read_local_settings()
+			if not local_settings.empty():
+				last_settings_fingerprint=_settings_fingerprint(local_settings)
 			persist_user_data()
-			call_deferred("save_account_settings")
+			call_deferred("save_account_settings",true)
 			_settings_sync_status("saving","Saving these settings to your Rhythians account for the first time.")
 		else:
 			_settings_sync_status("loaded","This Rhythians account does not have cloud settings yet. Your current device settings stay local until you save them.")
@@ -166,6 +207,7 @@ func load_account_settings():
 	if not wrote or load_result!=0:
 		_settings_sync_status("error","Cloud settings were found but the client could not apply them.")
 		return
+	last_settings_fingerprint=_settings_fingerprint(remote)
 	persist_user_data()
 	_settings_sync_status("loaded","Settings loaded from your Rhythians account.")
 	if account_settings_save_pending:
@@ -232,6 +274,10 @@ func command(args):
 			_import_sspm(data)
 		"import-settings":
 			_import_settings(data)
+		"mobile-keyboard-text":
+			_mobile_keyboard_text(str(data.get("text","")))
+		"mobile-keyboard-done":
+			_mobile_keyboard_done()
 
 func _play_web_map(data:Dictionary):
 	if not menu_loaded: return
@@ -453,6 +499,7 @@ func _maps_updated(success:bool, _message:String):
 		window.rhythiansCatalogReady(Rhythian.maps_total)
 
 func _process(delta):
+	_watch_settings(delta)
 	if window and mode_sync_enabled and last_spin != Rhythia.cam_unlock:
 		last_spin = Rhythia.cam_unlock
 		window.rhythiansMode(last_spin)
@@ -483,13 +530,74 @@ func _enhance_mobile_controls(node):
 	if node==null:
 		return
 	if node is BaseButton:
-		node.rect_min_size.y=max(node.rect_min_size.y,52 if mobile_touch else 44)
-		if node is Button or node is CheckButton or node is OptionButton:
-			node.add_font_override("font",RhythianUI.font(16 if mobile_touch else 14,1 if node is Button else 0))
-	elif node is LineEdit or node is TextEdit or node is SpinBox:
-		node.rect_min_size.y=max(node.rect_min_size.y,50 if mobile_touch else 42)
+		node.rect_min_size.y=max(node.rect_min_size.y,62 if mobile_touch else 46)
+		if node is Button or node is CheckButton or node is OptionButton or node is MenuButton:
+			node.add_font_override("font",RhythianUI.font(18 if mobile_touch else 14,1 if node is Button else 0))
+	elif node is LineEdit or node is TextEdit:
+		node.rect_min_size.y=max(node.rect_min_size.y,60 if mobile_touch else 44)
+		if mobile_touch:
+			node.add_font_override("font",RhythianUI.font(18))
+			_register_mobile_text_control(node)
+	elif node is SpinBox:
+		node.rect_min_size.y=max(node.rect_min_size.y,60 if mobile_touch else 44)
+		if mobile_touch:
+			var line=node.get_line_edit()
+			if line!=null:
+				line.add_font_override("font",RhythianUI.font(18))
+				_register_mobile_text_control(line)
+	elif node is HSlider or node is VSlider:
+		if mobile_touch:
+			node.rect_min_size.y=max(node.rect_min_size.y,46)
 	for child in node.get_children():
 		_enhance_mobile_controls(child)
+
+func _mobile_text_focus_entered(control:Control):
+	if not mobile_touch or control==null or not is_instance_valid(control):
+		return
+	mobile_keyboard_control=control
+	var current=""
+	var multiline=false
+	if control is LineEdit:
+		current=control.text
+	elif control is TextEdit:
+		current=control.text
+		multiline=true
+	if window and window.rhythiansOpenKeyboard:
+		window.rhythiansOpenKeyboard(current,multiline)
+
+func _mobile_text_focus_exited(control:Control):
+	if mobile_keyboard_control==control:
+		mobile_keyboard_control=null
+		if window and window.rhythiansCloseKeyboard:
+			window.rhythiansCloseKeyboard()
+
+func _mobile_keyboard_text(value:String):
+	if mobile_keyboard_control==null or not is_instance_valid(mobile_keyboard_control):
+		return
+	if mobile_keyboard_control is LineEdit:
+		mobile_keyboard_control.text=value
+		mobile_keyboard_control.caret_position=value.length()
+		var parent=mobile_keyboard_control.get_parent()
+		if parent is SpinBox and value.is_valid_float():
+			parent.value=float(value)
+	elif mobile_keyboard_control is TextEdit:
+		mobile_keyboard_control.text=value
+
+func _mobile_keyboard_done():
+	if mobile_keyboard_control==null or not is_instance_valid(mobile_keyboard_control):
+		return
+	var control=mobile_keyboard_control
+	if control is LineEdit:
+		control.emit_signal("text_entered",control.text)
+	control.release_focus()
+	mobile_keyboard_control=null
+
+func _register_mobile_text_control(control:Control):
+	if control==null or control.has_meta("rhythians_mobile_keyboard"):
+		return
+	control.set_meta("rhythians_mobile_keyboard",true)
+	control.connect("focus_entered",self,"_mobile_text_focus_entered",[control])
+	control.connect("focus_exited",self,"_mobile_text_focus_exited",[control])
 
 func _score_submitted(success:bool, message:String):
 	if window and window.rhythiansScoreResult:
