@@ -193,7 +193,10 @@ func load_account_settings():
 			call_deferred("save_account_settings",true)
 			_settings_sync_status("saving","Saving these settings to your Rhythians account for the first time.")
 		else:
-			_settings_sync_status("loaded","This Rhythians account does not have cloud settings yet. Your current device settings stay local until you save them.")
+			var local_settings=_read_local_settings()
+			if not local_settings.empty():
+				last_settings_fingerprint=_settings_fingerprint(local_settings)
+			_settings_sync_status("loaded","This Rhythians account does not have cloud settings yet. Your current device settings stay local until you change or save them.")
 		return
 	if typeof(remote)!=TYPE_DICTIONARY:
 		_settings_sync_status("error","Your Rhythians account settings are invalid.")
