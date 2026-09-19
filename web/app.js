@@ -453,10 +453,16 @@ async function validateCachedSSPM(cache,key){
   const cached=await cache.match(key);
   if(!cached||!cached.body)return false;
   const reader=cached.body.getReader();
+  const head=[];
   try{
-    const first=await reader.read();
-    const value=first.value||new Uint8Array();
-    return value.length>=4&&value[0]===0x53&&value[1]===0x53&&value[2]===0x2b&&value[3]===0x6d;
+    while(head.length<4){
+      const {done,value}=await reader.read();
+      if(done)break;
+      if(value?.length){
+        for(let i=0;i<value.length&&head.length<4;i++)head.push(value[i]);
+      }
+    }
+    return head.length===4&&head[0]===0x53&&head[1]===0x53&&head[2]===0x2b&&head[3]===0x6d;
   }finally{
     try{await reader.cancel();}catch{}
   }
@@ -471,64 +477,55 @@ window.rhythiansDownloadMap=async text=>{
     window.rhythiansCommand?.(JSON.stringify({action:"download-complete",id,success:false,message:"Sign in to download maps."}));
     return;
   }
+
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),180000);
   try{
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),180000);
-    let response;
-    try{
-      response=await fetch(`${BASE}/api/rhythkit/maps/${encodeURIComponent(id)}/download?stream=1`,{
-        method:"GET",
-        headers:{Authorization:"Bearer "+sessionAccount.token},
-        credentials:"omit",
-        cache:"no-store",
-        signal:controller.signal
-      });
-    }finally{
-      clearTimeout(timer);
-    }
+    const response=await fetch(`${BASE}/api/rhythkit/maps/${encodeURIComponent(id)}/download?stream=1`,{
+      method:"GET",
+      headers:{Authorization:"Bearer "+sessionAccount.token},
+      credentials:"omit",
+      cache:"no-store",
+      signal:controller.signal
+    });
     if(!response?.ok)throw new Error(`Map download failed (HTTP ${response?.status||0}).`);
+    if(!response.body)throw new Error("Map download stream is unavailable.");
+
     const total=Number(response.headers.get("content-length")||0);
     window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received:0,total}));
+
     const cache=await caches.open(MAP_CACHE_NAME);
     const key=mapCacheKey(id);
-    if(!response.body)throw new Error("Map download stream is unavailable.");
+    const cacheWrite=cache.put(key,response.clone());
+
     const reader=response.body.getReader();
     let received=0;
     let lastProgressAt=0;
-    const countedBody=new ReadableStream({
-      async pull(controller){
-        try{
-          const {done,value}=await reader.read();
-          if(done){
-            controller.close();
-            window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received,total:total||received}));
-            return;
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        if(value?.length){
+          received+=value.length;
+          const now=performance.now();
+          if(now-lastProgressAt>=80||received===total){
+            lastProgressAt=now;
+            window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received,total}));
           }
-          if(value?.length){
-            received+=value.length;
-            const now=performance.now();
-            if(now-lastProgressAt>=80||received===total){
-              lastProgressAt=now;
-              window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received,total}));
-            }
-            controller.enqueue(value);
-          }
-        }catch(error){
-          controller.error(error);
         }
-      },
-      cancel(reason){try{reader.cancel(reason);}catch{}}
-    });
-    const cacheResponse=new Response(countedBody,{
-      status:response.status,
-      statusText:response.statusText,
-      headers:response.headers
-    });
-    await cache.put(key,cacheResponse);
+      }
+    }finally{
+      try{reader.releaseLock();}catch{}
+    }
+
+    await cacheWrite;
+    window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received,total:total||received}));
+
     if(!await validateCachedSSPM(cache,key)){
       await cache.delete(key);
       throw new Error("The downloaded file is not a valid SSPM.");
     }
+
     const storedSize=total||received;
     await storage("maps","put",id,{id,fileName,size:storedSize,savedAt:Date.now()});
     window.rhythiansCommand?.(JSON.stringify({action:"download-complete",id,success:true,fileName,size:storedSize}));
@@ -539,6 +536,8 @@ window.rhythiansDownloadMap=async text=>{
       success:false,
       message:error?.name==="AbortError"?"Map download timed out.":String(error?.message||"Map download failed.")
     }));
+  }finally{
+    clearTimeout(timer);
   }
 };
 
