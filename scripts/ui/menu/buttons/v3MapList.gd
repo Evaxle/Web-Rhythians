@@ -368,6 +368,7 @@ func _set_rhythian_badge_state(status:Button,state:String):
 	status.add_stylebox_override("normal",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
 	status.add_stylebox_override("hover",_rhythian_badge_box(color,Color(0.075,0.095,0.15,0.98)))
 	status.add_stylebox_override("pressed",_rhythian_badge_box(color,Color(0.035,0.05,0.085,1.0)))
+	status.add_stylebox_override("disabled",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
 	status.add_stylebox_override("focus",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
 	var state_panel=status.get_node_or_null("State")
 	if state_panel!=null:
