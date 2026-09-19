@@ -22,6 +22,7 @@ func _ready():
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
 	var bar = HBoxContainer.new()
+	bar.name="TopBar"
 	bar.set_anchors_and_margins_preset(Control.PRESET_WIDE)
 	bar.margin_left = 18
 	bar.margin_right = -18
@@ -30,6 +31,7 @@ func _ready():
 	bar.add_constant_override("separation", 6)
 	add_child(bar)
 	var brand = Label.new()
+	brand.name="RhythiansBrand"
 	var version = "nightly"
 	if ProjectSettings.has_setting("application/config/version"):
 		version = str(ProjectSettings.get_setting("application/config/version"))
@@ -39,12 +41,14 @@ func _ready():
 	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bar.add_child(brand)
 	var center_scroll = ScrollContainer.new()
+	center_scroll.name="NavScroll"
 	center_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_scroll.scroll_horizontal_enabled = true
 	center_scroll.scroll_vertical_enabled = false
 	center_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
 	bar.add_child(center_scroll)
 	var center = HBoxContainer.new()
+	center.name="NavButtons"
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.alignment = BoxContainer.ALIGN_CENTER
 	center.add_constant_override("separation",4)
@@ -85,6 +89,32 @@ func _attach_portal():
 
 func _raise_nav():
 	raise()
+
+func apply_mobile_layout(width:float,height:float,touch:bool):
+	rect_min_size.y=94 if touch else 84
+	var bar=get_node_or_null("TopBar")
+	if bar!=null:
+		bar.margin_left=8
+		bar.margin_right=-8
+		bar.margin_top=6
+		bar.margin_bottom=-6
+		bar.add_constant_override("separation",4)
+	var brand=get_node_or_null("TopBar/RhythiansBrand")
+	if brand!=null:
+		brand.visible=width>=980
+	var center=get_node_or_null("TopBar/NavScroll/NavButtons")
+	if center!=null:
+		center.alignment=BoxContainer.ALIGN_BEGIN
+		center.add_constant_override("separation",6)
+		for child in center.get_children():
+			if child is Button:
+				child.rect_min_size.y=58 if touch else 48
+				child.rect_min_size.x=max(child.rect_min_size.x,88)
+				child.add_font_override("font",RhythianUI.font(15 if touch else 13,1 if child.text=="Play" else 0))
+	if account!=null:
+		account.rect_min_size=Vector2(96 if width<760 else 112,58 if touch else 48)
+	if portal!=null and is_instance_valid(portal) and portal.has_method("apply_mobile_layout"):
+		portal.call_deferred("apply_mobile_layout",width,height,touch)
 
 func _button(text:String,primary:bool) -> Button:
 	var button = Button.new()
@@ -162,7 +192,7 @@ func _show_native_page(page:String):
 	var node = get_node_or_null(paths[page])
 	if node != null:
 		if page == "settings":
-			node.margin_top = 78
+			node.margin_top = rect_min_size.y
 		node.margin_left = 0
 		node.margin_right = 0
 		node.margin_bottom = 0
