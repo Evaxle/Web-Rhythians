@@ -229,6 +229,8 @@ func _ready():
 			check(sidebar.portal.map_go_buttons.has("smoke-map-0") and sidebar.portal.map_go_buttons["smoke-map-0"].visible, "completed download shows Go to map")
 			check(sidebar.portal.map_download_buttons.has("smoke-map-0") and not sidebar.portal.map_download_buttons["smoke-map-0"].visible, "completed download replaces Download button")
 			WebPortal._apply_mobile_layout({"width":390,"height":844,"touch":true,"ios":true,"standalone":true})
+			sidebar.apply_mobile_layout(390,844,true)
+			sidebar.portal.apply_mobile_layout(390,844,true)
 			yield(get_tree(),"idle_frame")
 			yield(get_tree(),"idle_frame")
 			sidebar.open_page("maps")
