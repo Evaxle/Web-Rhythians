@@ -22,6 +22,7 @@ class Capture extends Reference:
 	func rhythiansAuthChanged(_text): pass
 	func rhythiansSelected(): selected_count += 1
 	func rhythiansError(message): last_error = str(message)
+	func rhythiansPersistUserData(): return true
 
 func check(value,label):
 	if value:
@@ -227,6 +228,16 @@ func _ready():
 			sidebar.portal._map_downloaded("smoke-map-0",true,"rhythians-smoke-map-0.sspm")
 			check(sidebar.portal.map_go_buttons.has("smoke-map-0") and sidebar.portal.map_go_buttons["smoke-map-0"].visible, "completed download shows Go to map")
 			check(sidebar.portal.map_download_buttons.has("smoke-map-0") and not sidebar.portal.map_download_buttons["smoke-map-0"].visible, "completed download replaces Download button")
+			WebPortal._apply_mobile_layout({"width":390,"height":844,"touch":true,"ios":true,"standalone":true})
+			yield(get_tree(),"idle_frame")
+			yield(get_tree(),"idle_frame")
+			sidebar.open_page("maps")
+			yield(get_tree(),"idle_frame")
+			yield(get_tree(),"idle_frame")
+			var mobile_grid=sidebar.portal.content.get_node_or_null("MapCatalogGrid")
+			check(sidebar.rect_min_size.y>=94,"mobile touch layout enlarges the top navigation")
+			check(sidebar.portal.page_margin!=null and sidebar.portal.page_margin.margin_left<=10,"mobile portal uses narrow safe margins")
+			check(mobile_grid!=null and mobile_grid.columns==1,"iPhone-width map catalog reflows to one column")
 			check(sidebar.nav.has(["maps","Maps"]), "Maps is exposed as a top navigation tab")
 			check(sidebar.portal._safe_user_name({"displayName":null,"username":"FallbackPlayer"})=="FallbackPlayer", "online players fall back from null display names")
 			Rhythian.logged_in = old_logged_in
