@@ -582,7 +582,7 @@ func _render_card_action(entry:Dictionary):
 	var busy = mid != "" and Rhythian.downloading and Rhythian.dl_map_id == mid
 
 	if installed:
-		var play = RhythianUI.accent_button("Play", true)
+		var play = RhythianUI.accent_button("Go to map", true)
 		play.connect("pressed", self, "_on_play_pressed", [mid])
 		side.add_child(play)
 		var st = RhythianUI.label("Installed", 12, RhythianUI.C_ACCENT2)
@@ -625,7 +625,7 @@ func _on_download_progress(mid:String, received:int, total:int):
 	if entry.pb != null and total > 0:
 		entry.pb.value = (float(received) / float(total)) * 100.0
 	if entry.status != null:
-		entry.status.text = "%.1f MB" % (received / 1048576.0)
+		entry.status.text = "%.1f MB%s" % [received / 1048576.0, (" / %.1f MB · %d%%" % [total / 1048576.0, int(clamp(round(received/float(total)*100.0),0,100))]) if total > 0 else ""]
 
 func _on_map_downloaded(mid:String, success:bool, message:String):
 	if cards.has(mid):
@@ -639,6 +639,10 @@ func _on_map_downloaded(mid:String, success:bool, message:String):
 		Globals.notify(Globals.NOTIFY_SUCCEED, "Map installed: " + message, "Rhythian Maps")
 
 func _on_play_pressed(mid:String):
+	if OS.has_feature("HTML5"):
+		if cards.has(mid):
+			WebPortal.open_downloaded_map(cards[mid].map)
+		return
 	var song = Rhythian.get_song_for_map_id(mid)
 	if song == null:
 		if cards.has(mid):
