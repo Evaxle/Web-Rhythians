@@ -1249,7 +1249,7 @@ func _link_song_metadata(song,map:Dictionary):
 	var key=_song_link_key(song)
 	if key=="" or map.empty():
 		return
-song_links[key]=_map_registry_payload(map)
+	song_links[key]=_map_registry_payload(map)
 	_save_song_links()
 
 func lookup_song(song,quiet:bool=false):
