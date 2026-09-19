@@ -533,8 +533,9 @@ func _maps():
 		go.visible=downloaded
 		go.connect("pressed",self,"_go_to_map",[map])
 		map_go_buttons[id]=go
-		var download=_button(actions,"Download again" if downloaded else "Download",not downloaded)
+		var download=_button(actions,"Download",true)
 		download.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		download.visible=not downloaded
 		download.connect("pressed",self,"_download_map",[map])
 		map_download_buttons[id]=download
 		var details_button=_button(actions,"Map details")
@@ -692,7 +693,8 @@ func _update_download_progress_controls(id:String,received:int,total:int):
 	if map_progress_labels.has(id) and is_instance_valid(map_progress_labels[id]):
 		var label=map_progress_labels[id]
 		label.visible=true
-		label.text="Downloading · %s%s" % [_format_bytes(received),(" / "+_format_bytes(total)) if total>0 else ""]
+		var pct=" · %d%%" % int(clamp(round(received/float(total)*100.0),0,100)) if total>0 else ""
+		label.text="Downloading · %s%s%s" % [_format_bytes(received),(" / "+_format_bytes(total)) if total>0 else "",pct]
 
 func _map_download_progress(id:String,received:int,total:int):
 	_update_download_progress_controls(id,received,total)
@@ -707,7 +709,10 @@ func _download_map(map:Dictionary):
 	if Rhythian.downloading:
 		status.text="Another map download is already in progress."
 		return
-	status.text="Downloading %s…" % str(map.get("title","map"))
+	status.text="Downloading %s… size and progress will appear on this card." % str(map.get("title","map"))
+	if map_download_buttons.has(id) and is_instance_valid(map_download_buttons[id]):
+		map_download_buttons[id].disabled=true
+		map_download_buttons[id].text="Downloading…"
 	_update_download_progress_controls(id,0,0)
 	Rhythian.download_map(map)
 
@@ -779,9 +784,16 @@ func _map_downloaded(id:String,success:bool,message:String):
 		if map_go_buttons.has(id) and is_instance_valid(map_go_buttons[id]):
 			map_go_buttons[id].visible=true
 		if map_download_buttons.has(id) and is_instance_valid(map_download_buttons[id]):
-			map_download_buttons[id].text="Download again"
+			map_download_buttons[id].visible=false
+			map_download_buttons[id].disabled=false
+			map_download_buttons[id].text="Download"
+	else:
+		if map_download_buttons.has(id) and is_instance_valid(map_download_buttons[id]):
+			map_download_buttons[id].visible=true
+			map_download_buttons[id].disabled=false
+			map_download_buttons[id].text="Download"
 	if status!=null:
-		status.text="Map downloaded. Press Go to map when you want the client to load it." if success else message
+		status.text="Map downloaded. The Download button is now Go to map." if success else message
 	if visible and selected_page=="challenge":
 		call_deferred("show_page","challenge",true)
 func _check_all_maps():
