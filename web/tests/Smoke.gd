@@ -63,6 +63,14 @@ func _ready():
 	WebPortal.finished()
 	check(WebPortal.last_score_payload.cameraMode == "lock", "lock setting submits a lock score")
 
+	var unchanged_start_count = capture.count
+	Rhythia.start_offset = 0
+	WebPortal.begin_run()
+	Rhythia.start_offset = 750
+	WebPortal.finished()
+	check(capture.count == unchanged_start_count, "changing start time during a run blocks Rhythians score submission")
+	Rhythia.start_offset = 0
+
 	var count = capture.count
 	Rhythia.mod_nofail = true
 	Rhythian.on_song_ended(Globals.END_PASS)
