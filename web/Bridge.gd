@@ -110,15 +110,37 @@ func command(args):
 
 func _play_web_map(data:Dictionary):
 	if not menu_loaded: return
-	var path = str(data.get("path", ""))
-	if not path.begins_with("/tmp/rhythians-") or not path.ends_with(".sspm"): return
-	Rhythian.clear_runtime_song()
-	var song = Rhythia.registry_song.add_sspm_map(path)
-	if song == null:
-		if window: window.rhythiansError("This map cannot be loaded by the client.")
-		return
+	var temp_path = str(data.get("path", ""))
+	if not temp_path.begins_with("/tmp/rhythians-") or not temp_path.ends_with(".sspm"): return
 	active_map = data.get("map", {})
-	active_map_path = path
+	if typeof(active_map)!=TYPE_DICTIONARY:
+		active_map={}
+	var map_id=str(active_map.get("id",""))
+	if map_id=="":
+		if window: window.rhythiansError("This downloaded map has no Rhythians id.")
+		return
+
+	var dir=Directory.new()
+	var target_dir=Globals.p(Rhythian.MAP_DIR)
+	dir.make_dir_recursive(target_dir)
+	var file_name="rhythians-"+map_id+".sspm"
+	var target=target_dir.trim_suffix("/")+"/"+file_name
+	if File.new().file_exists(target):
+		dir.remove(target)
+	if dir.copy(temp_path,target)!=OK:
+		if window: window.rhythiansError("The downloaded SSPM could not be saved into the client map library.")
+		return
+	dir.remove(temp_path)
+
+	Rhythian._registry_add(file_name,active_map)
+	var song=Rhythian.get_song_for_map_id(map_id)
+	if song == null:
+		dir.remove(target)
+		Rhythian.forget_downloaded_map(map_id)
+		if window: window.rhythiansError("This SSPM downloaded, but Rhythia could not parse it.")
+		return
+
+	active_map_path = target
 	Rhythian.register_runtime_song(song,active_map)
 	active_mode = "spin" if Rhythia.cam_unlock else "lock"
 	mode_sync_enabled = true
@@ -129,6 +151,7 @@ func _play_web_map(data:Dictionary):
 	Rhythia.select_song(song)
 	var sidebar = get_tree().current_scene.get_node_or_null("Sidebar")
 	if sidebar != null and sidebar.has_method("to_play"): sidebar.to_play()
+	persist_user_data()
 	if window: window.rhythiansSelected()
 
 func _import_sspm(data:Dictionary):
