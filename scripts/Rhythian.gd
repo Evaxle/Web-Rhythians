@@ -1142,6 +1142,18 @@ func _load_song_links():
 	f.close()
 	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY:
 		song_links=parsed.result
+		var sanitized=false
+		for key in song_links.keys():
+			if typeof(song_links[key])!=TYPE_DICTIONARY:
+				continue
+			if song_links[key].has("completion"):
+				song_links[key].erase("completion")
+				sanitized=true
+			if song_links[key].has("hasScore"):
+				song_links[key].erase("hasScore")
+				sanitized=true
+		if sanitized:
+			_save_song_links()
 
 func _save_song_link_checks():
 	var f=File.new()
@@ -1222,6 +1234,8 @@ func _auto_link_unchecked():
 			break
 		yield(get_tree().create_timer(0.20),"timeout")
 	auto_link_running=false
+	if auto_link_found>0:
+		emit_signal("song_link_updated","",true,"")
 
 func _song_link_key(song) -> String:
 	if song==null:
@@ -1235,11 +1249,7 @@ func _link_song_metadata(song,map:Dictionary):
 	var key=_song_link_key(song)
 	if key=="" or map.empty():
 		return
-	song_links[key]=_map_registry_payload(map)
-	if map.has("completion"):
-		song_links[key]["completion"]=map["completion"]
-	if map.has("hasScore"):
-		song_links[key]["hasScore"]=bool(map["hasScore"])
+song_links[key]=_map_registry_payload(map)
 	_save_song_links()
 
 func lookup_song(song,quiet:bool=false):
@@ -1295,7 +1305,8 @@ func lookup_song(song,quiet:bool=false):
 		completions_cache[mid]=completion
 		recompute_rhythian_progress()
 		emit_signal("completions_updated",true,"")
-	emit_signal("song_link_updated",lookup_id,true,"Map found on Rhythians.")
+	if not quiet:
+		emit_signal("song_link_updated",lookup_id,true,"Map found on Rhythians.")
 	return true
 
 func _registry_add(file_name:String, map:Dictionary):
