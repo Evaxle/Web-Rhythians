@@ -340,105 +340,103 @@ func reset_filters():
 func prepare_songs():
 	for i in range(songs.size()):
 		var map:Song = songs[i]
-		if Rhythian.is_rhythian_song(map):
-			if rhythian.find(map) == -1:
-				rhythian.append(map)
-			continue
-		var add_to:Array
-		match map.difficulty:
-			Globals.DIFF_EASY: add_to = easy
-			Globals.DIFF_MEDIUM: add_to = medium
-			Globals.DIFF_HARD: add_to = hard
-			Globals.DIFF_LOGIC: add_to = logic
-			Globals.DIFF_AMOGUS: add_to = amogus
-			_: add_to = unknown
-		if add_to.find(map) == -1:
-			add_to.append(map)
-	rhythian.sort_custom(self,"sortsongsimple")
-	easy.sort_custom(self,"sortsongsimple")
-	medium.sort_custom(self,"sortsongsimple")
-	hard.sort_custom(self,"sortsongsimple")
-	logic.sort_custom(self,"sortsongsimple")
-	amogus.sort_custom(self,"sortsongsimple")
-
-func make_song_button(id:int=-1):
-	if id < 0 or id >= disp.size():
-		var btn:Panel = $EMPTY.duplicate()
-		btn.rect_min_size = Vector2(int(size_x - (page_size/2) * 10), 0)
-		return btn
-	var map:Song = disp[id]
-	if map == null: return
-	var btn:Panel
-	match map.difficulty:
-		Globals.DIFF_EASY: btn = $EASY.duplicate()
-		Globals.DIFF_MEDIUM: btn = $MEDIUM.duplicate()
-		Globals.DIFF_HARD: btn = $HARD.duplicate()
-		Globals.DIFF_LOGIC: btn = $LOGIC.duplicate()
-		Globals.DIFF_AMOGUS: btn = $AMOGUS.duplicate()
-		_: btn = $NODIF.duplicate()
-	btn.rect_min_size = Vector2(size_x - 50, 0)
-	btn.get_node("Label").visible = false
-	if map.has_cover:
-		btn.get_node("Cover").visible = true
-		btn.get_node("Cover").texture = map.cover
-	btn.get_node("Name").visible = true
-	if map.name.length() > 55:
-		btn.get_node("Name").text = strip_diacritics(map.name)
-	else:
-		btn.get_node("Name").text = map.name
-	btn.song = map
-	if map.warning != "" || map.is_broken:
-		if map.is_broken: btn.get_node("Name").modulate = Color(1,0.4,0.4)
-		else: btn.get_node("Name").modulate = Color(1,1,0.2)
-	var rbtn:Button = btn.get_node("Select")
-	if is_fav(map): btn.get_node("F").visible = true
-	btn.get_node("Cloud").visible = map.is_online
-	rbtn.disabled = false
-	rbtn.connect("pressed",self,"on_pressed",[id])
-	rbtn.action_mode = 1
-	rbtn.connect("button_down", self, "check_drag_on")
-	rbtn.connect("button_up", self, "check_drag_off")
-	rbtn.keep_pressed_outside = true
-	if map == Rhythia.selected_song:
-		btn.get_node("Select").pressed = true
-	if Rhythian.is_rhythian_song(map):
 		var metadata=Rhythian.get_song_metadata(map)
-		if not metadata.empty():
-			var info=Label.new()
-			info.name="RhythianMeta"
-			info.text=Rhythian.get_map_summary(metadata)
-			info.anchor_left=0.0
-			info.anchor_right=1.0
-			info.anchor_top=1.0
-			info.anchor_bottom=1.0
-			info.margin_left=12
-			info.margin_right=-64
-			info.margin_top=-25
-			info.margin_bottom=-4
-			info.clip_text=true
-			info.mouse_filter=Control.MOUSE_FILTER_IGNORE
-			info.add_font_override("font",RhythianUI.font(11))
-			info.add_color_override("font_color",Color(0.88,0.91,0.98))
-			btn.add_child(info)
-		var ic = TextureRect.new()
-		ic.name = "RhythianIcon"
-		ic.texture = RHYTHIAN_ICON
-		ic.hint_tooltip = "Downloaded from Rhythians"
-		ic.rect_min_size = Vector2(28, 28)
-		ic.expand = true
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ic.anchor_left = 1.0
-		ic.anchor_right = 1.0
-		ic.anchor_top = 0.0
-		ic.anchor_bottom = 1.0
-		ic.margin_left = -42
-		ic.margin_right = -10
-		ic.margin_top = 14
-		ic.margin_bottom = -14
-		ic.grow_vertical = Control.GROW_DIRECTION_BOTH
-		btn.add_child(ic)
+	var linked=not metadata.empty()
+	var info=Label.new()
+	info.name="RhythianMeta"
+	info.text=Rhythian.get_map_summary(metadata) if linked else "Not linked to Rhythians · tap the red × to check"
+	info.anchor_left=0.0
+	info.anchor_right=1.0
+	info.anchor_top=1.0
+	info.anchor_bottom=1.0
+	info.margin_left=12
+	info.margin_right=-82
+	info.margin_top=-25
+	info.margin_bottom=-4
+	info.clip_text=true
+	info.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	info.add_font_override("font",RhythianUI.font(11))
+	info.add_color_override("font_color",Color(0.88,0.91,0.98) if linked else Color(1.0,0.56,0.56))
+	btn.add_child(info)
+
+	var status=Button.new()
+	status.name="RhythianStatus"
+	status.flat=true
+	status.focus_mode=Control.FOCUS_NONE
+	status.rect_min_size=Vector2(66,40)
+	status.anchor_left=1.0
+	status.anchor_right=1.0
+	status.anchor_top=0.5
+	status.anchor_bottom=0.5
+	status.margin_left=-76
+	status.margin_right=-10
+	status.margin_top=-20
+	status.margin_bottom=20
+	status.mouse_default_cursor_shape=Control.CURSOR_POINTING_HAND
+	status.hint_tooltip=("On Rhythians · "+Rhythian.get_rankability_label(metadata)+" · "+Rhythian.get_map_pass_label(metadata)) if linked else "Not linked or not found on Rhythians. Tap to check this map."
+	status.disabled=linked
+	status.mouse_filter=Control.MOUSE_FILTER_STOP
+	btn.add_child(status)
+
+	var ic=TextureRect.new()
+	ic.name="Logo"
+	ic.texture=RHYTHIAN_ICON
+	ic.rect_position=Vector2(2,6)
+	ic.rect_size=Vector2(28,28)
+	ic.expand=true
+	ic.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	status.add_child(ic)
+
+	var mark=Label.new()
+	mark.name="Mark"
+	mark.text="✓" if linked else "×"
+	mark.rect_position=Vector2(33,2)
+	mark.rect_size=Vector2(30,36)
+	mark.align=Label.ALIGN_CENTER
+	mark.valign=Label.VALIGN_CENTER
+	mark.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	mark.add_font_override("font",RhythianUI.font(22,1))
+	mark.add_color_override("font_color",Color(0.25,1.0,0.48) if linked else Color(1.0,0.23,0.25))
+	status.add_child(mark)
+	if not linked:
+		status.connect("pressed",self,"_check_rhythian_map",[map,status])
+
 	return btn
+
+func _check_rhythian_map(song:Song,status:Button):
+	if song==null or status==null:
+		return
+	if not Rhythian.logged_in:
+		Globals.notify(Globals.NOTIFY_WARN,"Rhythians","Sign in to Rhythians before checking maps.")
+		return
+	status.disabled=true
+	var mark=status.get_node_or_null("Mark")
+	if mark!=null:
+		mark.text="…"
+		mark.add_color_override("font_color",Color(1.0,0.78,0.25))
+	var state=Rhythian.lookup_song(song)
+	if state is GDScriptFunctionState:
+		yield(state,"completed")
+	if not is_instance_valid(status):
+		return
+	var metadata=Rhythian.get_song_metadata(song)
+	if metadata.empty():
+		status.disabled=false
+		if mark!=null:
+			mark.text="×"
+			mark.add_color_override("font_color",Color(1.0,0.23,0.25))
+	else:
+		refresh_visible_list()
+
+func _on_song_link_updated(_song_id:String,success:bool,message:String):
+	if success:
+		if ready:
+			songs=Rhythia.registry_song.get_items()
+			prepare_songs()
+			reload_to_current_page()
+	elif message!="":
+		Globals.notify(Globals.NOTIFY_WARN,"Rhythians",message)
 
 func pg_up():
 	if not is_visible_in_tree(): return
@@ -527,6 +525,8 @@ func firstload():
 	Rhythia.connect("favorite_songs_changed",self,"reload_to_current_page")
 	Rhythia.connect("download_done",self,"update_clouds")
 	Rhythian.connect("map_downloaded",self,"_on_rhythian_map_downloaded")
+	if not Rhythian.is_connected("song_link_updated",self,"_on_song_link_updated"):
+		Rhythian.connect("song_link_updated",self,"_on_song_link_updated")
 	get_viewport().connect("size_changed",self,"handle_window_resize")
 	Rhythia.emit_signal("map_list_ready")
 
