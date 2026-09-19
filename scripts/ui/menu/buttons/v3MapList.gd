@@ -337,6 +337,46 @@ func reset_filters():
 	update_search_flipped(false)
 	update_search_flip_name(false)
 
+func _rhythian_badge_box(border:Color,bg:Color,radius:int=14) -> StyleBoxFlat:
+	var box=StyleBoxFlat.new()
+	box.bg_color=bg
+	box.border_color=border
+	box.border_width_left=1
+	box.border_width_top=1
+	box.border_width_right=1
+	box.border_width_bottom=1
+	box.corner_radius_top_left=radius
+	box.corner_radius_top_right=radius
+	box.corner_radius_bottom_left=radius
+	box.corner_radius_bottom_right=radius
+	return box
+
+func _set_rhythian_badge_state(status:Button,state:String):
+	if status==null or not is_instance_valid(status):
+		return
+	var color=Color(0.95,0.25,0.28)
+	var bg=Color(0.20,0.055,0.065,0.96)
+	var mark_text="×"
+	if state=="linked":
+		color=Color(0.28,0.95,0.48)
+		bg=Color(0.045,0.18,0.09,0.96)
+		mark_text="✓"
+	elif state=="loading":
+		color=Color(1.0,0.78,0.28)
+		bg=Color(0.20,0.15,0.04,0.96)
+		mark_text="…"
+	status.add_stylebox_override("normal",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
+	status.add_stylebox_override("hover",_rhythian_badge_box(color,Color(0.075,0.095,0.15,0.98)))
+	status.add_stylebox_override("pressed",_rhythian_badge_box(color,Color(0.035,0.05,0.085,1.0)))
+	status.add_stylebox_override("focus",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
+	var state_panel=status.get_node_or_null("State")
+	if state_panel!=null:
+		state_panel.add_stylebox_override("panel",_rhythian_badge_box(color,bg,11))
+		var mark=state_panel.get_node_or_null("Mark")
+		if mark!=null:
+			mark.text=mark_text
+			mark.add_color_override("font_color",Color(1,1,1))
+
 func prepare_songs():
 	for i in range(songs.size()):
 		var map:Song = songs[i]
@@ -405,61 +445,66 @@ func make_song_button(id:int=-1):
 	var linked=not metadata.empty()
 	var info=Label.new()
 	info.name="RhythianMeta"
-	info.text=Rhythian.get_map_summary(metadata) if linked else "Not linked to Rhythians · tap the red × to check"
+	info.text=Rhythian.get_map_summary(metadata) if linked else "Not linked to Rhythians · tap the status badge to check"
 	info.anchor_left=0.0
 	info.anchor_right=1.0
 	info.anchor_top=1.0
 	info.anchor_bottom=1.0
 	info.margin_left=12
-	info.margin_right=-82
+	info.margin_right=-104
 	info.margin_top=-25
 	info.margin_bottom=-4
 	info.clip_text=true
 	info.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	info.add_font_override("font",RhythianUI.font(11))
-	info.add_color_override("font_color",Color(0.88,0.91,0.98) if linked else Color(1.0,0.56,0.56))
+	info.add_color_override("font_color",Color(0.88,0.91,0.98) if linked else Color(0.95,0.66,0.68))
 	btn.add_child(info)
 
 	var status=Button.new()
 	status.name="RhythianStatus"
-	status.flat=true
+	status.flat=false
 	status.focus_mode=Control.FOCUS_NONE
-	status.rect_min_size=Vector2(66,40)
+	status.rect_min_size=Vector2(82,46)
 	status.anchor_left=1.0
 	status.anchor_right=1.0
 	status.anchor_top=0.5
 	status.anchor_bottom=0.5
-	status.margin_left=-76
-	status.margin_right=-10
-	status.margin_top=-20
-	status.margin_bottom=20
+	status.margin_left=-94
+	status.margin_right=-12
+	status.margin_top=-23
+	status.margin_bottom=23
 	status.mouse_default_cursor_shape=Control.CURSOR_POINTING_HAND
-	status.hint_tooltip=("On Rhythians · "+Rhythian.get_rankability_label(metadata)+" · "+Rhythian.get_map_pass_label(metadata)) if linked else "Not linked or not found on Rhythians. Tap to check this map."
-	status.disabled=false
-	status.mouse_filter=Control.MOUSE_FILTER_STOP if not linked else Control.MOUSE_FILTER_IGNORE
+	status.hint_tooltip=("On Rhythians · "+Rhythian.get_rankability_label(metadata)+" · "+Rhythian.get_map_pass_label(metadata)) if linked else "Not found or not checked on Rhythians. Tap to check this map."
+	status.mouse_filter=Control.MOUSE_FILTER_IGNORE if linked else Control.MOUSE_FILTER_STOP
 	btn.add_child(status)
 
 	var ic=TextureRect.new()
 	ic.name="RhythianIcon"
 	ic.texture=RHYTHIAN_ICON
-	ic.rect_position=Vector2(2,6)
+	ic.rect_position=Vector2(8,9)
 	ic.rect_size=Vector2(28,28)
 	ic.expand=true
 	ic.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	status.add_child(ic)
 
+	var state_panel=Panel.new()
+	state_panel.name="State"
+	state_panel.rect_position=Vector2(44,8)
+	state_panel.rect_size=Vector2(30,30)
+	state_panel.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	status.add_child(state_panel)
+
 	var mark=Label.new()
 	mark.name="Mark"
-	mark.text="✓" if linked else "×"
-	mark.rect_position=Vector2(33,2)
-	mark.rect_size=Vector2(30,36)
+	mark.anchor_right=1.0
+	mark.anchor_bottom=1.0
 	mark.align=Label.ALIGN_CENTER
 	mark.valign=Label.VALIGN_CENTER
 	mark.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	mark.add_font_override("font",RhythianUI.font(22,1))
-	mark.add_color_override("font_color",Color(0.25,1.0,0.48) if linked else Color(1.0,0.23,0.25))
-	status.add_child(mark)
+	mark.add_font_override("font",RhythianUI.font(17,1))
+	state_panel.add_child(mark)
+	_set_rhythian_badge_state(status,"linked" if linked else "missing")
 	if not linked:
 		status.connect("pressed",self,"_check_rhythian_map",[map,status])
 	return btn
@@ -471,10 +516,7 @@ func _check_rhythian_map(song:Song,status:Button):
 		Globals.notify(Globals.NOTIFY_WARN,"Rhythians","Sign in to Rhythians before checking maps.")
 		return
 	status.disabled=true
-	var mark=status.get_node_or_null("Mark")
-	if mark!=null:
-		mark.text="…"
-		mark.add_color_override("font_color",Color(1.0,0.78,0.25))
+	_set_rhythian_badge_state(status,"loading")
 	var state=Rhythian.lookup_song(song)
 	if state is GDScriptFunctionState:
 		yield(state,"completed")
@@ -483,10 +525,9 @@ func _check_rhythian_map(song:Song,status:Button):
 	var metadata=Rhythian.get_song_metadata(song)
 	if metadata.empty():
 		status.disabled=false
-		if mark!=null:
-			mark.text="×"
-			mark.add_color_override("font_color",Color(1.0,0.23,0.25))
+		_set_rhythian_badge_state(status,"missing")
 	else:
+		_set_rhythian_badge_state(status,"linked")
 		refresh_visible_list()
 
 func _on_song_link_updated(_song_id:String,success:bool,message:String):
@@ -582,6 +623,7 @@ func firstload():
 	prepare_songs()
 	reload_to_current_page()
 	ready = true
+	Rhythian.start_auto_link_unchecked()
 	Rhythia.connect("favorite_songs_changed",self,"reload_to_current_page")
 	Rhythia.connect("download_done",self,"update_clouds")
 	Rhythian.connect("map_downloaded",self,"_on_rhythian_map_downloaded")
