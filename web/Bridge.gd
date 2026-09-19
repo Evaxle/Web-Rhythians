@@ -25,6 +25,9 @@ var settings_watch_accum:float = 0.0
 var settings_sync_delay:float = -1.0
 var last_settings_fingerprint:String = ""
 var mobile_keyboard_control:Control = null
+var mobile_keyboard_open:bool = false
+var mobile_keyboard_pending_text:String = ""
+var run_start_offset:float = 0.0
 
 func _ready():
 	if not OS.has_feature("HTML5"): return
@@ -285,7 +288,7 @@ func command(args):
 		"mobile-keyboard-text":
 			_mobile_keyboard_text(str(data.get("text","")))
 		"mobile-keyboard-done":
-			_mobile_keyboard_done()
+			_mobile_keyboard_done(str(data.get("text",mobile_keyboard_pending_text)))
 
 func _play_web_map(data:Dictionary):
 	if not menu_loaded: return
@@ -445,6 +448,7 @@ func _selected_rhythian_map() -> Dictionary:
 	return saved.duplicate()
 
 func begin_run():
+	run_start_offset=Rhythia.start_offset
 	var selected = _selected_rhythian_map()
 	if not selected.empty():
 		active_map = selected
@@ -457,6 +461,10 @@ func begin_run():
 
 func finished():
 	if not window: return
+	if abs(run_start_offset)>0.001 or abs(Rhythia.start_offset-run_start_offset)>0.001:
+		active_map.clear()
+		active_map_path=""
+		return
 	if Rhythia.song_end_type!=Globals.END_PASS or Rhythia.replaying or Rhythia.mod_nofail:
 		active_map.clear()
 		active_map_path=""
@@ -571,43 +579,72 @@ func _enhance_mobile_controls(node):
 func _mobile_text_focus_entered(control:Control):
 	if not mobile_touch or control==null or not is_instance_valid(control):
 		return
+	if mobile_keyboard_open and mobile_keyboard_control==control:
+		return
 	mobile_keyboard_control=control
+	mobile_keyboard_open=true
 	var current=""
 	var multiline=false
+	var input_mode="text"
 	if control is LineEdit:
 		current=control.text
+		if control.get_parent() is SpinBox:
+			input_mode="decimal"
 	elif control is TextEdit:
 		current=control.text
 		multiline=true
+	mobile_keyboard_pending_text=current
 	if window and window.rhythiansOpenKeyboard:
-		window.rhythiansOpenKeyboard(current,multiline)
+		window.rhythiansOpenKeyboard(current,multiline,input_mode)
 
 func _mobile_text_focus_exited(control:Control):
-	if mobile_keyboard_control==control:
-		mobile_keyboard_control=null
-		if window and window.rhythiansCloseKeyboard:
-			window.rhythiansCloseKeyboard()
+	if mobile_keyboard_control!=control:
+		return
+	if mobile_keyboard_open:
+		return
+	mobile_keyboard_control=null
+	mobile_keyboard_pending_text=""
 
 func _mobile_keyboard_text(value:String):
-	if mobile_keyboard_control==null or not is_instance_valid(mobile_keyboard_control):
+	if not mobile_keyboard_open or mobile_keyboard_control==null or not is_instance_valid(mobile_keyboard_control):
 		return
+	mobile_keyboard_pending_text=value
 	if mobile_keyboard_control is LineEdit:
+		var parent=mobile_keyboard_control.get_parent()
+		if parent is SpinBox:
+			return
 		mobile_keyboard_control.text=value
 		mobile_keyboard_control.caret_position=value.length()
-		var parent=mobile_keyboard_control.get_parent()
-		if parent is SpinBox and value.is_valid_float():
-			parent.value=float(value)
+		mobile_keyboard_control.emit_signal("text_changed",value)
 	elif mobile_keyboard_control is TextEdit:
 		mobile_keyboard_control.text=value
 
-func _mobile_keyboard_done():
+func _mobile_keyboard_done(value:String):
 	if mobile_keyboard_control==null or not is_instance_valid(mobile_keyboard_control):
+		mobile_keyboard_open=false
+		mobile_keyboard_pending_text=""
 		return
 	var control=mobile_keyboard_control
+	mobile_keyboard_pending_text=value
 	if control is LineEdit:
-		control.emit_signal("text_entered",control.text)
-	control.release_focus()
+		var parent=control.get_parent()
+		if parent is SpinBox:
+			if value.strip_edges().is_valid_float():
+				parent.value=float(value)
+			control.text=str(parent.value)
+		else:
+			control.text=value
+			control.caret_position=value.length()
+			control.emit_signal("text_changed",value)
+			control.emit_signal("text_entered",value)
+	elif control is TextEdit:
+		control.text=value
+	mobile_keyboard_open=false
 	mobile_keyboard_control=null
+	mobile_keyboard_pending_text=""
+	control.release_focus()
+	save_and_sync_settings(false)
+
 
 func _register_mobile_text_control(control:Control):
 	if control==null or control.has_meta("rhythians_mobile_keyboard"):
