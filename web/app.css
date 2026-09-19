@@ -27,8 +27,11 @@ html[data-mobile="1"] .tools-panel{max-height:calc(100dvh - env(safe-area-inset-
 
 html[data-input-mode="touchscreen"] .mobile-keyboard-shell{position:fixed;z-index:60;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));display:flex;gap:8px;align-items:stretch;padding:8px;border:1px solid #3b4560;border-radius:16px;background:#090e18f2;box-shadow:0 12px 48px #000a;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 html[data-input-mode="touchscreen"] .mobile-keyboard-shell[hidden]{display:none!important}
-html[data-input-mode="touchscreen"] #mobile-keyboard-input{min-width:0;min-height:52px;max-height:132px;flex:1;resize:none;border:1px solid #4b5570;border-radius:12px;background:#111827;color:#fff;padding:12px 14px;font:18px/1.35 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;outline:none}
-html[data-input-mode="touchscreen"] #mobile-keyboard-input:focus{border-color:#9d8cff;box-shadow:0 0 0 2px #8d78ff44}
+html[data-input-mode="touchscreen"] #mobile-keyboard-input,html[data-input-mode="touchscreen"] #mobile-keyboard-textarea{min-width:0;min-height:54px;max-height:132px;flex:1;border:1px solid #4b5570;border-radius:12px;background:#111827;color:#fff;padding:12px 14px;font:18px/1.35 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;outline:none;-webkit-user-select:text;user-select:text;touch-action:manipulation}
+html[data-input-mode="touchscreen"] #mobile-keyboard-textarea{resize:none;min-height:88px}
+html[data-input-mode="touchscreen"] #mobile-keyboard-input:focus,html[data-input-mode="touchscreen"] #mobile-keyboard-textarea:focus{border-color:#9d8cff;box-shadow:0 0 0 2px #8d78ff44}
+html[data-input-mode="touchscreen"] #mobile-keyboard-input[hidden],html[data-input-mode="touchscreen"] #mobile-keyboard-textarea[hidden]{display:none!important}
+html[data-input-mode="touchscreen"][data-keyboard="1"] #mobile-orientation-hint{display:none!important}
 html[data-input-mode="touchscreen"] #mobile-keyboard-done{min-width:78px;min-height:52px;font-size:16px;font-weight:800}
 html[data-input-mode="touchscreen"] #game-toast{font-size:14px;padding:11px 15px}
 html[data-input-mode="touchscreen"] .tools-toggle{font-size:14px;min-width:72px}
