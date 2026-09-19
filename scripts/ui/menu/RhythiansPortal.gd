@@ -112,10 +112,10 @@ func apply_mobile_layout(width:float,height:float,touch:bool):
 		var side=10 if width<700 else 18
 		page_margin.margin_left=side
 		page_margin.margin_right=-side
-		page_margin.margin_top=102 if touch else 92
+		page_margin.margin_top=116 if touch else 92
 		page_margin.margin_bottom=-10
 	if title_label!=null:
-		title_label.add_font_override("font",RhythianUI.font(28 if width<700 else 32,1))
+		title_label.add_font_override("font",RhythianUI.font(34 if touch and width<700 else (38 if touch else (28 if width<700 else 32)),1))
 	if visible and selected_page!="":
 		call_deferred("show_page",selected_page,true)
 
