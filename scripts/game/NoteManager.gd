@@ -633,6 +633,19 @@ var ms_offset:float = 0
 var replay_sig:Array = []
 var last_usec = OS.get_ticks_usec()
 
+func _skip_gap():
+	if !can_skip or pause_state!=0 or Rhythia.replaying:
+		return
+	if Rhythia.record_replays:
+		Rhythia.replay.store_sig(rms,Globals.RS_SKIP)
+	ms = next_ms - 1000 - (1000*speed_multi)
+	emit_signal("ms_change",ms)
+	do_note_queue()
+
+func mobile_tap_skip():
+	if OS.has_feature("HTML5") and WebPortal.mobile_touch:
+		_skip_gap()
+
 func _set_rec_interval(delta:float):
 	var newpos = $Cursor.transform.origin
 	var diff = last_cursor_position.distance_to(newpos)/delta
@@ -690,12 +703,7 @@ func _process(delta:float):
 					$Music.stop()
 			elif Input.is_action_just_pressed("pause"):
 				if pause_state == 0 and can_skip:
-					var prev_ms = ms
-					if Rhythia.record_replays:
-						Rhythia.replay.store_sig(rms,Globals.RS_SKIP)
-					ms = next_ms - 1000 - (1000*speed_multi)
-					emit_signal("ms_change",ms)
-					do_note_queue()
+					_skip_gap()
 #					if (ms + Rhythia.music_offset) >= Rhythia.start_offset:
 #						$Music.play((ms + Rhythia.music_offset)/1000)
 #						music_started = true
