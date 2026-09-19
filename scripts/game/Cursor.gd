@@ -105,6 +105,15 @@ func get_absolute_screen_position(screen_position:Vector2):
 func get_absolute_position():
 	return get_absolute_screen_position(get_viewport().get_mouse_position())
 
+func _mobile_touch_delta(relative:Vector2) -> Vector2:
+	var viewport_size=get_viewport().get_visible_rect().size
+	var usable_x=max(320.0,viewport_size.x)
+	var usable_y=max(240.0,viewport_size.y)
+	var delta=Vector2(relative.x/usable_x*3.0,relative.y/usable_y*3.0)*max(0.05,Rhythia.sensitivity)
+	if Rhythia.invert_mouse:
+		delta*=-1
+	return delta
+
 func _input(event:InputEvent):
 	if !Rhythia.replaying and !Rhythia.vr and !ai_control:
 		var web_touch=_web_touch_enabled()
@@ -117,7 +126,6 @@ func _input(event:InputEvent):
 					$VisualPos.rect_position=event.position
 					if !Rhythia.get("cam_unlock"):
 						visible=true
-						move_cursor_abs(get_absolute_screen_position(event.position))
 			elif event.index==active_touch_index:
 				$VisualPos.visible=false
 				active_touch_index=-1
@@ -130,7 +138,7 @@ func _input(event:InputEvent):
 				if !Rhythia.get("cam_unlock"):
 					visible=true
 					face=event.relative
-					move_cursor_abs(get_absolute_screen_position(event.position))
+					move_cursor(_mobile_touch_delta(event.relative))
 
 		if can_switch_move_modes:
 			if event is InputEventJoypadMotion:
