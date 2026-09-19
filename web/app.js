@@ -543,31 +543,47 @@ window.rhythiansDownloadMap=async text=>{
 
 async function writeResponseToFS(response,path,id){
   const fs=globalThis.FS||(globalThis.Module&&globalThis.Module.FS);
-  if(!fs||typeof fs.open!=="function"||typeof fs.write!=="function")throw new Error("Browser filesystem is unavailable.");
-  if(lastMaterializedMapPath&&lastMaterializedMapPath!==path){
+  const total=Number(response.headers.get("content-length")||0);
+  if(lastMaterializedMapPath&&lastMaterializedMapPath!==path&&fs){
     try{fs.unlink(lastMaterializedMapPath);}catch{}
   }
-  try{fs.unlink(path);}catch{}
-  const stream=fs.open(path,"w+");
-  const reader=response.body?.getReader();
-  if(!reader){fs.close(stream);throw new Error("Cached map stream is unavailable.");}
+
   let offset=0;
-  try{
-    while(true){
-      const {done,value}=await reader.read();
-      if(done)break;
-      if(value?.length){
-        fs.write(stream,value,0,value.length,offset);
-        offset+=value.length;
-        if((offset&0x3fffff)<value.length)await new Promise(resolve=>setTimeout(resolve,0));
+  if(fs&&typeof fs.open==="function"&&typeof fs.write==="function"&&response.body){
+    try{fs.unlink(path);}catch{}
+    const stream=fs.open(path,"w+");
+    const reader=response.body.getReader();
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        if(value?.length){
+          fs.write(stream,value,0,value.length,offset);
+          offset+=value.length;
+          window.rhythiansCommand?.(JSON.stringify({action:"materialize-progress",id,received:offset,total}));
+          if((offset&0x3fffff)<value.length)await new Promise(resolve=>setTimeout(resolve,0));
+        }
       }
+    }finally{
+      try{reader.releaseLock();}catch{}
+      fs.close(stream);
     }
-  }finally{
-    try{reader.releaseLock();}catch{}
-    fs.close(stream);
+  }else{
+    if(!window.gameEngine||typeof window.gameEngine.copyToFS!=="function"){
+      throw new Error("Godot browser filesystem bridge is unavailable.");
+    }
+    $("game-status").textContent="Preparing map for the Godot client…";
+    const buffer=await response.arrayBuffer();
+    offset=buffer.byteLength;
+    if(offset<4)throw new Error("Cached map file is incomplete.");
+    window.gameEngine.copyToFS(path,buffer);
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    window.rhythiansCommand?.(JSON.stringify({action:"materialize-progress",id,received:offset,total:offset}));
   }
+
+  if(total>0&&offset!==total)throw new Error(`Cached map is incomplete (${offset} of ${total} bytes).`);
+  if(offset<4)throw new Error("Cached map file is empty.");
   lastMaterializedMapPath=path;
-  window.rhythiansCommand?.(JSON.stringify({action:"materialize-progress",id,received:offset}));
 }
 
 window.rhythiansOpenDownloadedMap=async text=>{
@@ -584,10 +600,18 @@ window.rhythiansOpenDownloadedMap=async text=>{
       window.rhythiansCommand?.(JSON.stringify({action:"download-missing",id}));
       return;
     }
+    if(!await validateCachedSSPM(cache,mapCacheKey(id))){
+      await cache.delete(mapCacheKey(id));
+      await storage("maps","delete",id).catch(()=>{});
+      window.rhythiansCommand?.(JSON.stringify({action:"download-missing",id}));
+      $("game-status").textContent="The downloaded SSPM was incomplete. Download it again.";
+      return;
+    }
     const safe=id.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,80)||"map";
     const path=`/tmp/rhythians-cached-${safe}.sspm`;
     $("game-status").textContent="Loading downloaded map into the client…";
     await writeResponseToFS(response,path,id);
+    $("game-status").textContent="Opening map in Rhythians…";
     window.rhythiansCommand?.(JSON.stringify({action:"play",path,map}));
   }catch(error){
     $("game-status").textContent="Could not open downloaded map: "+String(error?.message||"browser storage error");
