@@ -30,6 +30,42 @@ function enableTouchMouseBridge(){
     try{canvas.focus({preventScroll:true});}catch{canvas.focus();}
   },{passive:true});
 }
+
+let mobileKeyboardMultiline=false;
+window.rhythiansOpenKeyboard=(value="",multiline=false)=>{
+  if(mobileInputMode!=="touchscreen")return;
+  const shell=$("mobile-keyboard-shell");
+  const input=$("mobile-keyboard-input");
+  mobileKeyboardMultiline=Boolean(multiline);
+  input.value=String(value??"");
+  input.rows=mobileKeyboardMultiline?3:1;
+  shell.hidden=false;
+  requestAnimationFrame(()=>{
+    try{input.focus({preventScroll:true});}catch{input.focus();}
+    const end=input.value.length;
+    try{input.setSelectionRange(end,end);}catch{}
+  });
+};
+window.rhythiansCloseKeyboard=()=>{
+  const shell=$("mobile-keyboard-shell");
+  const input=$("mobile-keyboard-input");
+  shell.hidden=true;
+  if(document.activeElement===input)input.blur();
+};
+$("mobile-keyboard-input").addEventListener("input",event=>{
+  window.rhythiansCommand?.(JSON.stringify({action:"mobile-keyboard-text",text:event.target.value}));
+});
+$("mobile-keyboard-input").addEventListener("keydown",event=>{
+  if(event.key==="Enter"&&!mobileKeyboardMultiline){
+    event.preventDefault();
+    window.rhythiansCommand?.(JSON.stringify({action:"mobile-keyboard-done"}));
+    window.rhythiansCloseKeyboard();
+  }
+});
+$("mobile-keyboard-done").onclick=()=>{
+  window.rhythiansCommand?.(JSON.stringify({action:"mobile-keyboard-done"}));
+  window.rhythiansCloseKeyboard();
+};
 function enterClient(mode="mouse"){
   mobileInputMode=mode;
   window.rhythiansMobileInputMode=mode;
