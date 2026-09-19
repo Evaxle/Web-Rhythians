@@ -1,4 +1,4 @@
-name: Build and deploy Rhythians Web
+name: Build and deploy Rhythians-Client Web
 
 on:
   push:
