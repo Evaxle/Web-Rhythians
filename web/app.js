@@ -7,6 +7,7 @@ const deviceInfo=(()=>{
   const android=/Android/i.test(ua);
   return {ios,android,mobile:ios||android};
 })();
+document.documentElement.dataset.mobile=deviceInfo.mobile?"1":"0";
 let mobileInputMode="mouse";
 let activeTouchId=null;
 
@@ -82,6 +83,7 @@ function enterClient(mode="mouse"){
   $("mobile-setup").hidden=true;
   $("launcher").hidden=false;
   if(mode==="touchscreen")enableTouchMouseBridge();
+  scheduleMobileLayout();
   setStage("home");
 }
 function initDeviceGate(){
@@ -99,6 +101,38 @@ function initDeviceGate(){
   }
   enterClient("mouse");
 }
+function mobileViewport(){
+  const vv=window.visualViewport;
+  return {
+    width:Math.max(1,Math.round(vv?.width||window.innerWidth||1280)),
+    height:Math.max(1,Math.round(vv?.height||window.innerHeight||720))
+  };
+}
+let mobileLayoutTimer=0;
+function syncMobileLayout(){
+  if(!deviceInfo.mobile)return;
+  const {width,height}=mobileViewport();
+  document.documentElement.dataset.orientation=width>=height?"landscape":"portrait";
+  if(window.rhythiansCommand){
+    window.rhythiansCommand(JSON.stringify({
+      action:"mobile-layout",
+      width,
+      height,
+      touch:mobileInputMode==="touchscreen",
+      ios:deviceInfo.ios,
+      standalone:isStandalone()
+    }));
+  }
+}
+function scheduleMobileLayout(){
+  if(!deviceInfo.mobile)return;
+  clearTimeout(mobileLayoutTimer);
+  mobileLayoutTimer=setTimeout(syncMobileLayout,80);
+}
+window.addEventListener("resize",scheduleMobileLayout,{passive:true});
+window.addEventListener("orientationchange",scheduleMobileLayout,{passive:true});
+window.visualViewport?.addEventListener("resize",scheduleMobileLayout,{passive:true});
+
 
 const memoryStorage=new Map();
 let db=null;
@@ -301,6 +335,7 @@ async function applySession(account){
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   try{
     await startEngine();
+    syncMobileLayout();
   }catch(error){
     $("game").hidden=true;
     $("launcher").hidden=false;
