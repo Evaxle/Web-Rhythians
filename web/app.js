@@ -491,13 +491,47 @@ window.rhythiansDownloadMap=async text=>{
     window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received:0,total}));
     const cache=await caches.open(MAP_CACHE_NAME);
     const key=mapCacheKey(id);
-    await cache.put(key,response);
+    if(!response.body)throw new Error("Map download stream is unavailable.");
+    const reader=response.body.getReader();
+    let received=0;
+    let lastProgressAt=0;
+    const countedBody=new ReadableStream({
+      async pull(controller){
+        try{
+          const {done,value}=await reader.read();
+          if(done){
+            controller.close();
+            window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received,total:total||received}));
+            return;
+          }
+          if(value?.length){
+            received+=value.length;
+            const now=performance.now();
+            if(now-lastProgressAt>=80||received===total){
+              lastProgressAt=now;
+              window.rhythiansCommand?.(JSON.stringify({action:"download-progress",id,received,total}));
+            }
+            controller.enqueue(value);
+          }
+        }catch(error){
+          controller.error(error);
+        }
+      },
+      cancel(reason){try{reader.cancel(reason);}catch{}}
+    });
+    const cacheResponse=new Response(countedBody,{
+      status:response.status,
+      statusText:response.statusText,
+      headers:response.headers
+    });
+    await cache.put(key,cacheResponse);
     if(!await validateCachedSSPM(cache,key)){
       await cache.delete(key);
       throw new Error("The downloaded file is not a valid SSPM.");
     }
-    await storage("maps","put",id,{id,fileName,size:total,savedAt:Date.now()});
-    window.rhythiansCommand?.(JSON.stringify({action:"download-complete",id,success:true,fileName,size:total}));
+    const storedSize=total||received;
+    await storage("maps","put",id,{id,fileName,size:storedSize,savedAt:Date.now()});
+    window.rhythiansCommand?.(JSON.stringify({action:"download-complete",id,success:true,fileName,size:storedSize}));
   }catch(error){
     window.rhythiansCommand?.(JSON.stringify({
       action:"download-complete",
