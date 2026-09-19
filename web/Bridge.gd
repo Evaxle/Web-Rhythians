@@ -384,6 +384,8 @@ func _finish_sspm_import(target:String,safe_name:String):
 	var map_list = get_tree().current_scene.get_node_or_null("Main/Maps/MapRegistry/S/VBoxContainer")
 	if map_list != null and map_list.has_method("refresh_visible_list"):
 		map_list.call_deferred("refresh_visible_list")
+	if Rhythian.logged_in:
+		Rhythian.call_deferred("start_auto_link_unchecked")
 	if window: window.rhythiansImported(target.get_file(), true, "")
 
 func _import_settings(data:Dictionary):
