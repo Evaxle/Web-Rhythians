@@ -8,6 +8,8 @@ class Capture extends Reference:
 	var import_ok = false
 	var import_name = ""
 	var import_message = ""
+	var selected_count = 0
+	var last_error = ""
 	func rhythiansScore(text):
 		payload = JSON.parse(text).result
 		count += 1
@@ -18,6 +20,8 @@ class Capture extends Reference:
 	func rhythiansCatalogReady(_count): pass
 	func rhythiansAccountApplied(_text): pass
 	func rhythiansAuthChanged(_text): pass
+	func rhythiansSelected(): selected_count += 1
+	func rhythiansError(message): last_error = str(message)
 
 func check(value,label):
 	if value:
@@ -63,6 +67,49 @@ func _ready():
 	Rhythian.on_song_ended(Globals.END_PASS)
 	check(capture.count == count, "no-fail runs are not submitted")
 	Rhythia.mod_nofail = false
+
+	var downloaded_source=File.new()
+	var downloaded_source_ok=downloaded_source.open("res://web/tests/v2.sspm",File.READ)==OK
+	check(downloaded_source_ok,"downloaded map fixture opens")
+	if downloaded_source_ok:
+		var downloaded_bytes=downloaded_source.get_buffer(downloaded_source.get_len())
+		downloaded_source.close()
+		var downloaded_tmp="/tmp/rhythians-cached-smoke-downloaded.sspm"
+		var downloaded_temp=File.new()
+		var downloaded_write_ok=downloaded_temp.open(downloaded_tmp,File.WRITE)==OK
+		check(downloaded_write_ok,"downloaded map temp bridge file opens")
+		if downloaded_write_ok:
+			downloaded_temp.store_buffer(downloaded_bytes)
+			downloaded_temp.close()
+			if score_song!=null:
+				Rhythia.registry_song.check_and_remove_id(score_song.id)
+			WebPortal.menu_loaded=true
+			var downloaded_meta={
+				"id":"smoke-downloaded",
+				"title":"Smoke Downloaded",
+				"artist":"Smoke Artist",
+				"mapper":"Smoke Mapper",
+				"rating":4.25,
+				"difficulty":"Gold",
+				"rankName":"Gold",
+				"isRanked":true,
+				"maxRewards":{"lock":120,"spin":140,"vr":160}
+			}
+			WebPortal._play_web_map({"path":downloaded_tmp,"map":downloaded_meta})
+			var persisted_download=Globals.p(Rhythian.MAP_DIR).trim_suffix("/")+"/rhythians-smoke-downloaded.sspm"
+			check(File.new().file_exists(persisted_download),"Go to map persists the full SSPM into the client map library")
+			check(Rhythia.selected_song!=null and str(Rhythia.selected_song.filePath)==persisted_download,"downloaded SSPM becomes the selected playable client song")
+			var downloaded_song_meta=Rhythian.get_song_metadata(Rhythia.selected_song)
+			check(str(downloaded_song_meta.get("id",""))=="smoke-downloaded","playable downloaded song keeps Rhythians metadata")
+			Rhythia.cam_unlock=false
+			WebPortal.begin_run()
+			Rhythia.song_end_type=Globals.END_PASS
+			Rhythia.song_end_total_notes=5
+			Rhythia.song_end_hits=5
+			Rhythia.song_end_misses=0
+			WebPortal.finished()
+			check(str(WebPortal.last_score_payload.get("challengeMapId",""))=="smoke-downloaded" and str(WebPortal.last_score_payload.get("cameraMode",""))=="lock","downloaded Rhythians map produces a profile score payload")
+			check(capture.selected_count>0 and capture.last_error=="","downloaded map opens without browser bridge errors")
 
 	Rhythia.cam_unlock = true
 	Rhythia.save_settings()
