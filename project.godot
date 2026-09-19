@@ -343,6 +343,8 @@ window/size/height=720
 window/handheld/orientation="sensor_landscape"
 window/stretch/mode.mobile="2d"
 window/stretch/aspect.mobile="keep_height"
+window/stretch/mode.HTML5="2d"
+window/stretch/aspect.HTML5="expand"
 
 [editor_plugins]
 
