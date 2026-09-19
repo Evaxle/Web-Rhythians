@@ -260,7 +260,7 @@ _global_script_class_icons={
 
 [application]
 
-config/name="Rhythians"
+config/name="Rhythians-Client"
 run/main_scene="res://scenes/init.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="SoundSpacePlus"
