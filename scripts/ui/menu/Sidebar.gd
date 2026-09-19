@@ -91,7 +91,7 @@ func _raise_nav():
 	raise()
 
 func apply_mobile_layout(width:float,height:float,touch:bool):
-	rect_min_size.y=94 if touch else 84
+	rect_min_size.y=106 if touch else 84
 	var bar=get_node_or_null("TopBar")
 	if bar!=null:
 		bar.margin_left=8
@@ -108,11 +108,13 @@ func apply_mobile_layout(width:float,height:float,touch:bool):
 		center.add_constant_override("separation",6)
 		for child in center.get_children():
 			if child is Button:
-				child.rect_min_size.y=58 if touch else 48
-				child.rect_min_size.x=max(child.rect_min_size.x,88)
-				child.add_font_override("font",RhythianUI.font(15 if touch else 13,1 if child.text=="Play" else 0))
+				child.rect_min_size.y=68 if touch else 48
+				child.rect_min_size.x=max(child.rect_min_size.x,100 if touch else 88)
+				child.add_font_override("font",RhythianUI.font(17 if touch else 13,1 if child.text=="Play" else 0))
 	if account!=null:
-		account.rect_min_size=Vector2(96 if width<760 else 112,58 if touch else 48)
+		account.rect_min_size=Vector2(110 if width<760 else 124,68 if touch else 48)
+		if touch:
+			account.add_font_override("font",RhythianUI.font(17,1))
 	if portal!=null and is_instance_valid(portal) and portal.has_method("apply_mobile_layout"):
 		portal.call_deferred("apply_mobile_layout",width,height,touch)
 
@@ -227,9 +229,10 @@ func to_play():
 
 func _save_settings_if_needed():
 	if active_page=="settings":
-		Rhythia.save_settings()
 		if OS.has_feature("HTML5"):
-			WebPortal.persist_user_data()
+			WebPortal.save_and_sync_settings(false)
+		else:
+			Rhythia.save_settings()
 
 func _hide_game_pages():
 	for path in ["../Main/Results","../Main/Maps","../Main/Settings","../Main/Credits","../Main/Content","../Main/Language","../Main/Rhythian"]:
