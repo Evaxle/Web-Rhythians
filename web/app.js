@@ -226,6 +226,19 @@ async function storage(store,method,key,value){
 }
 
 let savedAccount=await storage("account","get","current").catch(()=>null);
+let browserClientId=await storage("account","get","browser-client-id").catch(()=>null);
+function newBrowserClientId(){
+  if(typeof crypto.randomUUID==="function")return crypto.randomUUID();
+  const bytes=crypto.getRandomValues(new Uint8Array(16));
+  bytes[6]=(bytes[6]&0x0f)|0x40;
+  bytes[8]=(bytes[8]&0x3f)|0x80;
+  const hex=[...bytes].map(v=>v.toString(16).padStart(2,"0")).join("");
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+if(typeof browserClientId!=="string"||!/^[0-9a-f-]{36}$/i.test(browserClientId)){
+  browserClientId=newBrowserClientId();
+  await storage("account","put","browser-client-id",browserClientId).catch(()=>{});
+}
 let sessionAccount=null;
 let engineStarted=false;
 let engineReady=null;
@@ -303,6 +316,71 @@ async function api(path,body,account=savedAccount){
   }
   return data;
 }
+async function websiteSession(method="GET",body=null){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),15000);
+  try{
+    const response=await fetch(BASE+"/api/rhythkit/web-session",{
+      method,
+      headers:body?{"Content-Type":"application/json"}:{},
+      ...(body?{body:JSON.stringify(body)}:{}),
+      credentials:"include",
+      cache:"no-store",
+      signal:controller.signal
+    });
+    if(response.status===401)return null;
+    const data=await response.json().catch(()=>({error:"Invalid Rhythians session response."}));
+    if(!response.ok||data.ok===false)throw new Error(data.error||`Website session failed (${response.status}).`);
+    return data;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+function showAutomaticAccount(account){
+  if(account?.username){
+    $("launch-copy").textContent=`Signed in as ${account.username}. Your maps, settings, ranks, and scores will sync when you play.`;
+    $("launch-play").textContent=`Play as ${account.username}`;
+  }else{
+    $("launch-copy").textContent="The Rhythians-Client game client, directly in your browser.";
+    $("launch-play").textContent="Play";
+  }
+}
+async function prepareAutomaticSession(){
+  try{
+    const website=await websiteSession("GET");
+    if(website?.signedIn){
+      if(savedAccount?.userId===website.userId){
+        const current=await validateSavedAccount();
+        if(current){
+          current.username=website.username||current.username;
+          await storage("account","put","current",current).catch(()=>{});
+          showAutomaticAccount(current);
+          return current;
+        }
+      }
+      const issued=await websiteSession("POST",{clientId:browserClientId});
+      if(issued?.token){
+        browserClientId=issued.installationId||browserClientId;
+        await storage("account","put","browser-client-id",browserClientId).catch(()=>{});
+        savedAccount={
+          token:issued.token,
+          userId:issued.userId,
+          username:issued.username,
+          installationId:issued.installationId
+        };
+        await storage("account","put","current",savedAccount).catch(()=>{});
+        showAutomaticAccount(savedAccount);
+        return savedAccount;
+      }
+    }
+  }catch(error){
+    console.warn("Rhythians automatic website sign-in unavailable:",error);
+  }
+  const current=await validateSavedAccount();
+  showAutomaticAccount(current);
+  return current;
+}
+
 async function validateSavedAccount(){
   if(!savedAccount?.token)return null;
   try{
@@ -453,7 +531,14 @@ async function beginSignin(force=false){
   }
 }
 
-$("launch-play").onclick=()=>showLauncher("choice");
+$("launch-play").onclick=async()=>{
+  const automatic=automaticSessionPromise?await automaticSessionPromise.catch(()=>null):null;
+  if(automatic){
+    await applySession(automatic).catch(error=>status(error.message));
+    return;
+  }
+  showLauncher("choice");
+};
 $("back-launch").onclick=()=>setStage("home");
 $("signin-rhythians").onclick=()=>beginSignin(false);
 $("play-guest").onclick=()=>applySession(null).catch(error=>status(error.message));
@@ -856,5 +941,7 @@ document.addEventListener("visibilitychange",()=>{
 window.addEventListener("beforeunload",()=>{if(engineStarted)window.rhythiansCommand?.(JSON.stringify({action:"save"}));});
 $("mobile-mouse").onclick=()=>enterClient("mouse");
 $("mobile-touch").onclick=()=>enterClient("touchscreen");
+$("ios-browser-override").onclick=()=>showMobileSetup("mode");
+let automaticSessionPromise=prepareAutomaticSession();
 accountLabel();
 initDeviceGate();
