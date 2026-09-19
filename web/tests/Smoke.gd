@@ -63,12 +63,35 @@ func _ready():
 	WebPortal.finished()
 	check(WebPortal.last_score_payload.cameraMode == "lock", "lock setting submits a lock score")
 
+	var local_key=str(score_song.filePath).get_file()
+	Rhythian.registry.erase(local_key)
+	Rhythian.song_links[local_key]={
+		"id":"linked-local",
+		"title":"Linked Local",
+		"rating":4.25,
+		"difficulty":"Gold",
+		"rankName":"Gold",
+		"isRanked":true,
+		"isLegacy":false,
+		"maxRewards":{"lock":120,"spin":140,"vr":160}
+	}
+	WebPortal.last_score_payload={}
+	Rhythia.start_offset=0
+	WebPortal.begin_run()
+	Rhythia.song_end_type=Globals.END_PASS
+	Rhythia.song_end_total_notes=5
+	Rhythia.song_end_hits=5
+	Rhythia.song_end_misses=0
+	WebPortal.finished()
+	check(str(WebPortal.last_score_payload.get("challengeMapId",""))=="linked-local", "locally linked Rhythians map produces a score payload")
+
+	WebPortal.last_score_payload={}
 	var unchanged_start_count = capture.count
 	Rhythia.start_offset = 0
 	WebPortal.begin_run()
 	Rhythia.start_offset = 750
 	WebPortal.finished()
-	check(capture.count == unchanged_start_count, "changing start time during a run blocks Rhythians score submission")
+	check(capture.count == unchanged_start_count and WebPortal.last_score_payload.empty(), "changing start time during a run blocks Rhythians score submission")
 	Rhythia.start_offset = 0
 
 	var count = capture.count
