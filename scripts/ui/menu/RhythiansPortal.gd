@@ -693,8 +693,11 @@ func _update_download_progress_controls(id:String,received:int,total:int):
 	if map_progress_labels.has(id) and is_instance_valid(map_progress_labels[id]):
 		var label=map_progress_labels[id]
 		label.visible=true
-		var pct=" · %d%%" % int(clamp(round(received/float(total)*100.0),0,100)) if total>0 else ""
-		label.text="Downloading · %s%s%s" % [_format_bytes(received),(" / "+_format_bytes(total)) if total>0 else "",pct]
+		if received<=0:
+			label.text="Preparing download%s" % ((" · "+_format_bytes(total)) if total>0 else "…")
+		else:
+			var pct=" · %d%%" % int(clamp(round(received/float(total)*100.0),0,100)) if total>0 else ""
+			label.text="Downloading · %s%s%s" % [_format_bytes(received),(" / "+_format_bytes(total)) if total>0 else "",pct]
 
 func _map_download_progress(id:String,received:int,total:int):
 	_update_download_progress_controls(id,received,total)
