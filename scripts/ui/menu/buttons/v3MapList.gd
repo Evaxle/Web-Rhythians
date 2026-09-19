@@ -440,7 +440,7 @@ func make_song_button(id:int=-1):
 	btn.add_child(status)
 
 	var ic=TextureRect.new()
-	ic.name="Logo"
+	ic.name="RhythianIcon"
 	ic.texture=RHYTHIAN_ICON
 	ic.rect_position=Vector2(2,6)
 	ic.rect_size=Vector2(28,28)
