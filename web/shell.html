@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Rhythians">
-<title>Rhythians</title>
-<link rel="icon" href="logo.png" type="image/png">
-<link rel="apple-touch-icon" href="logo.png">
+<meta name="apple-mobile-web-app-title" content="Rhythians-Client">
+<meta name="application-name" content="Rhythians-Client">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Rhythians-Client</title>
+<link rel="icon" href="rhythians-client.png" type="image/png">
+<link rel="apple-touch-icon" href="rhythians-client.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#070910">
 <link rel="stylesheet" href="app.css">
@@ -29,12 +31,12 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
 
 <section id="mobile-setup" class="launcher mobile-setup" hidden>
   <div class="launch-card mobile-card">
-    <img src="logo.png" alt="Rhythians" class="launch-logo">
-    <p class="eyebrow">RHYTHIANS MOBILE</p>
+    <img src="rhythians-client.png" alt="Rhythians-Client" class="launch-logo">
+    <p class="eyebrow">RHYTHIANS-CLIENT MOBILE</p>
     <div id="ios-install" hidden>
       <h1>Add to Home Screen</h1>
-      <p>Rhythians detected iOS. For the web client to run as a mobile app, add this site to your Home Screen, then launch Rhythians from the new Home Screen icon.</p>
-      <div class="install-steps"><strong>1.</strong> Tap the Share button in your browser.<br><strong>2.</strong> Choose <b>Add to Home Screen</b>.<br><strong>3.</strong> Tap <b>Add</b>, then open Rhythians from your Home Screen.</div>
+      <p>Rhythians-Client detected iOS. Add this client to your Home Screen, then launch Rhythians-Client from the new Home Screen icon.</p>
+      <div class="install-steps"><strong>1.</strong> Tap the Share button in your browser.<br><strong>2.</strong> Choose <b>Add to Home Screen</b>.<br><strong>3.</strong> Tap <b>Add</b>, then open Rhythians-Client from your Home Screen.</div>
     </div>
     <div id="android-unsupported" hidden>
       <h1>Android detected</h1>
@@ -42,7 +44,7 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
     </div>
     <div id="mobile-mode-choice" hidden>
       <h1>Mobile detected</h1>
-      <p>Choose how you want to control Rhythians on this device.</p>
+      <p>Choose how you want to control Rhythians-Client on this device.</p>
       <button id="mobile-mouse" class="secondary choice-button" type="button">Mouse <span>Use a connected mouse or trackpad with normal desktop input.</span></button>
       <button id="mobile-touch" class="primary choice-button" type="button">Touchscreen <span>Move directly with your finger in Lock and drag naturally in Spin. Touch Pause and Give Up controls are enabled in-game.</span></button>
     </div>
@@ -51,10 +53,10 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
 
 <section id="launcher" class="launcher">
   <div class="launch-card">
-    <img src="logo.png" alt="Rhythians" class="launch-logo">
-    <p class="eyebrow">RHYTHIANS WEB CLIENT</p>
-    <h1>Rhythians</h1>
-    <p id="launch-copy">The full Rhythians client, directly in your browser.</p>
+    <img src="rhythians-client.png" alt="Rhythians-Client" class="launch-logo">
+    <p class="eyebrow">RHYTHIANS-CLIENT WEB</p>
+    <h1>Rhythians-Client</h1>
+    <p id="launch-copy">The Rhythians-Client game client, directly in your browser.</p>
     <div id="launch-home">
       <button id="launch-play" class="primary hero-button" type="button">Play</button>
     </div>
@@ -76,12 +78,12 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
 </section>
 
 <section id="game" hidden>
-  <canvas id="canvas" tabindex="0" aria-label="Rhythians game"></canvas>
+  <canvas id="canvas" tabindex="0" aria-label="Rhythians-Client game"></canvas>
   <div id="game-tools" class="game-tools">
-    <button id="tools-toggle" class="tools-toggle" type="button" aria-expanded="false" aria-controls="tools-panel" title="Rhythians browser tools">Tools</button>
+    <button id="tools-toggle" class="tools-toggle" type="button" aria-expanded="false" aria-controls="tools-panel" title="Rhythians-Client browser tools">Tools</button>
     <div id="tools-panel" class="tools-panel">
       <div class="tools-head">
-        <div class="game-brand"><img src="logo.png" alt=""><span>Rhythians Web</span></div>
+        <div class="game-brand"><img src="rhythians-client.png" alt="Rhythians-Client"><span>Rhythians-Client</span></div>
         <span id="account-state">Guest</span>
       </div>
       <div class="tools-actions">
@@ -102,7 +104,7 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
   </div>
 </section>
 
-<div id="drop" hidden>Drop SSPM files to import them into Rhythians</div>
+<div id="drop" hidden>Drop SSPM files to import them into Rhythians-Client</div>
 <script src="$GODOT_URL"></script>
 <script>
 const rhythiansGodotConfig=$GODOT_CONFIG;
