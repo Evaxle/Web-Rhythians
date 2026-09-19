@@ -6,6 +6,7 @@ const SETTINGS_FILE = "user://rhythian/client-settings.json"
 var title_label:Label
 var content:VBoxContainer
 var status:Label
+var page_margin:MarginContainer
 var selected_page="home"
 var spin_enabled=false
 var battle_mode="1v1"
@@ -49,17 +50,17 @@ func _ready():
 	anchor_right=1.0
 	anchor_bottom=1.0
 	visible=false
-	var margin=MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_WIDE)
-	margin.margin_left=40
-	margin.margin_right=-40
-	margin.margin_top=86
-	margin.margin_bottom=-24
-	add_child(margin)
+	page_margin=MarginContainer.new()
+	page_margin.set_anchors_preset(Control.PRESET_WIDE)
+	page_margin.margin_left=40
+	page_margin.margin_right=-40
+	page_margin.margin_top=86
+	page_margin.margin_bottom=-24
+	add_child(page_margin)
 	var scroll=ScrollContainer.new()
 	scroll.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical=Control.SIZE_EXPAND_FILL
-	margin.add_child(scroll)
+	page_margin.add_child(scroll)
 	var root=VBoxContainer.new()
 	root.add_constant_override("separation",14)
 	root.size_flags_horizontal=Control.SIZE_EXPAND_FILL
@@ -100,6 +101,23 @@ func _process(delta:float):
 		direct_refresh_accum=0.0
 		if get_focus_owner()==null or not (get_focus_owner() is LineEdit):
 			_refresh_direct_silent()
+
+func _responsive_width() -> float:
+	if OS.has_feature("HTML5") and WebPortal.mobile_layout:
+		return WebPortal.mobile_viewport.x
+	return get_viewport_rect().size.x
+
+func apply_mobile_layout(width:float,height:float,touch:bool):
+	if page_margin!=null:
+		var side=10 if width<700 else 18
+		page_margin.margin_left=side
+		page_margin.margin_right=-side
+		page_margin.margin_top=102 if touch else 92
+		page_margin.margin_bottom=-10
+	if title_label!=null:
+		title_label.add_font_override("font",RhythianUI.font(28 if width<700 else 32,1))
+	if visible and selected_page!="":
+		call_deferred("show_page",selected_page,true)
 
 func open_page(page:String):
 	if page=="":
@@ -374,7 +392,7 @@ func _maps():
 	var totals=_mode_totals()
 	var tabs=_panel("Map views","Use the same ranked views as the Rhythians Maps page.")
 	var tab_grid=GridContainer.new()
-	tab_grid.columns=2 if get_viewport_rect().size.x<900 else 4
+	tab_grid.columns=2 if _responsive_width()<900 else 4
 	tab_grid.add_constant_override("hseparation",7)
 	tab_grid.add_constant_override("vseparation",7)
 	tabs.add_child(tab_grid)
@@ -459,7 +477,8 @@ func _maps():
 		return
 	var catalog_grid=GridContainer.new()
 	catalog_grid.name="MapCatalogGrid"
-	catalog_grid.columns=4
+	var mobile_width=_responsive_width()
+	catalog_grid.columns=1 if mobile_width<620 else (2 if mobile_width<980 else 4)
 	catalog_grid.add_constant_override("hseparation",10)
 	catalog_grid.add_constant_override("vseparation",10)
 	catalog_grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
