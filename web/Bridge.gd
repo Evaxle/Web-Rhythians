@@ -41,6 +41,8 @@ func _ready():
 func menu_ready():
 	menu_loaded = true
 	print("RHYTHIANS_MENU_READY")
+	if mobile_layout:
+		call_deferred("_reapply_mobile_layout")
 	if window and window.rhythiansReady:
 		window.rhythiansReady(JSON.print({
 			"persistent": OS.is_userfs_persistent(),
@@ -213,6 +215,9 @@ func load_account_settings():
 	last_settings_fingerprint=_settings_fingerprint(remote)
 	persist_user_data()
 	_settings_sync_status("loaded","Settings loaded from your Rhythians account.")
+	if menu_loaded:
+		menu_loaded=false
+		get_tree().call_deferred("change_scene","res://scenes/loaders/menuload.tscn")
 	if account_settings_save_pending:
 		account_settings_save_pending=false
 		call_deferred("save_account_settings")
@@ -512,6 +517,15 @@ func _process(delta):
 			mobile_layout_accum = 0.0
 			_enhance_mobile_controls(get_tree().current_scene)
 
+
+func _reapply_mobile_layout():
+	if not mobile_layout:
+		return
+	_apply_mobile_layout({
+		"width":mobile_viewport.x,
+		"height":mobile_viewport.y,
+		"touch":mobile_touch
+	})
 
 func _apply_mobile_layout(data:Dictionary):
 	mobile_layout=true
