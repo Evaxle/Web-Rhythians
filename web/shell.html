@@ -96,6 +96,10 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
   </div>
   <div id="game-toast" role="status" aria-live="polite" hidden></div>
   <div id="mobile-orientation-hint" aria-live="polite">Rotate to landscape for the largest gameplay area.</div>
+  <div id="mobile-keyboard-shell" class="mobile-keyboard-shell" hidden>
+    <textarea id="mobile-keyboard-input" rows="1" autocomplete="off" autocapitalize="sentences" spellcheck="false" enterkeyhint="done"></textarea>
+    <button id="mobile-keyboard-done" type="button">Done</button>
+  </div>
 </section>
 
 <div id="drop" hidden>Drop SSPM files to import them into Rhythians</div>
