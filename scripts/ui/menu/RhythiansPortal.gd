@@ -103,7 +103,7 @@ func _process(delta:float):
 			_refresh_direct_silent()
 
 func _responsive_width() -> float:
-	if OS.has_feature("HTML5") and WebPortal.mobile_layout:
+	if WebPortal.mobile_layout:
 		return WebPortal.mobile_viewport.x
 	return get_viewport_rect().size.x
 
