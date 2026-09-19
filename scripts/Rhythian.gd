@@ -10,6 +10,7 @@ signal completions_updated(success, message)
 signal scores_updated(success, message)
 signal download_progress(map_id, received, total)
 signal map_downloaded(map_id, success, message)
+signal song_link_updated(song_id, success, message)
 signal score_submitted(success, message)
 
 const DEFAULT_BASE_URL = "https://www.rhythians.com"
@@ -17,6 +18,7 @@ const MAP_DIR = "user://maps/rhythian maps"
 const REGISTRY_FILE = "user://maps/rhythian maps/rhythian_maps.json"
 const AUTH_FILE = "user://rhythian/auth.json"
 const QUEUE_FILE = "user://rhythian/score_queue.json"
+const SONG_LINKS_FILE = "user://rhythian/song_links.json"
 const INTEGRATION_VERSION = "rhythian-client-1"
 
 var base_url:String = DEFAULT_BASE_URL
@@ -49,6 +51,8 @@ var catalog_loading:bool = false
 var profile_limited:bool = false
 
 var registry:Dictionary = {}
+var song_links:Dictionary = {}
+var song_lookup_inflight:Dictionary = {}
 var runtime_song_metadata:Dictionary = {}
 var runtime_song_id:String = ""
 
@@ -87,6 +91,7 @@ func _ready():
 	_ensure_dirs()
 	_load_auth()
 	_load_registry()
+	_load_song_links()
 	if logged_in and not OS.has_feature("HTML5"):
 		refresh_status()
 		_flush_score_queue()
@@ -1108,6 +1113,92 @@ func _load_registry():
 	if parsed.error == OK and typeof(parsed.result) == TYPE_DICTIONARY:
 		registry = parsed.result
 
+func _save_song_links():
+	var f=File.new()
+	if f.open(Globals.p(SONG_LINKS_FILE),File.WRITE)!=OK:
+		return
+	f.store_string(JSON.print(song_links))
+	f.close()
+	if OS.has_feature("HTML5"):
+		WebPortal.persist_user_data()
+
+func _load_song_links():
+	var f=File.new()
+	if not f.file_exists(Globals.p(SONG_LINKS_FILE)):
+		return
+	if f.open(Globals.p(SONG_LINKS_FILE),File.READ)!=OK:
+		return
+	var parsed=JSON.parse(f.get_as_text())
+	f.close()
+	if parsed.error==OK and typeof(parsed.result)==TYPE_DICTIONARY:
+		song_links=parsed.result
+
+func _song_link_key(song) -> String:
+	if song==null:
+		return ""
+	var file_name=str(song.filePath).get_file()
+	if file_name!="":
+		return file_name
+	return str(song.id)
+
+func _link_song_metadata(song,map:Dictionary):
+	var key=_song_link_key(song)
+	if key=="" or map.empty():
+		return
+	song_links[key]=_map_registry_payload(map)
+	if map.has("completion"):
+		song_links[key]["completion"]=map["completion"]
+	if map.has("hasScore"):
+		song_links[key]["hasScore"]=bool(map["hasScore"])
+	_save_song_links()
+
+func lookup_song(song):
+	if song==null:
+		return
+	var lookup_id=str(song.id)
+	if lookup_id=="":
+		emit_signal("song_link_updated","",false,"This map has no source id.")
+		return
+	if not logged_in:
+		emit_signal("song_link_updated",lookup_id,false,"Sign in to Rhythians to check this map.")
+		return
+	var key=_song_link_key(song)
+	if song_lookup_inflight.has(key):
+		return
+	song_lookup_inflight[key]=true
+	var path="/api/rhythkit/maps/"+lookup_id.http_escape()
+	var query=[]
+	if str(song.name).strip_edges()!="":
+		query.append("title="+str(song.name).strip_edges().http_escape())
+	if str(song.song).strip_edges()!="":
+		query.append("artist="+str(song.song).strip_edges().http_escape())
+	if str(song.creator).strip_edges()!="":
+		query.append("mapper="+str(song.creator).strip_edges().http_escape())
+	if query.size()>0:
+		path+="?"+PoolStringArray(query).join("&")
+	var res=yield(_api_request(HTTPClient.METHOD_GET,path,null,true,30.0),"completed")
+	song_lookup_inflight.erase(key)
+	if _handle_auth_failure(res):
+		emit_signal("song_link_updated",lookup_id,false,"Your Rhythians session expired - sign in again.")
+		return
+	if not bool(res.get("ok",false)):
+		var code=int(res.get("code",0))
+		var message="Map not found on Rhythians." if code==404 else _http_error_message(res,"the map lookup")
+		emit_signal("song_link_updated",lookup_id,false,message)
+		return
+	var map=res.get("json",null)
+	if typeof(map)!=TYPE_DICTIONARY or not bool(map.get("ok",false)) or str(map.get("id",""))=="":
+		emit_signal("song_link_updated",lookup_id,false,"Rhythians returned invalid map metadata.")
+		return
+	_link_song_metadata(song,map)
+	var mid=str(map.get("id",""))
+	var completion=map.get("completion",null)
+	if mid!="" and typeof(completion)==TYPE_DICTIONARY:
+		completions_cache[mid]=completion
+		recompute_rhythian_progress()
+		emit_signal("completions_updated",true,"")
+	emit_signal("song_link_updated",lookup_id,true,"Map found on Rhythians.")
+
 func _registry_add(file_name:String, map:Dictionary):
 	registry[file_name] = _map_registry_payload(map)
 	registry[file_name]["downloadedAt"] = _iso_now()
@@ -1384,6 +1475,16 @@ func get_song_metadata(song) -> Dictionary:
 		if not current.empty():
 			return current
 		return registry[file_name]
+	if song_links.has(file_name) and typeof(song_links[file_name])==TYPE_DICTIONARY:
+		var linked=song_links[file_name]
+		var linked_id=str(linked.get("id",""))
+		var current=get_map_metadata(linked_id)
+		if not current.empty():
+			return current
+		return linked
+	var fallback_key=str(song.id)
+	if song_links.has(fallback_key) and typeof(song_links[fallback_key])==TYPE_DICTIONARY:
+		return song_links[fallback_key]
 	return {}
 
 func get_rankability_label(map:Dictionary) -> String:
@@ -1406,13 +1507,27 @@ func get_reward_text(map:Dictionary) -> String:
 		("+"+str(vr)) if vr>0 else "—"
 	]
 
+func get_map_pass_label(map:Dictionary) -> String:
+	var completion=map.get("completion",null)
+	if typeof(completion)==TYPE_DICTIONARY:
+		if bool(completion.get("passed",false)) or bool(completion.get("hasScore",false)) or bool(completion.get("completed",false)):
+			return "Passed ✓"
+	if bool(map.get("hasScore",false)):
+		return "Passed ✓"
+	var mid=str(map.get("id",""))
+	if mid!="" and not get_completion_for_map(mid).empty():
+		var saved=get_completion_for_map(mid)
+		if bool(saved.get("passed",false)) or bool(saved.get("hasScore",false)) or bool(saved.get("completed",false)):
+			return "Passed ✓"
+	return "Not passed"
+
 func get_map_summary(map:Dictionary) -> String:
 	if map.empty():
 		return ""
 	var rating=get_map_rating(map)
 	var difficulty=str(map.get("difficulty",map.get("rankName","Unranked")))
 	var rating_text=("%.2f ★" % rating) if rating>0.0 else "Unrated"
-	return "%s · %s · %s · %s" % [rating_text,difficulty,get_rankability_label(map),get_reward_text(map)]
+	return "%s · %s · %s · %s · %s" % [rating_text,difficulty,get_rankability_label(map),get_map_pass_label(map),get_reward_text(map)]
 
 func get_map_rating(map:Dictionary) -> float:
 	for key in ["rating", "difficulty", "difficultyRating", "stars", "starRating", "level", "sr", "bp"]:
