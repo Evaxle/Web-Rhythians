@@ -14,6 +14,33 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#070910">
 <link rel="stylesheet" href="app.css">
+<script>
+window.rhythiansAudioContexts=[];
+for(const key of ["AudioContext","webkitAudioContext"]){
+  const Native=window[key];
+  if(!Native||Native.__rhythiansClientWrapped)continue;
+  function WrappedAudioContext(...args){
+    const ctx=new Native(...args);
+    window.rhythiansAudioContexts.push(ctx);
+    return ctx;
+  }
+  Object.setPrototypeOf(WrappedAudioContext,Native);
+  WrappedAudioContext.prototype=Native.prototype;
+  WrappedAudioContext.__rhythiansClientWrapped=true;
+  window[key]=WrappedAudioContext;
+}
+window.rhythiansResumeAudio=()=>{
+  let resumed=0;
+  for(const ctx of window.rhythiansAudioContexts){
+    if(!ctx||ctx.state==="closed")continue;
+    if(ctx.state!=="running"){
+      try{ctx.resume();}catch{}
+    }
+    if(ctx.state==="running")resumed++;
+  }
+  return resumed;
+};
+</script>
 $GODOT_HEAD_INCLUDE
 <script>
 window.rhythiansPersistUserData=()=>new Promise((resolve,reject)=>{
@@ -99,7 +126,8 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
   <div id="game-toast" role="status" aria-live="polite" hidden></div>
   <div id="mobile-orientation-hint" aria-live="polite">Rotate to landscape for the largest gameplay area.</div>
   <div id="mobile-keyboard-shell" class="mobile-keyboard-shell" hidden>
-    <textarea id="mobile-keyboard-input" rows="1" autocomplete="off" autocapitalize="sentences" spellcheck="false" enterkeyhint="done"></textarea>
+    <input id="mobile-keyboard-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" enterkeyhint="done">
+    <textarea id="mobile-keyboard-textarea" rows="3" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false"></textarea>
     <button id="mobile-keyboard-done" type="button">Done</button>
   </div>
 </section>
