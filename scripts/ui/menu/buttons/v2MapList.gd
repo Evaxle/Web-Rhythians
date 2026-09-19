@@ -27,6 +27,8 @@ var disp:Array = []
 
 var ready:bool = false
 
+const RHYTHIAN_ICON = preload("res://assets/images/branding/icon.png")
+
 func is_fav(s:Song): return favorite.has(s)
 func search_matches(s:Song):
 	return (
@@ -130,6 +132,42 @@ func load_pg(is_resize:bool=false):
 			rbtn.connect("pressed",self,"on_pressed",[i])
 			if map == Rhythia.selected_song:
 				btn.get_node("Select").pressed = true
+			if Rhythian.is_rhythian_song(map):
+				var metadata=Rhythian.get_song_metadata(map)
+				if not metadata.empty():
+					var info=Label.new()
+					info.name="RhythianMeta"
+					info.text=Rhythian.get_map_summary(metadata)
+					info.anchor_left=0.0
+					info.anchor_right=1.0
+					info.anchor_top=1.0
+					info.anchor_bottom=1.0
+					info.margin_left=5
+					info.margin_right=-28
+					info.margin_top=-20
+					info.margin_bottom=-2
+					info.clip_text=true
+					info.mouse_filter=Control.MOUSE_FILTER_IGNORE
+					info.add_font_override("font",RhythianUI.font(9))
+					info.add_color_override("font_color",Color(0.88,0.91,0.98))
+					btn.add_child(info)
+				var icon=TextureRect.new()
+				icon.name="RhythianIcon"
+				icon.texture=RHYTHIAN_ICON
+				icon.hint_tooltip="Downloaded from Rhythians"
+				icon.rect_min_size=Vector2(20,20)
+				icon.expand=true
+				icon.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				icon.mouse_filter=Control.MOUSE_FILTER_IGNORE
+				icon.anchor_left=1.0
+				icon.anchor_right=1.0
+				icon.anchor_top=0.0
+				icon.anchor_bottom=0.0
+				icon.margin_left=-24
+				icon.margin_right=-4
+				icon.margin_top=4
+				icon.margin_bottom=24
+				btn.add_child(icon)
 			add_child(btn)
 			btn.visible = true
 			
