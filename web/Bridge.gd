@@ -56,6 +56,8 @@ func request_settings_import():
 		window.rhythiansRequestSettingsImport()
 
 func persist_user_data():
+	if not OS.has_feature("HTML5"):
+		return
 	if window and window.rhythiansPersistUserData:
 		window.rhythiansPersistUserData()
 
