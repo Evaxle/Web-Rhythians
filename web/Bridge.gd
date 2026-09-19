@@ -11,6 +11,10 @@ var active_mode = "lock"
 var mode_sync_enabled = false
 var last_spin = false
 var last_score_payload = {}
+var mobile_layout:bool = false
+var mobile_touch:bool = false
+var mobile_viewport:Vector2 = Vector2(1280,720)
+var mobile_layout_accum:float = 0.0
 
 func _ready():
 	if not OS.has_feature("HTML5"): return
@@ -103,6 +107,8 @@ func command(args):
 			Rhythian.emit_signal("map_downloaded",missing_id,false,"The cached map file is missing. Download it again.")
 		"materialize-progress":
 			pass
+		"mobile-layout":
+			_apply_mobile_layout(data)
 		"import":
 			_import_sspm(data)
 		"import-settings":
@@ -327,11 +333,44 @@ func _maps_updated(success:bool, _message:String):
 	if window and success:
 		window.rhythiansCatalogReady(Rhythian.maps_total)
 
-func _process(_delta):
+func _process(delta):
 	if window and mode_sync_enabled and last_spin != Rhythia.cam_unlock:
 		last_spin = Rhythia.cam_unlock
 		window.rhythiansMode(last_spin)
+	if mobile_layout:
+		mobile_layout_accum += delta
+		if mobile_layout_accum >= 0.75:
+			mobile_layout_accum = 0.0
+			_enhance_mobile_controls(get_tree().current_scene)
 
+
+func _apply_mobile_layout(data:Dictionary):
+	mobile_layout=true
+	mobile_touch=bool(data.get("touch",false))
+	mobile_viewport=Vector2(max(1,int(data.get("width",1280))),max(1,int(data.get("height",720))))
+	var scene=get_tree().current_scene
+	if scene!=null:
+		_enhance_mobile_controls(scene)
+		var sidebar=scene.get_node_or_null("Sidebar")
+		if sidebar!=null and sidebar.has_method("apply_mobile_layout"):
+			sidebar.call_deferred("apply_mobile_layout",mobile_viewport.x,mobile_viewport.y,mobile_touch)
+		var portal=scene.get_node_or_null("RhythiansPortal")
+		if portal==null and sidebar!=null:
+			portal=sidebar.get("portal")
+		if portal!=null and is_instance_valid(portal) and portal.has_method("apply_mobile_layout"):
+			portal.call_deferred("apply_mobile_layout",mobile_viewport.x,mobile_viewport.y,mobile_touch)
+
+func _enhance_mobile_controls(node):
+	if node==null:
+		return
+	if node is BaseButton:
+		node.rect_min_size.y=max(node.rect_min_size.y,52 if mobile_touch else 44)
+		if node is Button or node is CheckButton or node is OptionButton:
+			node.add_font_override("font",RhythianUI.font(16 if mobile_touch else 14,1 if node is Button else 0))
+	elif node is LineEdit or node is TextEdit or node is SpinBox:
+		node.rect_min_size.y=max(node.rect_min_size.y,50 if mobile_touch else 42)
+	for child in node.get_children():
+		_enhance_mobile_controls(child)
 
 func _score_submitted(success:bool, message:String):
 	if window and window.rhythiansScoreResult:
