@@ -912,6 +912,35 @@ func _safe_user_handle(user:Dictionary) -> String:
 		return str(username)
 	return ""
 
+func _profile_link(parent:Container,user:Dictionary,label_override:String="") -> Button:
+	var handle=_safe_user_handle(user)
+	var button=Button.new()
+	button.flat=true
+	button.focus_mode=Control.FOCUS_NONE
+	button.mouse_default_cursor_shape=Control.CURSOR_POINTING_HAND
+	button.text=label_override if label_override!="" else _safe_user_name(user)
+	button.add_font_override("font",RhythianUI.font(13,1))
+	button.add_color_override("font_color",RhythianUI.C_ACCENT)
+	button.add_color_override("font_color_hover",RhythianUI.C_WHITE)
+	button.add_color_override("font_color_pressed",RhythianUI.C_ACCENT2)
+	button.disabled=handle==""
+	button.hint_tooltip="Open @"+handle if handle!="" else "Profile unavailable"
+	parent.add_child(button)
+	if handle!="":
+		button.connect("pressed",self,"open_profile_handle",[handle])
+	return button
+
+func _profile_web_url(handle:String) -> String:
+	return BASE_URL+"/profile/"+handle.http_escape()
+
+func _open_profile_website(handle:String):
+	if handle!="":
+		RhythianUI.open_url(_profile_web_url(handle))
+
+func _refresh_profile():
+	_invalidate_cache("profile")
+	show_page("profile",true)
+
 func _online():
 	title_label.text="Online"
 	var epoch=page_epoch
@@ -958,7 +987,15 @@ func _leaderboards():
 		var mode_box=_panel(mode_label,"Top 15 mode leaderboard")
 		var entries=modes.get(mode_name,[])
 		for i in range(min(15,entries.size())):
-			mode_box.add_child(RhythianUI.label("#%d %s" % [i+1,str(entries[i].get("username",entries[i].get("displayName","Player")))],13))
+			var entry=entries[i]
+			var line=RhythianUI.hbox(8)
+			line.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+			mode_box.add_child(line)
+			var name=str(entry.get("displayName",entry.get("username","Player")))
+			var profile_btn=_profile_link(line,entry,"#%d  %s" % [i+1,name])
+			profile_btn.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+			profile_btn.align=Button.ALIGN_LEFT
+			line.add_child(RhythianUI.label("%d pts" % int(entry.get("points",0)),13,RhythianUI.C_MUTED,1))
 func _battles():
 	title_label.text="Battles"
 	if not Rhythian.logged_in:
@@ -1104,12 +1141,16 @@ func _search():
 	var field=_line(row,"Search users",search_query)
 	var go=_button(row,"Search",true)
 	go.connect("pressed",self,"_run_user_search",[field])
-	if search_query!="": _render_user_search(search_query)
+	field.connect("text_entered",self,"_run_user_search_entered",[field])
+	_render_user_search(search_query)
 
 func _run_user_search(field:LineEdit):
 	search_query=field.text.strip_edges()
 	_invalidate_cache("search")
 	show_page("search",true)
+
+func _run_user_search_entered(_text:String,field:LineEdit):
+	_run_user_search(field)
 func _render_user_search(query:String):
 	var epoch=page_epoch
 	var data=yield(_api_page("search",{"q":query}),"completed")
@@ -1118,12 +1159,26 @@ func _render_user_search(query:String):
 	if not data.get("ok",false):
 		_panel("Search failed",data.get("message","Could not search users."))
 		return
-	for user in data.get("users",[]):
-		var row=_panel(str(user.get("displayName",user.get("username","User"))),"@%s · %d RHP · %s" % [str(user.get("profileHandle","")),int(user.get("rhp",0)),"Online" if bool(user.get("online",false)) else "Offline"])
-		var profile=_button(row,"Profile")
-		profile.connect("pressed",self,"open_profile_handle",[str(user.get("profileHandle",""))])
-		var msg=_button(row,"Message")
-		msg.connect("pressed",self,"open_message_handle",[str(user.get("profileHandle",""))])
+	var users=data.get("users",[])
+	if users.empty():
+		_panel("No players found","Try another username, display name, or profile handle.")
+		return
+	if query=="":
+		_panel("Browse players","Showing up to 30 Rhythians. Search above to narrow the list.")
+	for user in users:
+		var handle=_safe_user_handle(user)
+		var row=_panel(_safe_user_name(user),"@%s · %d RHP · %s" % [handle,int(user.get("rhp",0)),"Online" if bool(user.get("online",false)) else "Offline"])
+		var actions=RhythianUI.hbox(7)
+		row.add_child(actions)
+		var profile=_button(actions,"View profile",true)
+		profile.disabled=handle==""
+		profile.connect("pressed",self,"open_profile_handle",[handle])
+		var msg=_button(actions,"Message")
+		msg.disabled=handle==""
+		msg.connect("pressed",self,"open_message_handle",[handle])
+		var web=_button(actions,"Website")
+		web.disabled=handle==""
+		web.connect("pressed",self,"_open_profile_website",[handle])
 func _profile(handle:String):
 	title_label.text="Profile"
 	var epoch=page_epoch
@@ -1134,23 +1189,97 @@ func _profile(handle:String):
 		_panel("Profile unavailable",data.get("message","Could not load profile."))
 		return
 	var p=data.get("profile",{})
-	var main=_panel(str(p.get("displayName",p.get("username","User"))),"@%s · %s · %d RHP" % [str(p.get("profileHandle","")),str(p.get("title","Rhythian")),int(p.get("rhp",0))])
-	main.add_child(RhythianUI.label("Rank: %s %s · Global #%s · Challenge Level %s · %s" % [str(p.get("rank",{}).get("name","")),str(p.get("rank",{}).get("tier","")),str(p.get("globalRank","-")),str(p.get("challengeLevel",0)),"Online" if bool(p.get("online",false)) else "Offline"],14))
-	main.add_child(RhythianUI.label("RPL %d · RPS %d · RPV %d" % [int(p.get("modes",{}).get("rpl",0)),int(p.get("modes",{}).get("rps",0)),int(p.get("modes",{}).get("rpv",0))],14))
-	if str(p.get("bio",""))!="":
-		main.add_child(RhythianUI.label(str(p.get("bio","")),14))
-	var actions=RhythianUI.hbox(8)
+	var profile_handle=_safe_user_handle(p)
+	title_label.text=_safe_user_name(p)
+	var main=_panel(_safe_user_name(p),"@%s · %s" % [profile_handle,str(p.get("title","Rhythian"))])
+	var badges=RhythianUI.hbox(6)
+	main.add_child(badges)
+	badges.add_child(RhythianUI.pill("Online" if bool(p.get("online",false)) else "Offline",RhythianUI.C_ACCENT2 if bool(p.get("online",false)) else RhythianUI.C_MUTED,true))
+	if bool(p.get("verified",false)):
+		badges.add_child(RhythianUI.pill("Verified",RhythianUI.C_ACCENT,true))
+	var rank=p.get("rank",{})
+	var rank_name=str(rank.get("name","Rank"))
+	var rank_tier=str(rank.get("tier",""))
+	badges.add_child(RhythianUI.pill((rank_name+" "+rank_tier).strip_edges(),RhythianUI.C_ACCENT,true))
+
+	var stats=GridContainer.new()
+	stats.columns=2 if _responsive_width()<700 else 4
+	stats.add_constant_override("hseparation",8)
+	stats.add_constant_override("vseparation",8)
+	stats.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	main.add_child(stats)
+	for item in [
+		["RHP",str(int(p.get("rhp",0)))],
+		["Global"," #"+str(p.get("globalRank","-"))],
+		["Challenge","Level "+str(p.get("challengeLevel",0))],
+		["Joined",str(p.get("joinedAt","")).substr(0,min(10,str(p.get("joinedAt","")).length()))]
+	]:
+		var stat=RhythianUI.make_panel(10,12,Color("0b101d"))
+		var stat_box=RhythianUI.vbox(2)
+		stat.add_child(stat_box)
+		stat_box.add_child(RhythianUI.label(item[0],11,RhythianUI.C_MUTED,1))
+		stat_box.add_child(RhythianUI.label(item[1],15,RhythianUI.C_WHITE,1))
+		stats.add_child(stat)
+
+	var modes=p.get("modes",{})
+	var mode_row=RhythianUI.hbox(8)
+	main.add_child(mode_row)
+	mode_row.add_child(RhythianUI.pill("RPL %d" % int(modes.get("rpl",0)),RhythianUI.C_ACCENT,true))
+	mode_row.add_child(RhythianUI.pill("RPS %d" % int(modes.get("rps",0)),RhythianUI.C_ACCENT2,true))
+	mode_row.add_child(RhythianUI.pill("RPV %d" % int(modes.get("rpv",0)),Color("b58cff"),true))
+
+	var tags=p.get("tags",[])
+	if typeof(tags)==TYPE_ARRAY and not tags.empty():
+		var tag_row=RhythianUI.hbox(6)
+		main.add_child(tag_row)
+		for i in range(min(8,tags.size())):
+			tag_row.add_child(RhythianUI.pill(str(tags[i].get("name","Tag")),RhythianUI.C_MUTED,true))
+
+	if str(p.get("bio","")).strip_edges()!="":
+		var bio=RhythianUI.label(str(p.get("bio","")),14,RhythianUI.C_WHITE)
+		bio.autowrap=true
+		main.add_child(bio)
+
+	var actions=GridContainer.new()
+	actions.columns=2 if _responsive_width()<720 else 4
+	actions.add_constant_override("hseparation",7)
+	actions.add_constant_override("vseparation",7)
 	main.add_child(actions)
+	var refresh=_button(actions,"Refresh")
+	refresh.connect("pressed",self,"_refresh_profile")
+	if profile_handle!="":
+		var website_profile=_button(actions,"Open on Rhythians")
+		website_profile.connect("pressed",self,"_open_profile_website",[profile_handle])
+	if str(p.get("rhythiaProfileUrl",""))!="":
+		var rhythia_profile=_button(actions,"Rhythia profile")
+		rhythia_profile.connect("pressed",RhythianUI,"open_url",[str(p.get("rhythiaProfileUrl",""))])
+	if str(p.get("website",""))!="":
+		var website=_button(actions,"Website")
+		website.connect("pressed",RhythianUI,"open_url",[str(p.get("website",""))])
 	if not bool(p.get("isOwnProfile",false)):
 		var msg=_button(actions,"Message",true)
-		msg.connect("pressed",self,"open_message_handle",[str(p.get("profileHandle",""))])
+		msg.connect("pressed",self,"open_message_handle",[profile_handle])
 		var battle_btn=_button(actions,"Battle")
 		battle_btn.connect("pressed",self,"open_page",["battles"])
+	var browse=_button(actions,"Browse players")
+	browse.connect("pressed",self,"open_page",["search"])
+
 	var clips_panel=_panel("Approved clips","%d clips" % p.get("clips",[]).size())
 	for clip in p.get("clips",[]):
-		var b=_button(clips_panel,str(clip.get("title","Clip")))
+		var clip_row=RhythianUI.hbox(8)
+		clips_panel.add_child(clip_row)
+		var b=_button(clip_row,str(clip.get("title","Clip")),true)
 		b.connect("pressed",self,"_watch_clip",[clip])
+		var song=str(clip.get("songName",""))
+		if song!="":
+			clip_row.add_child(RhythianUI.label(song,12,RhythianUI.C_MUTED))
+
 func open_profile_handle(handle:String):
+	handle=handle.strip_edges()
+	if handle=="":
+		if status!=null:
+			status.text="This user does not have a public profile handle."
+		return
 	profile_handle=handle
 	show_page("profile",true)
 func open_message_handle(handle:String):
@@ -1179,7 +1308,14 @@ func _messages():
 	var start=max(0,messages.size()-50)
 	for i in range(start,messages.size()):
 		var m=messages[i]
-		content.add_child(RhythianUI.label("%s: %s" % [str(m.get("sender",{}).get("displayName",m.get("sender",{}).get("username","User"))),str(m.get("content",""))],14))
+		var message_row=RhythianUI.hbox(6)
+		content.add_child(message_row)
+		var sender=m.get("sender",{})
+		_profile_link(message_row,sender,_safe_user_name(sender)+":")
+		var body=RhythianUI.label(str(m.get("content","")),14,RhythianUI.C_WHITE)
+		body.autowrap=true
+		body.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		message_row.add_child(body)
 	var row=RhythianUI.hbox(8)
 	content.add_child(row)
 	var input=_line(row,"Message")
@@ -1217,7 +1353,14 @@ func _global_chat():
 	var start=max(0,messages.size()-50)
 	for i in range(start,messages.size()):
 		var m=messages[i]
-		content.add_child(RhythianUI.label("%s: %s" % [str(m.get("sender",{}).get("displayName",m.get("sender",{}).get("username","User"))),str(m.get("content",""))],14))
+		var message_row=RhythianUI.hbox(6)
+		content.add_child(message_row)
+		var sender=m.get("sender",{})
+		_profile_link(message_row,sender,_safe_user_name(sender)+":")
+		var body=RhythianUI.label(str(m.get("content","")),14,RhythianUI.C_WHITE)
+		body.autowrap=true
+		body.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+		message_row.add_child(body)
 	var row=RhythianUI.hbox(8)
 	content.add_child(row)
 	var input=_line(row,"Talk to everyone online")
