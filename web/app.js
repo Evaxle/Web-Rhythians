@@ -554,7 +554,15 @@ $("change-account").onclick=()=>{
   showLauncher("choice");
 };
 
-window.rhythiansRequestSignin=()=>showLauncher("choice");
+window.rhythiansRequestSignin=async()=>{
+  automaticSessionPromise=prepareAutomaticSession();
+  const automatic=await automaticSessionPromise.catch(()=>null);
+  if(automatic){
+    await applySession(automatic).catch(error=>status(error.message));
+    return;
+  }
+  showLauncher("choice");
+};
 window.rhythiansAuthChanged=async text=>{
   try{
     const state=JSON.parse(text);
