@@ -452,7 +452,7 @@ func make_song_button(id:int=-1):
 	info.anchor_top=1.0
 	info.anchor_bottom=1.0
 	info.margin_left=12
-	info.margin_right=-104
+	info.margin_right=-90
 	info.margin_top=-25
 	info.margin_bottom=-4
 	info.clip_text=true
@@ -465,15 +465,15 @@ func make_song_button(id:int=-1):
 	status.name="RhythianStatus"
 	status.flat=false
 	status.focus_mode=Control.FOCUS_NONE
-	status.rect_min_size=Vector2(82,46)
+	status.rect_min_size=Vector2(70,38)
 	status.anchor_left=1.0
 	status.anchor_right=1.0
 	status.anchor_top=0.5
 	status.anchor_bottom=0.5
-	status.margin_left=-94
-	status.margin_right=-12
-	status.margin_top=-23
-	status.margin_bottom=23
+	status.margin_left=-80
+	status.margin_right=-10
+	status.margin_top=-19
+	status.margin_bottom=19
 	status.mouse_default_cursor_shape=Control.CURSOR_POINTING_HAND
 	status.hint_tooltip=("On Rhythians · "+Rhythian.get_rankability_label(metadata)+" · "+Rhythian.get_map_pass_label(metadata)) if linked else "Not found or not checked on Rhythians. Tap to check this map."
 	status.mouse_filter=Control.MOUSE_FILTER_IGNORE if linked else Control.MOUSE_FILTER_STOP
@@ -482,8 +482,8 @@ func make_song_button(id:int=-1):
 	var ic=TextureRect.new()
 	ic.name="RhythianIcon"
 	ic.texture=RHYTHIAN_ICON
-	ic.rect_position=Vector2(8,9)
-	ic.rect_size=Vector2(28,28)
+	ic.rect_position=Vector2(7,7)
+	ic.rect_size=Vector2(24,24)
 	ic.expand=true
 	ic.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -491,8 +491,8 @@ func make_song_button(id:int=-1):
 
 	var state_panel=Panel.new()
 	state_panel.name="State"
-	state_panel.rect_position=Vector2(44,8)
-	state_panel.rect_size=Vector2(30,30)
+	state_panel.rect_position=Vector2(39,7)
+	state_panel.rect_size=Vector2(24,24)
 	state_panel.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	status.add_child(state_panel)
 
@@ -503,7 +503,7 @@ func make_song_button(id:int=-1):
 	mark.align=Label.ALIGN_CENTER
 	mark.valign=Label.VALIGN_CENTER
 	mark.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	mark.add_font_override("font",RhythianUI.font(17,1))
+	mark.add_font_override("font",RhythianUI.font(14,1))
 	state_panel.add_child(mark)
 	_set_rhythian_badge_state(status,"linked" if linked else "missing")
 	if not linked:
