@@ -95,11 +95,16 @@ setInterval(()=>window.rhythiansPersistUserData().catch(()=>{}),10000);
     </div>
   </div>
   <div id="game-toast" role="status" aria-live="polite" hidden></div>
+  <div id="mobile-orientation-hint" aria-live="polite">Rotate to landscape for the largest gameplay area.</div>
 </section>
 
 <div id="drop" hidden>Drop SSPM files to import them into Rhythians</div>
 <script src="$GODOT_URL"></script>
-<script>window.gameEngine=new Engine($GODOT_CONFIG);</script>
+<script>
+const rhythiansGodotConfig=$GODOT_CONFIG;
+rhythiansGodotConfig.canvasResizePolicy=2;
+window.gameEngine=new Engine(rhythiansGodotConfig);
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
