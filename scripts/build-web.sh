@@ -315,7 +315,8 @@ fi
 
 run_smoke /tmp/smoke.log "$GODOT_BIN" --path . web/tests/Smoke.tscn
 
-cp web/app.js web/app.css web/sspm.mjs web/rhythians-client.png web/manifest.webmanifest build/web/
+cp web/app.js web/app.css web/sspm.mjs web/rhythians-client.png web/manifest.webmanifest web/404.html build/web/
+touch build/web/.nojekyll
 
 require_file() {
   if [ ! -s "$1" ]; then
@@ -346,6 +347,8 @@ reject_text_tree() {
 require_file build/web/index.html
 require_file build/web/index.wasm
 require_file build/web/index.pck
+require_file build/web/404.html
+require_file build/web/.nojekyll
 echo "Largest imported browser resources:"
 find .import -type f -printf '%s %p\n' 2>/dev/null | sort -nr | sed -n '1,25p' || true
 echo "Web export sizes:"
