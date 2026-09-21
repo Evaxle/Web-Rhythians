@@ -316,7 +316,7 @@ fi
 run_smoke /tmp/smoke.log "$GODOT_BIN" --path . web/tests/Smoke.tscn
 
 cp web/app.js web/app.css web/sspm.mjs web/rhythians-client.png web/manifest.webmanifest web/404.html build/web/
-touch build/web/.nojekyll
+printf '\n' > build/web/.nojekyll
 
 require_file() {
   if [ ! -s "$1" ]; then
