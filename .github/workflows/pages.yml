@@ -22,6 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Install Godot 3.6.1
         run: |
           curl -fsSL https://github.com/godotengine/godot-builds/releases/download/3.6.1-stable/Godot_v3.6.1-stable_linux_headless.64.zip -o /tmp/godot.zip
@@ -32,6 +37,13 @@ jobs:
           unzip -j -q /tmp/templates.tpz 'templates/webassembly*' -d "$HOME/.local/share/godot/templates/3.6.1.stable"
       - name: Build and test WebAssembly client
         run: bash scripts/build-web.sh
+      - name: Validate Pages output
+        run: |
+          test -s build/web/index.html
+          test -s build/web/index.wasm
+          test -s build/web/index.pck
+          test -s build/web/404.html
+          test -f build/web/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
@@ -44,8 +56,15 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/deploy-pages@v4
         id: deployment
+      - name: Verify deployed Pages site
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --location --max-time 30 "${{ steps.deployment.outputs.page_url }}" -o /tmp/rhythians-client.html; then
+              grep -Fq "Rhythians-Client" /tmp/rhythians-client.html
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
