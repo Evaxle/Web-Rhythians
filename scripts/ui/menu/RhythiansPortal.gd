@@ -521,10 +521,14 @@ func _maps():
 			details+=" · Passed"
 		var rewards=map.get("maxRewards",null)
 		if typeof(rewards)==TYPE_DICTIONARY:
-			details+=" · RPL +%d / RPS +%d / RPV +%d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0)),int(rewards.get("vr",0))]
+			if map_mode=="all":
+				details+=" · RPL +%d / RPS +%d / RPV +%d" % [int(rewards.get("lock",0)),int(rewards.get("spin",0)),int(rewards.get("vr",0))]
+			else:
+				details+=" · %s +%d max" % [Rhythian.get_mode_short(map_mode),int(rewards.get(map_mode,0))]
 		else:
 			details+=" · no rank points"
-		var card=RhythianUI.make_panel(12,16,Color("0b101d"))
+		var card_color=Color("0d1422") if bool(map.get("scoreEligible",false)) else Color("0b101d")
+		var card=RhythianUI.make_panel(12,16,card_color)
 		card.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 		card.rect_min_size=Vector2(0,330)
 		var row=RhythianUI.vbox(6)
@@ -547,8 +551,15 @@ func _maps():
 		downloaded_pill.visible=downloaded
 		state_row.add_child(downloaded_pill)
 		map_download_pills[id]=downloaded_pill
-		if bool(map.get("hasScore",false)) or (typeof(completion)==TYPE_DICTIONARY and bool(completion.get("passed",false))):
-			state_row.add_child(RhythianUI.pill("Scored",RhythianUI.C_ACCENT,true))
+		if bool(map.get("scoreEligible",false)):
+			state_row.add_child(RhythianUI.pill("Verified",RhythianUI.C_ACCENT2,true))
+		var scored=false
+		if map_mode=="all":
+			scored=bool(map.get("hasScore",false)) or (typeof(completion)==TYPE_DICTIONARY and bool(completion.get("passed",false)))
+		else:
+			scored=int(map.get("selectedModeScore",0))>0
+		if scored:
+			state_row.add_child(RhythianUI.pill(("Scored "+Rhythian.get_mode_short(map_mode)) if map_mode!="all" else "Scored",RhythianUI.C_ACCENT,true))
 		var progress=RhythianUI.progress_bar(RhythianUI.C_ACCENT,7)
 		progress.visible=Rhythian.downloading and Rhythian.dl_map_id==id
 		row.add_child(progress)
