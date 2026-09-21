@@ -42,6 +42,7 @@ var page_dirty:bool=true
 var api_cache:Dictionary={}
 var api_cache_time:Dictionary={}
 var last_connection_check_msec:int=0
+var account_scores_requested:bool=false
 
 func _ready():
 	Rhythian.base_url=BASE_URL
@@ -86,6 +87,8 @@ func _ready():
 	Rhythian.connect("download_progress",self,"_map_download_progress")
 	Rhythian.connect("map_downloaded",self,"_map_downloaded")
 	Rhythian.connect("connection_checked",self,"_connection_checked")
+	Rhythian.connect("scores_updated",self,"_scores_changed")
+	Rhythian.connect("score_submitted",self,"_client_score_submitted")
 	show_page("home",true)
 
 func _process(delta:float):
@@ -142,6 +145,7 @@ func _auth_changed():
 	map_page=0
 	map_search=""
 	map_mode="all"
+	account_scores_requested=false
 	profile_handle=""
 	chat_handle=""
 	search_query=""
@@ -159,6 +163,18 @@ func _maps_changed(_success:bool,_message:String):
 		return
 	if selected_page=="maps":
 		show_page("maps",true)
+
+func _scores_changed(_success:bool,_message:String):
+	if visible and selected_page=="account":
+		show_page("account",true)
+
+func _client_score_submitted(success:bool,message:String):
+	if success:
+		Rhythian.call_deferred("fetch_profile")
+		if visible and selected_page=="account":
+			status.text="Score saved to your Rhythians profile." if message!="already" else "This score was already saved."
+	elif visible:
+		status.text="Score upload queued. It will retry automatically."
 
 func _battle_state_changed(_data):
 	if visible and selected_page=="battles":
@@ -403,7 +419,7 @@ func _maps():
 		["vr","RPV / VR",int(totals.get("rpv",0)),"RPV"]
 	]
 	for item in tab_data:
-		var tab_rank=Rhythian.get_rank_info(int(item[2]))
+		var tab_rank=Rhythian.get_rank_info(int(item[2])) if item[0]=="all" else Rhythian.get_mode_rank_info(int(item[2]),str(item[0]))
 		var label="%s\n%s · %d %s" % [item[1],_rank_label(tab_rank),int(item[2]),item[3]]
 		var button=RhythianUI.accent_button(label,true) if map_mode==item[0] else RhythianUI.ghost_button(label)
 		button.size_flags_horizontal=Control.SIZE_EXPAND_FILL
@@ -411,7 +427,7 @@ func _maps():
 		tab_grid.add_child(button)
 		button.connect("pressed",self,"_set_map_mode",[item[0]])
 	var active_points=_map_mode_points()
-	var active_rank=Rhythian.get_rank_info(active_points)
+	var active_rank=Rhythian.get_rank_info(active_points) if map_mode=="all" else Rhythian.get_mode_rank_info(active_points,map_mode)
 	var point_name="RHP" if map_mode=="all" else ("RPL" if map_mode=="lock" else ("RPS" if map_mode=="spin" else "RPV"))
 	var banner=_panel("Current %s rank" % ("All Maps" if map_mode=="all" else point_name),"%s · %d %s" % [_rank_label(active_rank),active_points,point_name])
 	var rank_row=RhythianUI.hbox(10)
@@ -438,12 +454,12 @@ func _maps():
 		var clear=_button(search_row,"Clear")
 		clear.connect("pressed",self,"_clear_map_search")
 	var page_size=40
-	var requested_rank=-1 if map_mode=="all" else int(active_rank.get("index",0))
+	var requested_rank=-1
 	var requested_offset=map_page*page_size
-	var page_mismatch=Rhythian.maps_loaded_offset!=requested_offset or Rhythian.maps_loaded_query!=map_search or Rhythian.maps_loaded_rank_index!=requested_rank
+	var page_mismatch=Rhythian.maps_loaded_offset!=requested_offset or Rhythian.maps_loaded_query!=map_search or Rhythian.maps_loaded_mode!=map_mode
 	if not Rhythian.maps_page_loaded or page_mismatch:
 		if not Rhythian.catalog_loading:
-			Rhythian.call_deferred("fetch_maps_page",requested_offset,map_search,requested_rank)
+			Rhythian.call_deferred("fetch_maps_page",requested_offset,map_search,requested_rank,map_mode)
 		_panel("Map catalog",Rhythian.maps_error if Rhythian.maps_error!="" else "Loading maps for this catalog page…")
 		return
 	if Rhythian.maps_error!="" and Rhythian.maps_cache.empty():
@@ -598,7 +614,8 @@ func _map_sort_before(a,b) -> bool:
 
 func _filtered_maps() -> Array:
 	var q=map_search.to_lower()
-	var target_rank=int(Rhythian.get_rank_info(_map_mode_points()).get("index",0))
+	var target_info=Rhythian.get_rank_info(_map_mode_points()) if map_mode=="all" else Rhythian.get_mode_rank_info(_map_mode_points(),map_mode)
+	var target_rank=int(target_info.get("index",0))
 	map_sort_target_rank=target_rank
 	var filtered=[]
 	for map in Rhythian.maps_cache:
@@ -773,8 +790,7 @@ func _refresh_maps():
 		status.text="The current map catalog is already refreshing."
 		return
 	status.text="Refreshing this Rhythians catalog page…"
-	var rank_index=-1 if map_mode=="all" else int(Rhythian.get_rank_info(_map_mode_points()).get("index",0))
-	Rhythian.fetch_maps_page(map_page*40,map_search,rank_index)
+	Rhythian.fetch_maps_page(map_page*40,map_search,-1,map_mode)
 
 func _challenge_name(value:String) -> String:
 	match value:
@@ -995,7 +1011,9 @@ func _leaderboards():
 			var profile_btn=_profile_link(line,entry,"#%d  %s" % [i+1,name])
 			profile_btn.size_flags_horizontal=Control.SIZE_EXPAND_FILL
 			profile_btn.align=Button.ALIGN_LEFT
-			line.add_child(RhythianUI.label("%d pts" % int(entry.get("points",0)),13,RhythianUI.C_MUTED,1))
+			var mode_points=int(entry.get("points",0))
+			var mode_rank=Rhythian.get_mode_rank_info(mode_points,mode_name)
+			line.add_child(RhythianUI.label("%s · %d %s" % [_rank_label(mode_rank),mode_points,Rhythian.get_mode_short(mode_name)],13,RhythianUI.C_MUTED,1))
 func _battles():
 	title_label.text="Battles"
 	if not Rhythian.logged_in:
@@ -1436,17 +1454,113 @@ func _account():
 		var login=_button(panel,"Sign in",true)
 		login.connect("pressed",self,"_login")
 		return
-	var panel=_panel(Rhythian.username,"%d RHP · browser account connected" % int(Rhythian.profile.get("rhp",0)))
+
+	if not account_scores_requested:
+		account_scores_requested=true
+		Rhythian.call_deferred("fetch_scores")
+
+	var grid=GridContainer.new()
+	grid.columns=1 if _responsive_width()<900 else 2
+	grid.add_constant_override("hseparation",12)
+	grid.add_constant_override("vseparation",12)
+	grid.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	content.add_child(grid)
+
+	var account_card=RhythianUI.make_panel(18,18,Color("0b101d"))
+	account_card.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var panel=RhythianUI.vbox(10)
+	account_card.add_child(panel)
+	grid.add_child(account_card)
+
+	panel.add_child(RhythianUI.tracking_label("LINKED ACCOUNT",11,RhythianUI.C_ACCENT))
+	panel.add_child(RhythianUI.label(Rhythian.username,22,RhythianUI.C_WHITE,1))
+	var main_rank=Rhythian.get_rank_info(int(Rhythian.profile.get("rhp",0)))
+	panel.add_child(RhythianUI.label("%s · %d RHP" % [_rank_label(main_rank),int(Rhythian.profile.get("rhp",0))],14,main_rank.get("color",RhythianUI.C_MUTED),1))
+
+	var linked=Rhythian.profile.get("linkedRhythia",{})
+	if typeof(linked)==TYPE_DICTIONARY and not linked.empty():
+		panel.add_child(RhythianUI.hline())
+		var linked_name=str(linked.get("username","Rhythia account"))
+		var linked_id=str(linked.get("profileId",""))
+		var linked_line="Rhythia: "+linked_name
+		if linked_id!="":
+			linked_line+=" · ID "+linked_id
+		panel.add_child(RhythianUI.label(linked_line,13,RhythianUI.C_MUTED))
+		panel.add_child(RhythianUI.label("Online" if bool(linked.get("isOnline",false)) else "Offline",12,RhythianUI.C_ACCENT2 if bool(linked.get("isOnline",false)) else RhythianUI.C_MUTED))
+
 	var modes=_mode_totals()
-	panel.add_child(RhythianUI.label("RPL %d · RPS %d · RPV %d" % [modes["rpl"],modes["rps"],modes["rpv"]],14,RhythianUI.C_MUTED))
+	var mode_grid=GridContainer.new()
+	mode_grid.columns=1 if _responsive_width()<620 else 3
+	mode_grid.add_constant_override("hseparation",6)
+	mode_grid.add_constant_override("vseparation",6)
+	panel.add_child(mode_grid)
+	for item in [["lock","RPL",modes["rpl"]],["spin","RPS",modes["rps"]],["vr","RPV",modes["rpv"]]]:
+		var mode_rank=Rhythian.get_mode_rank_info(int(item[2]),str(item[0]))
+		var mode_box=RhythianUI.make_panel(8,10,Color("090e18"))
+		var mode_inner=RhythianUI.vbox(2)
+		mode_box.add_child(mode_inner)
+		mode_inner.add_child(RhythianUI.label(str(item[1])+" · "+_rank_label(mode_rank),11,mode_rank.get("color",RhythianUI.C_MUTED),1))
+		mode_inner.add_child(RhythianUI.label(str(int(item[2]))+" "+str(item[1]),14,RhythianUI.C_WHITE,1))
+		mode_grid.add_child(mode_box)
+
 	var row=RhythianUI.hbox(8)
 	panel.add_child(row)
 	var refresh=_button(row,"Refresh account")
-	refresh.connect("pressed",Rhythian,"fetch_profile")
+	refresh.connect("pressed",self,"_refresh_account")
 	var profile=_button(row,"Open profile",true)
 	profile.connect("pressed",self,"open_profile_handle",[Rhythian.username])
 	var logout=_button(row,"Log out")
 	logout.connect("pressed",Rhythian,"logout")
+
+	var scores_card=RhythianUI.make_panel(18,18,Color("0b101d"))
+	scores_card.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+	var scores_box=RhythianUI.vbox(8)
+	scores_card.add_child(scores_box)
+	grid.add_child(scores_card)
+	var score_head=RhythianUI.hbox(8)
+	scores_box.add_child(score_head)
+	var score_title=RhythianUI.vbox(2)
+	score_head.add_child(score_title)
+	score_title.add_child(RhythianUI.tracking_label("RHYTHIANS CLIENT",11,RhythianUI.C_ACCENT2))
+	score_title.add_child(RhythianUI.label("Recent scores",20,RhythianUI.C_WHITE,1))
+	score_head.add_child(RhythianUI.spacer())
+	var refresh_scores=_button(score_head,"Refresh")
+	refresh_scores.connect("pressed",self,"_refresh_client_scores")
+
+	if Rhythian.scores_cache.empty():
+		scores_box.add_child(RhythianUI.label("No Rhythians Client scores recorded yet." if Rhythian.scores_error=="" else Rhythian.scores_error,13,RhythianUI.C_MUTED))
+	else:
+		for i in range(min(8,Rhythian.scores_cache.size())):
+			var score=Rhythian.scores_cache[i]
+			if typeof(score)!=TYPE_DICTIONARY:
+				continue
+			var mode_name=str(score.get("cameraMode","lock"))
+			var short=Rhythian.get_mode_short(mode_name)
+			var score_panel=RhythianUI.make_panel(8,10,Color("090e18"))
+			var score_inner=RhythianUI.vbox(2)
+			score_panel.add_child(score_inner)
+			var score_row=RhythianUI.hbox(6)
+			score_inner.add_child(score_row)
+			var score_name=RhythianUI.label(str(score.get("title","Unknown map")),13,RhythianUI.C_WHITE,1)
+			score_name.size_flags_horizontal=Control.SIZE_EXPAND_FILL
+			score_name.clip_text=true
+			score_row.add_child(score_name)
+			var points=int(score.get("points",0))
+			score_row.add_child(RhythianUI.label((str(points)+" "+short) if points>0 else "Recorded",12,RhythianUI.C_ACCENT,1))
+			var submitted=str(score.get("submittedAt","")).replace("T"," ").replace("Z","")
+			if submitted.length()>19:
+				submitted=submitted.substr(0,19)
+			score_inner.add_child(RhythianUI.label("%.2f%% · %d misses · %.2fx · %s" % [float(score.get("accuracy",0.0)),int(score.get("misses",0)),float(score.get("speed",1.0)),submitted],11,RhythianUI.C_MUTED))
+			scores_box.add_child(score_panel)
+
+func _refresh_account():
+	account_scores_requested=true
+	Rhythian.fetch_profile()
+	Rhythian.fetch_scores()
+
+func _refresh_client_scores():
+	account_scores_requested=true
+	Rhythian.fetch_scores()
 func _login():
 	if OS.has_feature("HTML5"):
 		WebPortal.request_signin()
