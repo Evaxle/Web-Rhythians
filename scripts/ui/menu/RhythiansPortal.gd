@@ -383,10 +383,11 @@ func _home():
 	var totals=_mode_totals()
 	var points=RhythianUI.hbox(22)
 	score.add_child(points)
-	points.add_child(RhythianUI.label("RPL %d" % totals["rpl"],18,RhythianUI.C_WHITE,1))
-	points.add_child(RhythianUI.label("RPS %d" % totals["rps"],18,RhythianUI.C_WHITE,1))
-	points.add_child(RhythianUI.label("RPV %d" % totals["rpv"],18,RhythianUI.C_WHITE,1))
-	points.add_child(RhythianUI.label("RHP %d" % int(Rhythian.profile.get("rhp",0)),18,RhythianUI.C_WHITE,1))
+	for item in [["lock","RPL",totals["rpl"]],["spin","RPS",totals["rps"]],["vr","RPV",totals["rpv"]]]:
+		var info=Rhythian.get_mode_rank_info(int(item[2]),str(item[0]))
+		points.add_child(RhythianUI.label("%s %d\n%s" % [str(item[1]),int(item[2]),_rank_label(info)],15,info.get("color",RhythianUI.C_WHITE),1))
+	var overall=Rhythian.get_rank_info(int(Rhythian.profile.get("rhp",0)))
+	points.add_child(RhythianUI.label("RHP %d\n%s" % [int(Rhythian.profile.get("rhp",0)),_rank_label(overall)],15,overall.get("color",RhythianUI.C_WHITE),1))
 	var actions=_panel("Quick actions")
 	var ar=RhythianUI.hbox(10)
 	actions.add_child(ar)
@@ -1251,11 +1252,15 @@ func _profile(handle:String):
 		stats.add_child(stat)
 
 	var modes=p.get("modes",{})
+	var mode_ranks=p.get("modeRanks",{})
 	var mode_row=RhythianUI.hbox(8)
 	main.add_child(mode_row)
-	mode_row.add_child(RhythianUI.pill("RPL %d" % int(modes.get("rpl",0)),RhythianUI.C_ACCENT,true))
-	mode_row.add_child(RhythianUI.pill("RPS %d" % int(modes.get("rps",0)),RhythianUI.C_ACCENT2,true))
-	mode_row.add_child(RhythianUI.pill("RPV %d" % int(modes.get("rpv",0)),Color("b58cff"),true))
+	for item in [["lock","rpl","RPL"],["spin","rps","RPS"],["vr","rpv","RPV"]]:
+		var points=int(modes.get(item[1],0))
+		var info=mode_ranks.get(item[0],{}) if typeof(mode_ranks)==TYPE_DICTIONARY else {}
+		if typeof(info)!=TYPE_DICTIONARY or info.empty():
+			info=Rhythian.get_mode_rank_info(points,str(item[0]))
+		mode_row.add_child(RhythianUI.pill("%s %d · %s" % [str(item[2]),points,_rank_label(info)],info.get("color",RhythianUI.C_ACCENT),true))
 
 	var tags=p.get("tags",[])
 	if typeof(tags)==TYPE_ARRAY and not tags.empty():
