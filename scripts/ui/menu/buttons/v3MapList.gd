@@ -365,11 +365,11 @@ func _set_rhythian_badge_state(status:Button,state:String):
 		color=Color(1.0,0.78,0.28)
 		bg=Color(0.20,0.15,0.04,0.96)
 		mark_text="…"
-	status.add_stylebox_override("normal",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
-	status.add_stylebox_override("hover",_rhythian_badge_box(color,Color(0.075,0.095,0.15,0.98)))
-	status.add_stylebox_override("pressed",_rhythian_badge_box(color,Color(0.035,0.05,0.085,1.0)))
-	status.add_stylebox_override("disabled",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
-	status.add_stylebox_override("focus",_rhythian_badge_box(color,Color(0.055,0.07,0.11,0.96)))
+	status.add_stylebox_override("normal",_rhythian_badge_box(Color(0,0,0,0),Color(0,0,0,0),12))
+	status.add_stylebox_override("hover",_rhythian_badge_box(Color(1,1,1,0.16),Color(1,1,1,0.045),12))
+	status.add_stylebox_override("pressed",_rhythian_badge_box(Color(1,1,1,0.2),Color(1,1,1,0.07),12))
+	status.add_stylebox_override("disabled",_rhythian_badge_box(Color(0,0,0,0),Color(0,0,0,0),12))
+	status.add_stylebox_override("focus",_rhythian_badge_box(Color(0,0,0,0),Color(0,0,0,0),12))
 	var state_panel=status.get_node_or_null("State")
 	if state_panel!=null:
 		state_panel.add_stylebox_override("panel",_rhythian_badge_box(color,bg,9))
@@ -418,15 +418,24 @@ func make_song_button(id:int=-1):
 		Globals.DIFF_AMOGUS: btn = $AMOGUS.duplicate()
 		_: btn = $NODIF.duplicate()
 	btn.rect_min_size = Vector2(size_x - 50, 0)
+	btn.rect_clip_content = true
 	btn.get_node("Label").visible = false
 	if map.has_cover:
 		btn.get_node("Cover").visible = true
 		btn.get_node("Cover").texture = map.cover
-	btn.get_node("Name").visible = true
+	var name_label:Label = btn.get_node("Name")
+	name_label.visible = true
+	name_label.margin_left = 14
+	name_label.margin_top = 8
+	name_label.margin_right = -66
+	name_label.margin_bottom = -28
+	name_label.valign = Label.VALIGN_CENTER
+	name_label.clip_text = true
+	name_label.add_font_override("font",RhythianUI.font(15,1))
 	if map.name.length() > 55:
-		btn.get_node("Name").text = strip_diacritics(map.name)
+		name_label.text = strip_diacritics(map.name)
 	else:
-		btn.get_node("Name").text = map.name
+		name_label.text = map.name
 	btn.song = map
 	if map.warning != "" || map.is_broken:
 		if map.is_broken: btn.get_node("Name").modulate = Color(1,0.4,0.4)
@@ -451,29 +460,29 @@ func make_song_button(id:int=-1):
 	info.anchor_right=1.0
 	info.anchor_top=1.0
 	info.anchor_bottom=1.0
-	info.margin_left=12
-	info.margin_right=-72
-	info.margin_top=-25
-	info.margin_bottom=-4
+	info.margin_left=14
+	info.margin_right=-66
+	info.margin_top=-27
+	info.margin_bottom=-7
 	info.clip_text=true
 	info.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	info.add_font_override("font",RhythianUI.font(11))
-	info.add_color_override("font_color",Color(0.88,0.91,0.98) if linked else Color(0.95,0.66,0.68))
+	info.add_font_override("font",RhythianUI.font(10))
+	info.add_color_override("font_color",Color(0.84,0.87,0.94) if linked else Color(1.0,0.64,0.68))
 	btn.add_child(info)
 
 	var status=Button.new()
 	status.name="RhythianStatus"
 	status.flat=false
 	status.focus_mode=Control.FOCUS_NONE
-	status.rect_min_size=Vector2(54,42)
+	status.rect_min_size=Vector2(48,48)
 	status.anchor_left=1.0
 	status.anchor_right=1.0
-	status.anchor_top=0.5
-	status.anchor_bottom=0.5
-	status.margin_left=-64
+	status.anchor_top=0.0
+	status.anchor_bottom=0.0
+	status.margin_left=-58
 	status.margin_right=-10
-	status.margin_top=-21
-	status.margin_bottom=21
+	status.margin_top=21
+	status.margin_bottom=69
 	status.mouse_default_cursor_shape=Control.CURSOR_POINTING_HAND
 	status.hint_tooltip=("On Rhythians · "+Rhythian.get_rankability_label(metadata)+" · "+Rhythian.get_map_pass_label(metadata)) if linked else "Not found or not checked on Rhythians. Tap to check this map."
 	status.mouse_filter=Control.MOUSE_FILTER_IGNORE if linked else Control.MOUSE_FILTER_STOP
@@ -482,8 +491,8 @@ func make_song_button(id:int=-1):
 	var ic=TextureRect.new()
 	ic.name="RhythianIcon"
 	ic.texture=RHYTHIAN_ICON
-	ic.rect_position=Vector2(8,5)
-	ic.rect_size=Vector2(32,32)
+	ic.rect_position=Vector2(7,7)
+	ic.rect_size=Vector2(28,28)
 	ic.expand=true
 	ic.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -491,7 +500,7 @@ func make_song_button(id:int=-1):
 
 	var state_panel=Panel.new()
 	state_panel.name="State"
-	state_panel.rect_position=Vector2(31,22)
+	state_panel.rect_position=Vector2(28,25)
 	state_panel.rect_size=Vector2(18,18)
 	state_panel.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	status.add_child(state_panel)
