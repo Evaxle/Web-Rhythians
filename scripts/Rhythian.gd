@@ -39,6 +39,9 @@ var maps_total:int = 0
 var maps_loaded_offset:int = 0
 var maps_loaded_query:String = ""
 var maps_loaded_rank_index:int = -1
+var maps_loaded_mode:String = "all"
+var maps_catalog_rank:Dictionary = {}
+var maps_catalog_points = null
 var maps_page_loaded:bool = false
 var maps_page_limit:int = 40
 var scores_cache:Array = []
@@ -72,15 +75,16 @@ var dl_progress_accum:float = 0.0
 
 const RANKS = [
 	{"name":"Copper","minRhp":0,"color":"#b87333","rangeMin":0.0,"rangeMax":2.49},
-	{"name":"Bronze","minRhp":600,"color":"#cd7f32","rangeMin":2.5,"rangeMax":3.19},
-	{"name":"Silver","minRhp":1600,"color":"#c0c0c0","rangeMin":3.2,"rangeMax":3.69},
-	{"name":"Gold","minRhp":3100,"color":"#ffd700","rangeMin":3.7,"rangeMax":4.19},
-	{"name":"Platinum","minRhp":5150,"color":"#7fd4ff","rangeMin":4.2,"rangeMax":4.69},
-	{"name":"Emerald","minRhp":7850,"color":"#50c878","rangeMin":4.7,"rangeMax":5.19},
-	{"name":"Diamond","minRhp":11300,"color":"#b9f2ff","rangeMin":5.2,"rangeMax":5.69},
-	{"name":"Master","minRhp":15550,"color":"#a855f7","rangeMin":5.7,"rangeMax":6.19},
-	{"name":"Expert","minRhp":20750,"color":"#f43f5e","rangeMin":6.2,"rangeMax":99.0},
+	{"name":"Bronze","minRhp":2500,"color":"#cd7f32","rangeMin":2.5,"rangeMax":3.19},
+	{"name":"Silver","minRhp":6500,"color":"#c0c0c0","rangeMin":3.2,"rangeMax":3.69},
+	{"name":"Gold","minRhp":12500,"color":"#ffd700","rangeMin":3.7,"rangeMax":4.19},
+	{"name":"Platinum","minRhp":21000,"color":"#7fd4ff","rangeMin":4.2,"rangeMax":4.69},
+	{"name":"Emerald","minRhp":32000,"color":"#50c878","rangeMin":4.7,"rangeMax":5.19},
+	{"name":"Diamond","minRhp":46000,"color":"#b9f2ff","rangeMin":5.2,"rangeMax":5.69},
+	{"name":"Master","minRhp":63000,"color":"#a855f7","rangeMin":5.7,"rangeMax":6.19},
+	{"name":"Expert","minRhp":84000,"color":"#f43f5e","rangeMin":6.2,"rangeMax":99.0},
 ]
+const MODE_RANK_SCALE = {"lock":0.85,"spin":0.995,"vr":0.87}
 const RANK_TIERS = 5
 const MAP_RHP_FLOOR = 18.0
 const MAP_RHP_CEILING = 25.0
@@ -515,9 +519,9 @@ func fetch_scores():
 		emit_signal("scores_updated", false, scores_error)
 
 func fetch_maps():
-	return fetch_maps_page(0,"",-1)
+	return fetch_maps_page(0,"",-1,"all")
 
-func fetch_maps_page(offset:int=0,query:String="",rank_index:int=-1):
+func fetch_maps_page(offset:int=0,query:String="",rank_index:int=-1,mode:String="all"):
 	if catalog_loading:
 		return
 	if not logged_in:
@@ -527,14 +531,18 @@ func fetch_maps_page(offset:int=0,query:String="",rank_index:int=-1):
 	catalog_loading = true
 	var safe_offset=max(0,offset)
 	var safe_rank=rank_index if rank_index>=0 and rank_index<RANKS.size() else -1
+	var safe_mode=mode if mode in ["lock","spin","vr"] else "all"
 	var path="/api/rhythkit/maps?limit="+str(maps_page_limit)+"&offset="+str(safe_offset)
 	if query.strip_edges()!="":
 		path+="&q="+query.strip_edges().http_escape()
-	if safe_rank>=0:
+	if safe_mode!="all":
+		path+="&mode="+safe_mode
+	elif safe_rank>=0:
 		path+="&rankIndex="+str(safe_rank)
 	maps_loaded_offset=safe_offset
 	maps_loaded_query=query.strip_edges()
 	maps_loaded_rank_index=safe_rank
+	maps_loaded_mode=safe_mode
 	maps_page_loaded=false
 	var res=yield(_api_request(HTTPClient.METHOD_GET,path,null,true,60.0),"completed")
 	catalog_loading=false
@@ -565,7 +573,10 @@ func fetch_maps_page(offset:int=0,query:String="",rank_index:int=-1):
 	maps_total=max(arr.size(),int(j.get("total",arr.size())))
 	maps_loaded_offset=int(j.get("offset",safe_offset))
 	maps_loaded_query=query.strip_edges()
-	maps_loaded_rank_index=safe_rank
+	maps_loaded_rank_index=int(j.get("catalogRank",{}).get("index",safe_rank)) if typeof(j.get("catalogRank",{}))==TYPE_DICTIONARY else safe_rank
+	maps_loaded_mode=str(j.get("catalogMode",safe_mode)) if j.get("catalogMode",null)!=null else safe_mode
+	maps_catalog_rank=j.get("catalogRank",{}).duplicate(true) if typeof(j.get("catalogRank",{}))==TYPE_DICTIONARY else {}
+	maps_catalog_points=j.get("catalogPoints",null)
 	maps_page_loaded=true
 	completions_embedded=_maps_have_embedded_completions(arr)
 	maps_error=""
@@ -1068,9 +1079,12 @@ func _submit_score(payload:Dictionary):
 			if profile.has("username"): username = str(profile["username"])
 			_save_auth()
 			emit_signal("profile_updated")
+		call_deferred("fetch_scores")
+		call_deferred("fetch_maps")
 		emit_signal("score_submitted", true, str(pts))
 		return
 	if res.get("code", 0) == 409:
+		call_deferred("fetch_scores")
 		emit_signal("score_submitted", true, "already")
 		return
 	_queue_score(payload)
@@ -1447,6 +1461,51 @@ func get_rank_info(rhp:int) -> Dictionary:
 		"color":Color(str(rank.color)),"progressToNextTier":progress,
 		"rangeMin":float(rank.rangeMin),"rangeMax":float(rank.rangeMax)
 	}
+
+func get_mode_rank_info(points:int,mode:String) -> Dictionary:
+	var safe=max(int(floor(points)),0)
+	var scale=float(MODE_RANK_SCALE.get(mode,1.0))
+	if scale<=0.0:
+		scale=1.0
+	var base=get_rank_info(int(floor(safe/scale)))
+	var out=base.duplicate(true)
+	if bool(base.get("isExpert",false)):
+		out["minRhp"]=int(round(float(base.get("minRhp",0))*scale))
+		out["tierStart"]=out["minRhp"]
+		out["tierEnd"]=2147483647
+		out["nextTierStart"]=out["minRhp"]
+		out["nextRankStart"]=null
+		out["maxRhp"]=null
+		out["progressToNextTier"]=1.0
+		return out
+	var tier_start=int(round(float(base.get("tierStart",0))*scale))
+	var tier_end=int(round(float(base.get("tierEnd",0))*scale))
+	var next_tier=int(round(float(base.get("nextTierStart",0))*scale))
+	out["minRhp"]=int(round(float(base.get("minRhp",0))*scale))
+	out["maxRhp"]=int(round(float(base.get("maxRhp",0))*scale))
+	out["tierStart"]=tier_start
+	out["tierEnd"]=tier_end
+	out["nextTierStart"]=next_tier
+	out["nextRankStart"]=int(round(float(base.get("nextRankStart",0))*scale)) if base.get("nextRankStart",null)!=null else null
+	out["progressToNextTier"]=clamp((safe-tier_start)/float(max(1,tier_end-tier_start)),0.0,1.0)
+	return out
+
+func get_mode_short(mode:String) -> String:
+	if mode=="spin":
+		return "RPS"
+	if mode=="vr":
+		return "RPV"
+	return "RPL"
+
+func get_mode_points(mode:String) -> int:
+	var modes=profile.get("modes",{})
+	if typeof(modes)!=TYPE_DICTIONARY:
+		return 0
+	if mode=="spin":
+		return int(modes.get("rps",0))
+	if mode=="vr":
+		return int(modes.get("rpv",0))
+	return int(modes.get("rpl",0))
 
 func is_map_in_rank_range(rating:float, rank_index:int) -> bool:
 	var idx = int(clamp(rank_index, 0, RANKS.size() - 1))
